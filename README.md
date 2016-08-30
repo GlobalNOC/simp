@@ -1,7 +1,8 @@
 # simp
-A small system for gathering large amounts of snmp data.  The pacakge contains both a collector and a data service interface.  A multi-process collector gathers SNMP data from a set of hosts and put that data into a local Redis database.  A set of data services then provides access to this data via RabbitMQ.
+A small system for gathering large amounts of snmp data.  The pacakge contains both a collector and a data service interface.  A multi-process collector gathers SNMP data from a set of hosts and put that data into a local Redis database.  A set of data services then provides access to this data via RabbitMQ.  Currently this code is PoC without proper init scripts etc, so the following is a bit... rustic.
 
 ##running the collector:
+For now, you should have redis and rabbitmq installed locally and running.
 ```
 ./simp.pl --config /home/ebalas/config.xml --logging ../logging.conf
 ```
@@ -19,3 +20,16 @@ The config file controls collection interval, and the number of workers to use, 
   </group>
 </config>
 ```
+##running the data service:
+```
+./simpData.pl --config ../simpDataConfig.xml --logging ../logging.conf 
+```
+The config is similar to that used by the poller with less details required.
+```
+<config workers="3" >
+ <redis host="127.0.0.1" port="6379"/>
+ <rabbitMQ host="127.0.0.1" port="5672"/>
+</config>
+```
+##Testing
+Currently there are not unit tests.  To stress test some there is a script called *genTestData.pl* and a *testClient.pl*
