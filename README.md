@@ -32,4 +32,4 @@ The config is similar to that used by the poller with less details required.
 </config>
 ```
 ##Testing
-Currently there are not unit tests.  To stress test some there is a script called *genTestData.pl* and a *testClient.pl*
+Currently there are no unit tests.  To stress test some there are scripts in *bin* called *genTestData.pl* and *testClient.pl* 
