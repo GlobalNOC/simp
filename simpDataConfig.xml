@@ -1,0 +1,4 @@
+<config workers="3" >
+ <redis host="127.0.0.1" port="6379"/>
+ <rabbitMQ host="127.0.0.1" port="5672" user="guest" password="guest"/>
+</config>
