@@ -1,4 +1,9 @@
 package GRNOC::Simp::Poller::Worker;
+#my $worker = GRNOC::Simp::Poller::Worker->new( worker_name => "$name-$worker_id",
+#						config      => $config,
+#                                               oids        => $oids,
+#                                               hosts       => $hosts{$worker_id},
+#                                               logger      => $self->logger);
 
 use strict;
 use Data::Dumper;
@@ -8,14 +13,25 @@ use Net::SNMP;
 
 ### required attributes ###
 
-has config => ( is => 'ro',
+has worker_name => ( is => 'ro',
                 required => 1 );
+
+has config      => ( is => 'ro',
+               required => 1 );
+
 
 has logger => ( is => 'ro',
                 required => 1 );
 
-has worker_id => ( is => 'ro',
+has hosts => ( is => 'ro',
                required => 1 );
+
+has oids => ( is => 'ro',
+               required => 1 );
+
+has poll_interval => ( is => 'ro',
+               required => 1 );
+
 
 ### internal attributes ###
 
@@ -31,7 +47,7 @@ sub start {
 
     my ( $self ) = @_;
 
-    my $worker_id = $self->worker_id;
+    my $worker_name = $self->worker_name;
 
     $self->logger->debug( "Starting." );
 
@@ -39,7 +55,7 @@ sub start {
     $self->_set_is_running( 1 );
 
     # change our process name
-    $0 = "simp_poller ($worker_id) [worker]";
+    $0 = "simp($worker_name)";
 
     # setup signal handlers
     $SIG{'TERM'} = sub {
@@ -105,23 +121,22 @@ sub _poll_callback{
   my $timestamp = time;
 
   for my $oid (keys %$data){
-    $redis->hset($oid,$host->{'ip'},$data->{$oid});
+    $redis->hset($oid,$host->{'ip'},$data->{$oid},sub {});
   }
-  $redis->hset("ts",$host->{'ip'},$timestamp);
+  $redis->hset("ts",$host->{'ip'},$timestamp,sub {});
 
   $last_seen->{$host->{'ip'}} = $timestamp;
+
 }
 
 sub _poll_loop {
 
   my ( $self ) = @_;
 
-  my $poll_interval = $self->config->get('/config/@poll_interval');
-  my $hosts         = $self->config->get('/config/group/host');
-  my $oids          = $self->config->get('/config/group/mib/@oid');
-  my $workers       = $self->config->get( '/config/@workers' );
+  my $poll_interval = $self->poll_interval;
+  my $hosts         = $self->hosts;
+  my $oids          = $self->oids;
 
-  my $worker_id     = $self->worker_id;
   # each worker looks at every Nth host entry in the config
   # where N is the worker_id
   my @target_hosts;
@@ -129,10 +144,8 @@ sub _poll_loop {
   my $size = scalar @{ $hosts} ;
   
   my %last_seen;
-
-  for(my $i=$worker_id; $i < $size; $i+=$workers){
   
-     my $host = $hosts->[$i];
+  foreach my $host(@{$self->hosts}){
       
      # build the SNMP object for each host of interest
      my ($snmp, $error) = Net::SNMP->session(
@@ -148,7 +161,7 @@ sub _poll_loop {
       my $ip = $host->{'ip'};
       $last_seen{$ip} = time;   
 
-      $self->logger->debug("wkr $worker_id assigned host $ip : $i of $size");
+      $self->logger->debug($self->worker_name . " assigned host $ip ");
       push(@target_hosts,$host);
   }
 
@@ -156,7 +169,7 @@ sub _poll_loop {
     my $timestamp = time;
     my $waketime = $timestamp + $poll_interval;
 
-    $self->logger->debug( "wkr $worker_id start poll cycle" ); 
+    $self->logger->debug($self->worker_name. " start poll cycle" ); 
     for my $host (@target_hosts){ 
       for my $oid (@$oids){
         #--- iterate through the the provided set of base OIDs to collect
@@ -175,7 +188,7 @@ sub _poll_loop {
       my $lastup = $last_seen{$ip};
       if($lastup < time - (2 *$poll_interval)){
         #--- no response in last poll cycle 
-        $self->logger->warn("wkr $worker_id no data from $ip in 3 poll cycles");
+        $self->logger->warn($self->worker_name. " no data from $ip in 3 poll cycles");
         delete $last_seen{$ip};
       }
 

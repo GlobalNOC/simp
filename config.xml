@@ -1,9 +1,18 @@
-<config workers="1" poll_interval="10">
+<config>
  <redis host="127.0.0.1" port="6379"/>
-  <group>
+
+  <group name="group-a" active="1" workers="2" poll_interval="120">
     <mib oid="1.3.6.1.2.1.2.2.1"/>
     <mib oid="1.3.6.1.2.1.1.3"/>
     <host ip="10.13.1.2" community="easyecaneat"/>
     <host ip="10.13.1.1" community="abigfaaat"/> 
   </group>
+
+  <group name="group-b" active="0" workers="2" poll_interval="60">
+    <mib oid="1.3.6.1.2.1.2.2.1"/>
+    <mib oid="1.3.6.1.2.1.1.3"/>
+    <host ip="10.13.2.2" community="easyecaneat"/>
+    <host ip="10.13.2.1" community="abigfaaat"/> 
+  </group>
+
 </config>
