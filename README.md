@@ -29,7 +29,7 @@ The config file controls collection interval, and the number of workers to use, 
   </group>
 
 </config>
-'''
+```
 
 ##running the data service:
 ```
