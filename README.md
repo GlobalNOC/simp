@@ -10,16 +10,27 @@ For now, you should have redis and rabbitmq installed locally and running.
 The config file controls collection interval, and the number of workers to use, what to collect and from whom.
 
 ```
-<config workers="1" poll_interval="10">
+<config>
  <redis host="127.0.0.1" port="6379"/>
-  <group>
+  
+  <group name="group-a" active="1" workers="2" poll_interval="60">
     <mib oid="1.3.6.1.2.1.2.2.1"/>
     <mib oid="1.3.6.1.2.1.1.3"/>
-    <host ip="10.13.1.2" community="easyecaneat"/>
-    <host ip="10.13.1.1" community="abigfaaat"/> 
+    <host ip="10.0.2.1" community="come on"/>
+    <host ip="10.0.2.2" community="farva"/>
+    <host ip="10.0.2.3" community="man"/>
   </group>
+
+  <group name="group-b" active="0" workers="1" poll_interval="120">
+    <mib oid="1.3.6.1.2.1.2.2.1"/>
+    <mib oid="1.3.6.1.2.1.1.3"/>
+    <host ip="10.0.1.1" community="same"/>
+    <host ip="10.0.1.2" community="team"/>
+  </group>
+
 </config>
-```
+'''
+
 ##running the data service:
 ```
 ./simpData.pl --config ../simpDataConfig.xml --logging ../logging.conf 
