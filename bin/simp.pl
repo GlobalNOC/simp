@@ -1,4 +1,8 @@
 #!/usr/bin/perl -I ../lib 
+#--- SNMP data collector
+#---   config file is used to define which parts of mib tree to collect
+#---   the set of hosts do poll and how many processes to use to do so.
+#---   nodes are divided up amongst processes in simple 1 in N fassion. 
 use strict;
 use warnings;
 
