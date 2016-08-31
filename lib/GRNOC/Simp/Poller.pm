@@ -2,6 +2,7 @@ package GRNOC::Simp::Poller;
 
 use strict;
 use warnings;
+use Data::Dumper;
 use Moo;
 use Types::Standard qw( Str Bool );
 
@@ -128,38 +129,67 @@ sub _create_workers {
 
     my ( $self ) = @_;
 
-    my $workers = $self->config->get( '/config/@workers' );
 
-    $self->logger->info( "Creating $workers child worker processes." );
 
-    my $forker = Parallel::ForkManager->new( $workers );
+    #--- get the set of active groups 
+    my $groups  = $self->config->get( "/config/group" );
 
-    # keep track of children pids
-    $forker->run_on_start( sub {
+    my $forker = Parallel::ForkManager->new( 10 );  #--- this really should be configurable max
+    
+    #--- create workers for each group
+    foreach my $group (@$groups){
+      next if($group->{'active'} == 0);
+      my $name    = $group->{"name"};
+      my $workers = $group->{'workers'};
+
+      my $poll_interval = $group->{'poll_interval'};
+      my $oids          = $group->{'oid'};
+
+      #--- split hosts between workers
+      my %hosts;
+      my $idx=0;
+      foreach my $host (@{$group->{'host'}}){
+        push(@{$hosts{$idx}},$host);
+        $idx++;
+        if($idx>=$workers) { $idx = 0; }
+      }
+
+      $self->logger->info( "Creating $workers child processes for group: $name" );     
+
+      # keep track of children pids
+      $forker->run_on_start( sub {
 
         my ( $pid ) = @_;
 
         $self->logger->debug( "Child worker process $pid created." );
 
         push( @{$self->children}, $pid );
-                           } );
+      } );
 
-    # create high res workers
-    for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
-        
+
+      # create workers
+      for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
         $forker->start() and next;
     
         # create worker in this process
-        my $worker = GRNOC::Simp::Poller::Worker->new( config    => $self->config,
-                                                       logger    => $self->logger,
-						       worker_id => $worker_id );
+        my $worker = GRNOC::Simp::Poller::Worker->new( worker_name => "$name-$worker_id",
+						       config      => $self->config,
+ 						       oids        => $oids,
+						       hosts 	   => $hosts{$worker_id}, 
+                                                       poll_interval => $poll_interval,
+                                                       logger      => $self->logger);
 
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
 
         # exit child process
         $forker->finish();
-    }
+      }
+ 
+     
+
+
+    } 
 
     $self->logger->debug( 'Waiting for all child worker processes to exit.' );
 
