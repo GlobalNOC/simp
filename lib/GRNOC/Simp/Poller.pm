@@ -51,7 +51,7 @@ sub BUILD {
 
     # create and store config object
     my $config = GRNOC::Config->new( config_file => $self->config_file,
-                                     force_array => 0 );
+                                     force_array => 1 );
 
     $self->_set_config( $config );
 
@@ -143,7 +143,11 @@ sub _create_workers {
       my $workers = $group->{'workers'};
 
       my $poll_interval = $group->{'poll_interval'};
-      my $oids          = $group->{'oid'};
+
+      my @oids;
+      foreach my$line(@{$group->{'mib'}}){
+	push(@oids,$line->{'oid'});
+      }
 
       #--- split hosts between workers
       my %hosts;
@@ -170,11 +174,11 @@ sub _create_workers {
       # create workers
       for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
         $forker->start() and next;
-    
+   
         # create worker in this process
         my $worker = GRNOC::Simp::Poller::Worker->new( worker_name => "$name-$worker_id",
 						       config      => $self->config,
- 						       oids        => $oids,
+ 						       oids        => \@oids,
 						       hosts 	   => $hosts{$worker_id}, 
                                                        poll_interval => $poll_interval,
                                                        logger      => $self->logger);

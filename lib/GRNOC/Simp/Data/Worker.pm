@@ -29,7 +29,7 @@ has is_running => ( is => 'rwp',
 has redis => ( is => 'rwp' );
 
 
- ### public methods ###
+### public methods ###
 
 sub start {
 
@@ -86,7 +86,7 @@ sub start {
 							port => $rabbit_port);
 
     my $method = GRNOC::RabbitMQ::Method->new(	name => "get",
-						callback =>  sub { $self->_get2(@_) },
+						callback =>  sub { $self->_get(@_) },
 						description => "function to pull SNMP data out of cache");
 
     $method->add_input_parameter( name => "oidmatch",
@@ -111,8 +111,6 @@ sub start {
 
     $dispatcher->register_method($method2);
     
-    print Dumper($AnyEvent::MODEL);
-
     # where the magic happens
     return $dispatcher->start_consuming();
 }
@@ -124,24 +122,56 @@ sub _ping{
   return gettimeofday();
 }
 
+#--- calllback function to process results when building our hostkey list
+sub _hostkey_cb{
+  my $self      = shift;
+  my $ip        = shift;
+  my $ref       = shift;
+  my $reply     = shift; 
 
-sub _scan_cb{
-  my $self     = shift;
-  my $ipaddrs  = shift;
-  my $ref      = shift;
-  my $reply    = shift;
-  my $erro     = shift;
+  while(1){
+    my $key = shift @$reply;
+    my $val = shift @$reply;
+    last if(! defined $key || ! defined $val);
 
-  my $redis    = $self->redis;
- 
-  foreach my $key (@$reply){
-    my $vals =$redis->hmget($key,@$ipaddrs,sub {$self->_hmget_cb($ipaddrs,$key,$ref,@_);});
-  } 
+    #--- build the host key and add to the array of keys
+    push(@$ref, "$ip,$key,$val");
+
+
+  }
+
 }
 
-sub _hmget_cb{
+
+#--- returns a hash that maps ip to the host key
+sub _gen_hostkeys{
   my $self      = shift;
   my $ipaddrs   = shift;
+  my $redis     = $self->redis;
+
+  my @results;
+
+  #--- the timestamps are kept in a different db "1" vs "0"
+  $redis->select(1);
+  
+  foreach my $ip (@$ipaddrs){
+     my $vals =$redis->hgetall($ip, sub {$self->_hostkey_cb($ip,\@results,@_);} );
+    
+  }
+
+  #--- wait for all the hgetall responses to return
+  $redis->wait_all_responses;
+
+  #--- return back to db 0
+  $redis->select(0);
+  return \@results;
+}
+
+
+#--- callback to handle results from the hmgets issued in _get
+sub _get_cb{
+  my $self      = shift;
+  my $hkeys     = shift;
   my $key       = shift;
   my $ref       = shift;
   my $reply     = shift;
@@ -149,7 +179,9 @@ sub _hmget_cb{
 
   my $redis    = $self->redis;  
 
-  foreach my $ip (@$ipaddrs){
+  foreach my $hk (@$hkeys){
+    #--- Host Ip, Collector ID, TimeStamp
+    my ($ip,$id,$ts) = split(/,/,$hk);
     my $val = shift @$reply;
     next if(!defined $val);         #-- this OID key has no relevance to the IP in question if null here
     $ref->{$ip}{$key} = $val;       #-- external data representation is inverted from what we store
@@ -157,8 +189,7 @@ sub _hmget_cb{
 }
 
 
-
-sub _get2{
+sub _get{
   #--- implementation using pipelining and callbacks 
   my ($self,$method_ref,$params) = @_;
   my $ipaddrs  = $params->{'ipaddrs'}{'value'};
@@ -170,42 +201,24 @@ sub _get2{
   my $keys;
   my %results;
 
+  
+  #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
+  my $hkeys = $self->_gen_hostkeys($ipaddrs);
+
   while(1){
+    #---- get the set of hash entries that match our pattern
     ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oidmatch,COUNT=>200);
-    $self->_scan_cb($ipaddrs,\%results,$keys);
-    last if($cursor == 0);
-  }
-  $redis->wait_all_responses;
-  return \%results;
-}
-
-
-
-sub _get{
-  #--- blocking implementation is about 33% slower than _get2
-  my ($self,$method_ref,$params) = @_;
-  my $ipaddrs  = $params->{'ipaddrs'}{'value'};
-  my $oidmatch = $params->{'oidmatch'}{'value'};
-
-  my $redis    = $self->redis;
-
-  my $cursor = 0;
-  my $keys;
-  my %results;
-
-  while(1){
-    ($cursor,$keys) = $redis->scan($cursor,MATCH=>$oidmatch,COUNT=>200);
+  
     foreach my $key (@$keys){
-      my $vals =$redis->hmget($key,@$ipaddrs);
-      next if(!defined $vals);
-      foreach my $ip (@$ipaddrs){
-        my $val = shift @$vals;
-	next if(!defined $val);		#-- this OID key has no relevance to the IP in question if null here
-        $results{$ip}{$key} = $val;
-      }
-    }
+      #--- iterate on the returned OIDs and pull the values associated to each host
+      my $vals =$redis->hmget($key,@$hkeys,sub {$self->_get_cb($hkeys,$key,\%results,@_);});
+    } 
     last if($cursor == 0);
   }
+
+  #--- wait for all pending responses to hmget requests
+  $redis->wait_all_responses;
+
   return \%results;
 }
 
