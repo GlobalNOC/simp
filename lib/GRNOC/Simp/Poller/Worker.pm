@@ -70,8 +70,8 @@ sub start {
     };
 
     # connect to redis
-    my $redis_host = $self->config->get( '/config/redis/@host' );
-    my $redis_port = $self->config->get( '/config/redis/@port' );
+    my $redis_host = $self->config->get( '/config/redis/@host' )->[0];
+    my $redis_port = $self->config->get( '/config/redis/@port' )->[0];
 
     $self->logger->debug( "Connecting to Redis $redis_host:$redis_port." );
 
@@ -91,7 +91,6 @@ sub start {
 
     $self->_set_redis( $redis );
 
-
     $self->logger->debug( 'Starting SNMP Poll loop.' );
 
     # where the magic happens
@@ -103,31 +102,100 @@ sub _poll_callback{
   my $session   = shift;
   my $self      = shift;
   my $host      = shift;
+  my $req_time  = shift;
   my $last_seen = shift;
 
   my $redis     = $self->redis;
   my $data      = $session->var_bind_list();
 
-  my $id      = $self->worker_id;
+  my $id        = $self->worker_name;
+  my $timestamp = time;
+  my $ip        = $host->{'ip'};
 
   if(!defined $data){
     my $error = $session->error();
-    $self->logger->debug("wkr $id rx fail $error");
+    $self->logger->debug("$id rx fail $error");
     return;
   }
-  $self->logger->debug("wkr $id rx ok ".$host->{'ip'});
-
-  # record when time was received
-  my $timestamp = time;
+  $self->logger->debug("$id rx ok $ip");
 
   for my $oid (keys %$data){
-    $redis->hset($oid,$host->{'ip'},$data->{$oid},sub {});
-  }
-  $redis->hset("ts",$host->{'ip'},$timestamp,sub {});
+    #--- use a compound key IP, PollerID and Request Timestamp. 
+    #--- Request Timestamp used so that all oids requests for a node are keyed the same
+    my $key = "$ip,$id,$req_time";
+    $redis->hset($oid,$key,$data->{$oid},sub {});
 
-  $last_seen->{$host->{'ip'}} = $timestamp;
+    #--- track what we have in redis so we can expire later. 
+    $self->{'cacheEntries'}{$req_time}{$oid}{$ip} = $key;
+
+  }
+
+  #--- last update records stored in database index "1" vs "0" for data
+  #--- track last seen timestamp on per host per worker to account for different parallel poll cycles
+  $redis->select(1);
+  $redis->hset($ip,$id,$timestamp,sub {});
+  $redis->select(0);
+
+  $last_seen->{$ip} = $timestamp;
+}
+
+sub _rebuild_cache{
+  my $self   = shift;
+  my $redis  = $self->redis;
+
+
+  my $cursor = 0;
+  my $oids;
+  my $x =0;
+  #--- scan the set of records in redis
+  while(1){
+    #---- get the set of hash entries that match our pattern
+    ($cursor,$oids) =  $redis->scan($cursor,COUNT=>200);
+
+    foreach my $oid (@$oids){
+      #--- now for each OID entry pull the set of compond keys that include a ts,ip
+      my $keys = $redis->hkeys($oid);
+
+      foreach my $key (@$keys){
+	my ($ip,$id,$ts) = split(/,/,$key);
+        next if(!($id eq $self->worker_name)  || ! defined $ip);
+	#$self->logger->debug($self->worker_name . " readd $ts : $oid : $ip\n" );
+        $self->{'cacheEntries'}{$ts}{$oid}{$ip} = $key;    
+        $x++;   
+
+      }
+    }
+    last if($cursor == 0);
+  }
+  $self->logger->debug($self->worker_name. " cache rebuilt: added $x entries" );
 
 }
+
+
+
+sub _purge_data{
+  my $self    = shift;
+  my $thresh  = shift;
+
+  my $redis   = $self->redis;
+
+  #--- the entries in the cache are local to each worker
+  foreach my $ts (keys %{$self->{'cacheEntries'}}){
+    next if($ts > $thresh);   #--ignore any entries that are too new
+
+    $self->logger->debug($self->worker_name .  " purge cache ts $ts" );
+    foreach my $oid (keys %{$self->{'cacheEntries'}{$ts}}){
+      foreach my $ip (keys %{$self->{'cacheEntries'}{$ts}{$oid}}){
+        my $key = $self->{'cacheEntries'}{$ts}{$oid}{$ip};
+        #--- delete the entry from redis
+        $redis->hdel($oid,$key,sub {});  
+      }
+    }
+    #--- delete the from local cache
+    delete $self->{'cacheEntries'}{$ts};
+  }
+}
+
 
 sub _poll_loop {
 
@@ -137,16 +205,9 @@ sub _poll_loop {
   my $hosts         = $self->hosts;
   my $oids          = $self->oids;
 
-  # each worker looks at every Nth host entry in the config
-  # where N is the worker_id
-  my @target_hosts;
-
-  my $size = scalar @{ $hosts} ;
-  
   my %last_seen;
-  
-  foreach my $host(@{$self->hosts}){
-      
+
+  foreach my $host(@$hosts){
      # build the SNMP object for each host of interest
      my ($snmp, $error) = Net::SNMP->session(
         -hostname         => $host->{'ip'},
@@ -162,20 +223,30 @@ sub _poll_loop {
       $last_seen{$ip} = time;   
 
       $self->logger->debug($self->worker_name . " assigned host $ip ");
-      push(@target_hosts,$host);
   }
+
+  #--- on a restart we have lost our in memory cache but the data is still in redis
+  #--- need to perform a scan to rebuild cache
+  $self->_rebuild_cache();
+
 
   while ( 1 ) {
     my $timestamp = time;
     my $waketime = $timestamp + $poll_interval;
 
+
+    #--- purge data that is older than 2x poll_interval
+    my $threshold = $timestamp - (2*$poll_interval);
+    $self->_purge_data($threshold);   
+
     $self->logger->debug($self->worker_name. " start poll cycle" ); 
-    for my $host (@target_hosts){ 
+    for my $host (@$hosts){ 
       for my $oid (@$oids){
+	 $self->logger->debug($self->worker_name . " request $oid from ".$host->{'ip'}."\n");
         #--- iterate through the the provided set of base OIDs to collect
         my $res =  $host->{'snmp'}->get_table( 
           -baseoid      => $oid ,
-          -callback     => [\&_poll_callback,$self,$host,\%last_seen],
+          -callback     => [\&_poll_callback,$self,$host,$timestamp,\%last_seen],
         );
       } 
     }
