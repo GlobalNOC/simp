@@ -107,6 +107,8 @@ sub _start {
 
     $self->logger->debug( 'Starting rabbit event loop.' );
 
+    $self->logger->debug( "RabbitMQ User: $rabbit_user, RabbitMQ Pass: $rabbit_pass, RabbitMQ Host: $rabbit_host, RabbitMQ port: $rabbit_port"  );
+
     my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue => "Simp",
 							topic => "Simp.Data",
 							exchange => "Simp",
@@ -307,6 +309,10 @@ sub _get{
     $dispatcher->stop_consuming();
     return;
   };
+
+
+  return;
+  $self->logger->error(" made it here!");
 
   return \%results;
 }
