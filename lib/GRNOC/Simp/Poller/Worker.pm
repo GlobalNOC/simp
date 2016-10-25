@@ -6,6 +6,7 @@ package GRNOC::Simp::Poller::Worker;
 #                                               logger      => $self->logger);
 
 use strict;
+use Try::Tiny;
 use Data::Dumper;
 use Moo;
 use Redis;
@@ -37,6 +38,9 @@ has poll_interval => ( is => 'ro',
 
 has is_running => ( is => 'rwp',
                     default => 0 );
+
+has need_restart => (is => 'rwp',
+		    default => 0 );
 
 has redis => ( is => 'rwp' );
 
@@ -77,19 +81,26 @@ sub start {
 
     my $redis;
 
-    #try {
-        $redis = Redis->new(server => '127.0.0.1:6379');
-
-        #$redis = Redis->new( server => "$redis_host:$redis_port" );
-    #}
-
-    #catch {
-    #    print Dumper($@);
-    #    $self->logger->error( "Error connecting to Redis: $_" );
-    #    die( "Error connecting to Redis: $_" );
-    #};
+    try {
+      #--- try to connect twice per second for 30 seconds, 60 attempts every 500ms.
+      $redis = Redis->new(
+				server 	  => "$redis_host:$redis_port",
+				reconnect => 60, 
+				every     => 500,
+				read_timeout => .2,
+				write_timeout => .3,
+			);
+    }
+    catch {
+        $self->logger->error( "Error connecting to Redis: $_" );
+        #--- on error try to restart
+        sleep 10;
+        $self->start();
+    };
 
     $self->_set_redis( $redis );
+
+    $self->_set_need_restart(0);
 
     $self->logger->debug( 'Starting SNMP Poll loop.' );
 
@@ -104,6 +115,7 @@ sub _poll_callback{
   my $host      = shift;
   my $req_time  = shift;
   my $last_seen = shift;
+  my $reqstr    = shift;
 
   my $redis     = $self->redis;
   my $data      = $session->var_bind_list();
@@ -114,52 +126,81 @@ sub _poll_callback{
 
   if(!defined $data){
     my $error = $session->error();
-    $self->logger->debug("$id rx fail $error");
+    $self->logger->debug("$id failed     $reqstr");
     return;
   }
-  $self->logger->debug("$id rx ok $ip");
+  $self->logger->debug("$id recieved   $reqstr");
+  $last_seen->{$ip} = $timestamp;
 
   for my $oid (keys %$data){
     #--- use a compound key IP, PollerID and Request Timestamp. 
     #--- Request Timestamp used so that all oids requests for a node are keyed the same
-    my $key = "$ip,$id,$req_time";
-    $redis->hset($oid,$key,$data->{$oid},sub {});
+    try {  
+      my $key = "$ip,$id,$req_time";
+      $redis->hset($oid,$key,$data->{$oid},sub {});
 
-    #--- track what we have in redis so we can expire later. 
-    $self->{'cacheEntries'}{$req_time}{$oid}{$ip} = $key;
+      #--- track what we have in redis so we can expire later. 
+      $self->{'cacheEntries'}{$req_time}{$oid}{$ip} = $key;
+    } catch {
+        $self->logger->error( "$id Error in hset for data: $_" );
+        #--- on error try to restart
+        $self->_set_need_restart(1);
+        return;
+    };
 
   }
 
   #--- last update records stored in database index "1" vs "0" for data
   #--- track last seen timestamp on per host per worker to account for different parallel poll cycles
-  $redis->select(1);
-  $redis->hset($ip,$id,$timestamp,sub {});
-  $redis->select(0);
-
-  $last_seen->{$ip} = $timestamp;
+  try{  
+    $redis->select(1);
+    $redis->hset($ip,$id,$timestamp,sub {});
+    $redis->select(0);
+  } catch {
+    $self->logger->error( "$id Error in hset for timestamp: $_" );
+    #--- on error try to restart
+    $self->_set_need_restart(1);
+    return;
+  };
+ 
 }
 
 sub _rebuild_cache{
   my $self   = shift;
   my $redis  = $self->redis;
 
-
   my $cursor = 0;
   my $oids;
   my $x =0;
+
   #--- scan the set of records in redis
   while(1){
     #---- get the set of hash entries that match our pattern
-    ($cursor,$oids) =  $redis->scan($cursor,COUNT=>200);
+    try { 
+      ($cursor,$oids) =  $redis->scan($cursor,COUNT=>200);
+    } catch {
+      $self->logger->error( $self->workder_name." Error rebuilding cache in scan: $_" );
+      #--- on error try to restart
+      $self->_set_need_restart(1);
+      return;
+    };
 
+    $redis->select(0);
     foreach my $oid (@$oids){
       #--- now for each OID entry pull the set of compond keys that include a ts,ip
-      my $keys = $redis->hkeys($oid);
+      my $keys;
+      try{
+        $keys = $redis->hkeys($oid);
+      } catch {
+        $self->logger->error( $self->workder_name." Error rebuilding cache using hkeys: $_" );
+        #--- on error try to restart
+        $self->_set_need_restart(1);
+        return;
+      };
 
       foreach my $key (@$keys){
 	my ($ip,$id,$ts) = split(/,/,$key);
-        next if(!($id eq $self->worker_name)  || ! defined $ip);
-	#$self->logger->debug($self->worker_name . " readd $ts : $oid : $ip\n" );
+        next if(!defined $id || !($id eq $self->worker_name)  || ! defined $ip);
         $self->{'cacheEntries'}{$ts}{$oid}{$ip} = $key;    
         $x++;   
 
@@ -183,12 +224,20 @@ sub _purge_data{
   foreach my $ts (keys %{$self->{'cacheEntries'}}){
     next if($ts > $thresh);   #--ignore any entries that are too new
 
-    $self->logger->debug($self->worker_name .  " purge cache ts $ts" );
+    my $str = gmtime($ts);
+    $self->logger->debug($self->worker_name .  " purge cache ts: $str" );
     foreach my $oid (keys %{$self->{'cacheEntries'}{$ts}}){
       foreach my $ip (keys %{$self->{'cacheEntries'}{$ts}{$oid}}){
         my $key = $self->{'cacheEntries'}{$ts}{$oid}{$ip};
         #--- delete the entry from redis
-        $redis->hdel($oid,$key,sub {});  
+        try {
+          $redis->hdel($oid,$key,sub {});  
+        } catch {
+          $self->logger->error( "Error purging entries using hdel: $_" );
+          #--- on error try to restart
+          $self->start();
+        };
+ 
       }
     }
     #--- delete the from local cache
@@ -242,17 +291,23 @@ sub _poll_loop {
     $self->logger->debug($self->worker_name. " start poll cycle" ); 
     for my $host (@$hosts){ 
       for my $oid (@$oids){
-	 $self->logger->debug($self->worker_name . " request $oid from ".$host->{'ip'}."\n");
+	 my $reqstr = " $oid -> ".$host->{'ip'};
+	 $self->logger->debug($self->worker_name ." requesting ". $reqstr);
         #--- iterate through the the provided set of base OIDs to collect
         my $res =  $host->{'snmp'}->get_table( 
           -baseoid      => $oid ,
-          -callback     => [\&_poll_callback,$self,$host,$timestamp,\%last_seen],
+          -callback     => [\&_poll_callback,$self,$host,$timestamp,\%last_seen,$reqstr],
         );
       } 
     }
   
     #--- go into reactive phase  wait for all results to return or timeouts
     snmp_dispatcher();
+
+    #--- check to see if we need to restart
+    if($self->need_restart()){
+      $self->start();
+    }
 
     #--- check if we have any hosts that have gone unresponsive
     foreach my $ip (keys %last_seen){
