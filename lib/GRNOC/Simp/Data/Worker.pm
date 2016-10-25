@@ -1,8 +1,10 @@
 package GRNOC::Simp::Data::Worker;
 
 use strict;
+use Carp;
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
+use Try::Tiny;
 use Moo;
 use Redis;
 use GRNOC::RabbitMQ::Method;
@@ -21,6 +23,7 @@ has logger => ( is => 'ro',
 has worker_id => ( is => 'ro',
                required => 1 );
 
+
 ### internal attributes ###
 
 has is_running => ( is => 'rwp',
@@ -28,16 +31,35 @@ has is_running => ( is => 'rwp',
 
 has redis => ( is => 'rwp' );
 
+has dispatcher  => ( is => 'rwp' );
+
+has need_restart => (is => 'rwp',
+                    default => 0 );
+
 
 ### public methods ###
-
 sub start {
+   my ( $self ) = @_;
+
+  while(1){
+    #--- the start routine is two part because if we have com fails in the event loop we can reinit
+    #--- doing it like this avoids recursive situation if we have prolonged retrys
+    $self->logger->debug( $self->worker_id." restarting." );
+    #try {
+      $self->_start();
+    #} catch {
+      #$self->logger->error( $self->worker_id." caught error : $_" );
+    #};
+    sleep 3;
+  }
+
+}
+
+sub _start {
 
     my ( $self ) = @_;
 
     my $worker_id = $self->worker_id;
-
-    $self->logger->debug( "Starting." );
 
     # flag that we're running
     $self->_set_is_running( 1 );
@@ -71,7 +93,15 @@ sub start {
 
     my $redis;
 
-    $redis = Redis->new(server => '127.0.0.1:6379');
+    
+    #--- try to connect twice per second for 30 seconds, 60 attempts every 500ms.
+    $redis = Redis->new(
+                                server    => "$redis_host:$redis_port",
+                                #reconnect => 60,
+                                #every     => 500,
+                                read_timeout => .2,
+                                write_timeout => .3,
+                        );
 
     $self->_set_redis( $redis );
 
@@ -84,6 +114,7 @@ sub start {
 							pass => $rabbit_pass,
 							host => $rabbit_host,
 							port => $rabbit_port);
+
 
     my $method = GRNOC::RabbitMQ::Method->new(	name => "get",
 						callback =>  sub { $self->_get(@_) },
@@ -111,8 +142,18 @@ sub start {
 
     $dispatcher->register_method($method2);
     
-    # where the magic happens
-    return $dispatcher->start_consuming();
+    #--- go into event loop handing requests that come in over rabbit  
+    #try{
+      $dispatcher->start_consuming();
+    #}catch {
+      #warn "hey you dirty bastards, here I am!\n";
+      #$dispatcher->stop_consuming();
+      #$dispatcher = undef;
+    #};
+    #--- you end up here if one of the handlers called stop_consuming
+    #--- this is done when there are internal issues getting to redis that require a re-init.
+    warn "wooowoo\n";
+    return;
 }
 
 ### private methods ###
@@ -145,25 +186,54 @@ sub _hostkey_cb{
 
 #--- returns a hash that maps ip to the host key
 sub _gen_hostkeys{
-  my $self      = shift;
-  my $ipaddrs   = shift;
-  my $redis     = $self->redis;
+  my $self        = shift;
+  my $ipaddrs     = shift;
+  my $dispatcher  = shift;
+  my $redis       = $self->redis;
 
   my @results;
 
   #--- the timestamps are kept in a different db "1" vs "0"
-  $redis->select(1);
+  try {
+    $redis->select(1);
+  } catch {
+    $self->logger->error( "error in select : $_" );
+    #--- on error try to restart
+    $dispatcher->stop_consuming();
+    return;
+  };
   
   foreach my $ip (@$ipaddrs){
-     my $vals =$redis->hgetall($ip, sub {$self->_hostkey_cb($ip,\@results,@_);} );
+    try{ 
+      my $vals =$redis->hgetall($ip, sub {$self->_hostkey_cb($ip,\@results,@_);} );
+    } catch {
+      $self->logger->error( "error in hgetall : $_" );
+      #--- on error try to restart
+      $dispatcher->stop_consuming();
+      return;
+    };
     
   }
 
   #--- wait for all the hgetall responses to return
-  $redis->wait_all_responses;
+  try{
+    $redis->wait_all_responses;
+  } catch {
+    $self->logger->error( "get error in wait_all_responses: $_" );
+    $dispatcher->stop_consuming();
+    return;
+  };
+
 
   #--- return back to db 0
-  $redis->select(0);
+  try {
+    $redis->select(0);
+  } catch {
+    $self->logger->error( "get error in wait_all_responses: $_" );
+    $dispatcher->stop_consuming();
+    return;
+
+  };
   return \@results;
 }
 
@@ -176,8 +246,6 @@ sub _get_cb{
   my $ref       = shift;
   my $reply     = shift;
   my $error     = shift;
-
-  my $redis    = $self->redis;  
 
   foreach my $hk (@$hkeys){
     #--- Host Ip, Collector ID, TimeStamp
@@ -201,23 +269,44 @@ sub _get{
   my $keys;
   my %results;
 
+  my $dispatcher = $method_ref->get_dispatcher();
+
   
   #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
-  my $hkeys = $self->_gen_hostkeys($ipaddrs);
+  my $hkeys = $self->_gen_hostkeys($ipaddrs,$dispatcher);
 
   while(1){
     #---- get the set of hash entries that match our pattern
-    ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oidmatch,COUNT=>200);
-  
+    try { 
+      ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oidmatch,COUNT=>200);
+    } catch {
+      $self->logger->error( "get error in scan: $_" );
+      #--- on error try to restart
+      $dispatcher->stop_consuming();
+      return;
+    };
     foreach my $key (@$keys){
       #--- iterate on the returned OIDs and pull the values associated to each host
-      my $vals =$redis->hmget($key,@$hkeys,sub {$self->_get_cb($hkeys,$key,\%results,@_);});
+      try {
+        my $vals =$redis->hmget($key,@$hkeys,sub {$self->_get_cb($hkeys,$key,\%results,@_);});
+      } catch {
+        $self->logger->error( "get error in hmget: $_" );
+        #--- on error try to restart
+        $dispatcher->stop_consuming();
+        return;
+      };
     } 
     last if($cursor == 0);
   }
 
   #--- wait for all pending responses to hmget requests
-  $redis->wait_all_responses;
+  try{
+    $redis->wait_all_responses;
+  } catch {
+    $self->logger->error( "get error in wait_all_responses: $_" ); 
+    $dispatcher->stop_consuming();
+    return;
+  };
 
   return \%results;
 }
