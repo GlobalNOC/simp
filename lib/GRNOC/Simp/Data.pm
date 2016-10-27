@@ -19,7 +19,7 @@ has config_file => ( is => 'ro',
                      isa => Str,
                      required => 1 );
 
-has logging_file => ( is => 'rw',
+has logging_file => ( is => 'ro',
                       isa => Str,
                       required => 1 );
 
