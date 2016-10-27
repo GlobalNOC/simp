@@ -111,8 +111,6 @@ sub start {
 	
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
-
-        #$self->_create_workers();
     }
 
     return 1;
@@ -163,7 +161,7 @@ sub _create_workers {
 	# this should only return if we tell it to stop via TERM signal etc.
 	$worker->start();
 	
-	 exit child process
+	# exit child process
         $forker->finish();
     }
 
