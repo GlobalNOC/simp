@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-use AnyEvent::Loop;
+#use AnyEvent::Loop;
 use Getopt::Long;
 use GRNOC::Simp::Data;
 

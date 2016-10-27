@@ -36,6 +36,3 @@ for(my $x=0;$x<$n;$x++){
 
 my $per = ($sum * 1.0) / ($n *1.0);
 print "et avg = $per sum=$sum  n=$n\n";
-
-
-
