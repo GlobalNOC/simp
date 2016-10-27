@@ -38,9 +38,8 @@ has logger => ( is => 'rwp' );
 has children => ( is => 'rwp',
                   default => sub { [] } );
 
-sub BUILD {
-
-    my ( $self ) = @_;
+sub BUILD{
+    my ($self) = @_;
 
     # create and store logger object
     my $grnoc_log = GRNOC::Log->new( config => $self->logging_file );
@@ -81,6 +80,7 @@ sub start {
     # need to daemonize
     if ( $self->daemonize ) {
 
+
         $self->logger->debug( 'Daemonizing.' );
 
         my $daemon = Proc::Daemon->new( pid_file => $self->config->get( '/config/pid-file' ) );
@@ -106,13 +106,11 @@ sub start {
 
         #-- when in fg just act as a working directly with no sub processes so we can nytprof 
         my $worker = GRNOC::Simp::Data::Worker->new( config    => $self->config,
-                                                       logger    => $self->logger,
-                                                       worker_id => 13 );
-
+						     logger    => $self->logger,
+						     worker_id => 13 );
+	
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
-
-        #$self->_create_workers();
     }
 
     return 1;
@@ -146,26 +144,24 @@ sub _create_workers {
     $forker->run_on_start( sub {
 
         my ( $pid ) = @_;
-
         $self->logger->debug( "Child worker process $pid created." );
-
         push( @{$self->children}, $pid );
                            } );
-
     # create high res workers
     for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
         
         $forker->start() and next;
-    
-        # create worker in this process
-        my $worker = GRNOC::Simp::Data::Worker->new( config    => $self->config,
-                                                       logger    => $self->logger,
-						       worker_id => $worker_id );
 
-        # this should only return if we tell it to stop via TERM signal etc.
-        $worker->start();
 
-        # exit child process
+	# create worker in this process
+	my $worker = GRNOC::Simp::Data::Worker->new( config    => $self->config,
+						     logger    => $self->logger,
+						     worker_id => $worker_id );
+	
+	# this should only return if we tell it to stop via TERM signal etc.
+	$worker->start();
+	
+	# exit child process
         $forker->finish();
     }
 
