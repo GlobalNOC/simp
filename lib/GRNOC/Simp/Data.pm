@@ -2,7 +2,7 @@ package GRNOC::Simp::Data;
 
 use strict;
 use warnings;
-#use Moo;
+use Moo;
 use Types::Standard qw( Str Bool );
 
 use Parallel::ForkManager;
@@ -15,60 +15,40 @@ use GRNOC::Simp::Data::Worker;
 
 ### required attributes ###
 
-#has config_file => ( is => 'ro',
-#                     isa => Str,
-#                     required => 1 );
+has config_file => ( is => 'ro',
+                     isa => Str,
+                     required => 1 );
 
-#has logging_file => ( is => 'ro',
-#                      isa => Str,
-#                      required => 1 );
+has logging_file => ( is => 'ro',
+                      isa => Str,
+                      required => 1 );
 
 ### optional attributes ###
 
-#has daemonize => ( is => 'ro',
-#                   isa => Bool,
-#                   default => 1 );
+has daemonize => ( is => 'ro',
+                   isa => Bool,
+                   default => 1 );
 
 ### private attributes ###
 
-#has config => ( is => 'rwp' );
+has config => ( is => 'rwp' );
 
-#has logger => ( is => 'rwp' );
+has logger => ( is => 'rwp' );
 
-#has children => ( is => 'rwp',
-#                  default => sub { [] } );
+has children => ( is => 'rwp',
+                  default => sub { [] } );
 
-#sub BUILD {
-
-sub _set_logger{
-    my $self = shift;
-    my $logger = shift;
-
-    $self->{'logger'} = $logger;
-}
-
-sub _set_config{
-    my $self = shift;
-    my $config = shift;
-
-    $self->{'config'} = $config;
-}
-
-sub new{
-    my $that = shift;
-    my $class = ref($that) || $that;
-    my %args = @_;
-    my $self = \%args;
-    bless $self, $class;
+sub BUILD{
+    my ($self) = @_;
 
     # create and store logger object
-    my $grnoc_log = GRNOC::Log->new( config => $self->{'logging_file'} );
+    my $grnoc_log = GRNOC::Log->new( config => $self->logging_file );
     my $logger = GRNOC::Log->get_logger();
 
     $self->_set_logger( $logger );
 
     # create and store config object
-    my $config = GRNOC::Config->new( config_file => $self->{'config_file'},
+    my $config = GRNOC::Config->new( config_file => $self->config_file,
                                      force_array => 0 );
 
     $self->_set_config( $config );
@@ -81,27 +61,27 @@ sub start {
 
     my ( $self ) = @_;
 
-    $self->{'logger'}->info( 'Starting.' );
+    $self->logger->info( 'Starting.' );
 
-    $self->{'logger'}->debug( 'Setting up signal handlers.' );
+    $self->logger->debug( 'Setting up signal handlers.' );
 
     # setup signal handlers
     $SIG{'TERM'} = sub {
 
-        $self->{'logger'}->info( 'Received SIG TERM.' );
+        $self->logger->info( 'Received SIG TERM.' );
         $self->stop();
     };
 
     $SIG{'HUP'} = sub {
 
-        $self->{'logger'}->info( 'Received SIG HUP.' );
+        $self->logger->info( 'Received SIG HUP.' );
     };
 
     # need to daemonize
-    #if ( $self->daemonize ) {
-    if( 0){
+    if ( $self->daemonize ) {
 
-        $self->{'logger'}->debug( 'Daemonizing.' );
+
+        $self->logger->debug( 'Daemonizing.' );
 
         my $daemon = Proc::Daemon->new( pid_file => $self->config->get( '/config/pid-file' ) );
 
@@ -110,7 +90,7 @@ sub start {
         # in child/daemon process
         if ( !$pid ) {
 
-            $self->{'logger'}->debug( 'Created daemon process.' );
+            $self->logger->debug( 'Created daemon process.' );
 
             # change process name
             $0 = "simpPoller";
@@ -122,13 +102,13 @@ sub start {
     # dont need to daemonize
     else {
 
-        $self->{'logger'}->debug( 'Running in foreground.' );
+        $self->logger->debug( 'Running in foreground.' );
 
         #-- when in fg just act as a working directly with no sub processes so we can nytprof 
-        my $worker = GRNOC::Simp::Data::Worker->new( config    => $self->{'config'},
-                                                       logger    => $self->{'logger'},
-                                                       worker_id => 13 );
-
+        my $worker = GRNOC::Simp::Data::Worker->new( config    => $self->config,
+						     logger    => $self->logger,
+						     worker_id => 13 );
+	
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
 
@@ -142,11 +122,11 @@ sub stop {
 
     my ( $self ) = @_;
 
-    $self->{'logger'}->info( 'Stopping.' );
+    $self->logger->info( 'Stopping.' );
 
     my @pids = @{$self->children};
 
-    $self->{'logger'}->debug( 'Stopping child worker processes ' . join( ' ', @pids ) . '.' );
+    $self->logger->debug( 'Stopping child worker processes ' . join( ' ', @pids ) . '.' );
 
     return kill( 'TERM', @pids );
 }
@@ -158,59 +138,43 @@ sub _create_workers {
 
     my $workers = $self->config->get( '/config/@workers' );
 
-    $self->{'logger'}->info( "Creating $workers child worker processes." );
+    $self->logger->info( "Creating $workers child worker processes." );
 
-#    my $forker = Parallel::ForkManager->new( $workers );
+    my $forker = Parallel::ForkManager->new( $workers );
 
     # keep track of children pids
-#    $forker->run_on_start( sub {
+    $forker->run_on_start( sub {
 
-#        my ( $pid ) = @_;
-
-#        $self->{'logger'}->debug( "Child worker process $pid created." );
-
-#        push( @{$self->children}, $pid );
-#                           } );
-
+        my ( $pid ) = @_;
+        $self->logger->debug( "Child worker process $pid created." );
+        push( @{$self->children}, $pid );
+                           } );
     # create high res workers
     for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
         
-#        $forker->start() and next;
+        $forker->start() and next;
 
 
-	AnyEvent::Fork->new->require("GRNOC::Simp::Data::Worker")->run( sub{
-	    
-									});
- 
-	my $pid = fork();
-	if(!$pid){
-   
-	    # create worker in this process
-	    my $worker = GRNOC::Simp::Data::Worker->new( config    => $self->config,
-							 logger    => $self->{'logger'},
-							 worker_id => $worker_id );
-	    
-	    # this should only return if we tell it to stop via TERM signal etc.
-	    $worker->start();
-
-	}else{
-	    
-	}
-
-        # exit child process
-#        $forker->finish();
+	# create worker in this process
+	my $worker = GRNOC::Simp::Data::Worker->new( config    => $self->config,
+						     logger    => $self->logger,
+						     worker_id => $worker_id );
+	
+	# this should only return if we tell it to stop via TERM signal etc.
+	$worker->start();
+	
+	 exit child process
+        $forker->finish();
     }
 
-    $self->{'logger'}->debug( 'Waiting for all child worker processes to exit.' );
+    $self->logger->debug( 'Waiting for all child worker processes to exit.' );
 
     # wait for all children to return
-#    $forker->wait_all_children();
+    $forker->wait_all_children();
 
-    my $finished = wait();
+    $self->_set_children( [] );
 
-#    $self->_set_children( [] );
-
-    $self->{'logger'}->debug( 'All child workers have exited.' );
+    $self->logger->debug( 'All child workers have exited.' );
 }
 
 1;

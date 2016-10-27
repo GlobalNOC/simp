@@ -311,7 +311,7 @@ sub _get{
   };
 
 
-  return;
+#  return;
   $self->logger->error(" made it here!");
 
   return \%results;
