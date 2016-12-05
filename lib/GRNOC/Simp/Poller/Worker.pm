@@ -136,7 +136,7 @@ sub _poll_callback{
     #--- use a compound key IP, PollerID and Request Timestamp. 
     #--- Request Timestamp used so that all oids requests for a node are keyed the same
     try {  
-      my $key = "$ip,$id,$req_time";
+      my $key = "$ip,$id,$timestamp";
       $redis->hset($oid,$key,$data->{$oid},sub {});
 
       #--- track what we have in redis so we can expire later. 

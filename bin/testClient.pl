@@ -16,7 +16,7 @@ my $client = GRNOC::RabbitMQ::Client->new(   host => "127.0.0.1",
 my $results;
 my $start;
 my $sum = 0;
-my $n = 20;
+my $n = 1;
 for(my $x=0;$x<$n;$x++){
   $start = gettimeofday();
   $results = $client->get(
@@ -25,12 +25,14 @@ for(my $x=0;$x<$n;$x++){
     #oidmatch  => "1.3.6.1.2.1.2.2.1.1[16].*",
     #oidmatch  =>  "1.3.6.1.2.1.4.35.1.4.*"
     oidmatch  => "1.3.6.1.2.1.2.2.1.2.*"
+    #1.3.6.1.2.1.2.2.1
   );
+
   my $et = gettimeofday() - $start;
   $sum += $et;
   #if($x % 50 == 0){
     print "et = $et\n";
-    #print Dumper($results);
+  print Dumper($results);
   #};
 }
 

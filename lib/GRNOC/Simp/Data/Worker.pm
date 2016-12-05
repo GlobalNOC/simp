@@ -196,15 +196,13 @@ sub _gen_hostkeys{
     #--- wait for all the hgetall responses to return
     $redis->wait_all_responses;
 
-    #--- return back to db 0
-    $redis->select(0);
-
   } catch {
     $self->logger->error(" in gen_hostkeys: ". $_);
     $dispatcher->stop_consuming();
   };
 
-
+  #--- return back to db 0
+  $redis->select(0);
 
   return \@results;
 }
