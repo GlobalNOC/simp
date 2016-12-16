@@ -37,4 +37,4 @@ sub get_version {
     return $VERSION;
 }
 
-1;:
+1;
