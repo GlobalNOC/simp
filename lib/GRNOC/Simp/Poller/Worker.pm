@@ -21,7 +21,7 @@ has config      => ( is => 'ro',
                required => 1 );
 
 
-has logger => ( is => 'ro',
+has logger => ( is => 'rwp',
                 required => 1 );
 
 has hosts => ( is => 'ro',
@@ -44,6 +44,8 @@ has need_restart => (is => 'rwp',
 
 has redis => ( is => 'rwp' );
 
+has polls_to_keep => (is => 'rwp',
+                      default => 5);
 
  ### public methods ###
 
@@ -51,8 +53,10 @@ sub start {
 
     my ( $self ) = @_;
 
+    my $logger = GRNOC::Log->get_logger($self->worker_name);
+    $self->_set_logger($logger);
     my $worker_name = $self->worker_name;
-
+    
     $self->logger->debug( "Starting." );
 
     # flag that we're running
@@ -116,6 +120,7 @@ sub _poll_callback{
   my $req_time  = shift;
   my $last_seen = shift;
   my $reqstr    = shift;
+  my $main_oid  = shift;
 
   my $redis     = $self->redis;
   my $data      = $session->var_bind_list();
@@ -136,7 +141,7 @@ sub _poll_callback{
     #--- use a compound key IP, PollerID and Request Timestamp. 
     #--- Request Timestamp used so that all oids requests for a node are keyed the same
     try {  
-      my $key = "$ip,$id,$timestamp";
+      my $key = "$ip,$id,$main_oid,$timestamp";
       $redis->hset($oid,$key,$data->{$oid},sub {});
 
       #--- track what we have in redis so we can expire later. 
@@ -154,7 +159,7 @@ sub _poll_callback{
   #--- track last seen timestamp on per host per worker to account for different parallel poll cycles
   try{  
     $redis->select(1);
-    $redis->hset($ip,$id,$timestamp,sub {});
+    $redis->lpush("$ip,$id,$main_oid",$timestamp);
     $redis->select(0);
   } catch {
     $self->logger->error( "$id Error in hset for timestamp: $_" );
@@ -216,33 +221,65 @@ sub _rebuild_cache{
 
 sub _purge_data{
   my $self    = shift;
-  my $thresh  = shift;
 
   my $redis   = $self->redis;
+  my $id = $self->worker_name;  
 
-  #--- the entries in the cache are local to each worker
-  foreach my $ts (keys %{$self->{'cacheEntries'}}){
-    next if($ts > $thresh);   #--ignore any entries that are too new
+  $self->logger->error("Starting Purge of stale data");
 
-    my $str = gmtime($ts);
-    $self->logger->debug($self->worker_name .  " purge cache ts: $str" );
-    foreach my $oid (keys %{$self->{'cacheEntries'}{$ts}}){
-      foreach my $ip (keys %{$self->{'cacheEntries'}{$ts}{$oid}}){
-        my $key = $self->{'cacheEntries'}{$ts}{$oid}{$ip};
-        #--- delete the entry from redis
-        try {
-          $redis->hdel($oid,$key,sub {});  
-        } catch {
-          $self->logger->error( "Error purging entries using hdel: $_" );
-          #--- on error try to restart
-          $self->start();
-        };
- 
+  try{
+      my @to_be_removed;
+      my @ready_for_delete;
+      foreach my $host(@{$self->hosts}){
+          foreach my $oid (@{$self->oids}){
+              my $key = $host->{'ip'} . "," . $self->worker_name . "," . $oid;
+              
+              $redis->select(1);
+              while( $redis->llen($key) > $self->polls_to_keep){
+                  my $ts = $redis->rpop($key);
+                  $self->logger->error("Removing TS: " . $ts);
+                  push(@to_be_removed, $key . ",$ts");
+              }
+          }
       }
-    }
-    #--- delete the from local cache
-    delete $self->{'cacheEntries'}{$ts};
-  }
+
+      $self->logger->error("Have a list of stale entries");
+
+      $redis->select(0);
+      
+      my @possible_oids;
+      #find all the possible OIDs!
+      foreach my $oid (@{$self->oids}){
+          $self->logger->error("Gathering all possible OIDs for main OID: " . $oid);
+          my $cursor = 0;
+          while(1){
+              my $keys;
+              my $oid_search = $oid . ".*";
+              #---- get the set of hash entries that match our pattern
+              ($cursor,$keys) =  $redis->scan($cursor, MATCH => $oid_search, COUNT=>200);
+              foreach my $key (@$keys){
+                  push(@possible_oids,$key);                  
+              }
+              last if($cursor == 0);
+          }
+      }
+
+      $self->logger->error("Gathered all OIDs");
+      
+      if($#to_be_removed >= 0){
+          foreach my $key (@possible_oids){
+              $redis->hdel($key,\@to_be_removed, sub {});
+          }
+      }
+
+      $self->logger->error("Done purging!");
+      
+  } catch {
+      $self->logger->error( "Error purging entries using hdel: $_" );
+                  #--- on error try to restart
+      $self->start();
+  };
+
 }
 
 
@@ -276,17 +313,15 @@ sub _poll_loop {
 
   #--- on a restart we have lost our in memory cache but the data is still in redis
   #--- need to perform a scan to rebuild cache
-  $self->_rebuild_cache();
+#  $self->_rebuild_cache();
 
 
   while ( 1 ) {
     my $timestamp = time;
     my $waketime = $timestamp + $poll_interval;
 
-
     #--- purge data that is older than 2x poll_interval
-    my $threshold = $timestamp - (2*$poll_interval);
-    $self->_purge_data($threshold);   
+    $self->_purge_data();   
 
     $self->logger->debug($self->worker_name. " start poll cycle" ); 
     for my $host (@$hosts){ 
@@ -296,7 +331,7 @@ sub _poll_loop {
         #--- iterate through the the provided set of base OIDs to collect
         my $res =  $host->{'snmp'}->get_table( 
           -baseoid      => $oid ,
-          -callback     => [\&_poll_callback,$self,$host,$timestamp,\%last_seen,$reqstr],
+          -callback     => [\&_poll_callback,$self,$host,$timestamp,\%last_seen,$reqstr, $oid],
         );
       } 
     }
@@ -319,7 +354,6 @@ sub _poll_loop {
       }
 
     }
-
 
     sleep($waketime - time);
    } 
