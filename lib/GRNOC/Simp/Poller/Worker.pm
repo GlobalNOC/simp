@@ -227,6 +227,8 @@ sub _purge_data{
 
   $self->logger->error("$id Starting Purge of stale data");
 
+  return if(!defined $self->hosts);
+
   try{
       my @to_be_removed;
       my @ready_for_delete;
@@ -294,6 +296,12 @@ sub _poll_loop {
 
   my %last_seen;
 
+  #--- if there are no hosts, there is nothing to do
+  if(!defined $hosts || scalar @$hosts == 0){
+    $self->logger->warn($self->worker_name. " no hosts found, nothing to do");
+    return; 
+  }
+
   foreach my $host(@$hosts){
      # build the SNMP object for each host of interest
      my ($snmp, $error) = Net::SNMP->session(
@@ -317,7 +325,7 @@ sub _poll_loop {
 #  $self->_rebuild_cache();
 
 
-  while ( 1 ) {
+  while (1) {
     my $timestamp = time;
     my $waketime = $timestamp + $poll_interval;
 
