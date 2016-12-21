@@ -1,0 +1,24 @@
+<!--
+The host.config defines the set of hosts and their group membership.
+
+We would expect this file to likely be autogrenerated with config.xml being manually configured
+or otherwise managed semi-idependently. the ids used are only relevant if defined in the config.xml
+-->
+
+<config>
+  <host ip="10.13.1.2" community="come on"> 
+    <group id="int"/>
+    <group id="bgp"/>
+  </host>
+  <host ip="10.13.1.1" community="farva man">
+    <group id="int"/>
+    <group id="bgp"/>
+  </host>   
+  <host ip="10.13.2.2" community="same">
+    <group id="int"/>
+  </host>
+  <host ip="10.13.2.1" community="team"> 
+    <group id="mac2ip"/>
+  </host>
+  </group>
+</config>

@@ -20,6 +20,10 @@ has config_file => ( is => 'ro',
                      isa => Str,
                      required => 1 );
 
+has hosts_file => ( is => 'ro',
+                     isa => Str,
+                     required => 1 );
+
 has logging_file => ( is => 'ro',
                       isa => Str,
                       required => 1 );
@@ -33,6 +37,8 @@ has daemonize => ( is => 'ro',
 ### private attributes ###
 
 has config => ( is => 'rwp' );
+
+has hosts  => ( is => 'rwp' );
 
 has logger => ( is => 'rwp' );
 
@@ -49,11 +55,15 @@ sub BUILD {
 
     $self->_set_logger( $logger );
 
-    # create and store config object
+    # create and store config objects
     my $config = GRNOC::Config->new( config_file => $self->config_file,
                                      force_array => 1 );
-
     $self->_set_config( $config );
+ 
+    # create and store the host portion of the config   
+    my $hosts = GRNOC::Config->new( config_file => $self->hosts_file,
+                                     force_array => 1 );
+    $self->_set_hosts( $hosts );
 
     return $self;
 }
@@ -129,31 +139,52 @@ sub _create_workers {
 
     my ( $self ) = @_;
 
-
-
-    #--- get the set of active groups 
+   #--- get the set of active groups 
     my $groups  = $self->config->get( "/config/group" );
 
     my $forker = Parallel::ForkManager->new( 10 );  #--- this really should be configurable max
     
     #--- create workers for each group
     foreach my $group (@$groups){
+      #--- ignore the group if it isnt active
       next if($group->{'active'} == 0);
+
       my $name    = $group->{"name"};
       my $workers = $group->{'workers'};
 
-      my $poll_interval = $group->{'poll_interval'};
+      my $poll_interval = $group->{'interval'};
+      my $retention     = $group->{'retention'};
 
+      #--- get the set of OIDS for this group
       my @oids;
       foreach my$line(@{$group->{'mib'}}){
 	push(@oids,$line->{'oid'});
       }
 
-      #--- split hosts between workers
-      my %hosts;
+      my %hostsByWorker;
       my $idx=0;
-      foreach my $host (@{$group->{'host'}}){
-        push(@{$hosts{$idx}},$host);
+      #--- get the set of hosts that belong to this group 
+      my $id= $group->{'name'};
+
+      #--- once the config object has full xpath support we can simplify the code below
+      #--- as follows 
+      #--- my $xpath = "/config/host[group/\@id = \'$id\']";
+      #--- my $hosts = $self->hosts->get($xpath);
+      my $rawhosts = $self->hosts->get("/config/host");
+      my $hosts = ();
+      foreach my $raw (@$rawhosts){
+        my $groups = $raw->{'group'};
+        foreach my $group (keys %$groups){
+          if($group eq $id){
+            #-- match add the host to the host list
+            push(@$hosts,$raw);  
+          }
+        }
+      }
+
+      #--- split hosts between workers
+      foreach my $host (@$hosts){
+        push(@{$hostsByWorker{$idx}},$host);
         $idx++;
         if($idx>=$workers) { $idx = 0; }
       }
@@ -176,12 +207,13 @@ sub _create_workers {
         $forker->start() and next;
    
         # create worker in this process
-        my $worker = GRNOC::Simp::Poller::Worker->new( worker_name => "$name-$worker_id",
-						       config      => $self->config,
- 						       oids        => \@oids,
-						       hosts 	   => $hosts{$worker_id}, 
+        my $worker = GRNOC::Simp::Poller::Worker->new( worker_name   => "$name$worker_id",
+						       config        => $self->config,
+ 						       oids          => \@oids,
+						       hosts 	     => $hostsByWorker{$worker_id}, 
                                                        poll_interval => $poll_interval,
-                                                       logger      => $self->logger);
+                                                       retention     => $retention,
+                                                       logger        => $self->logger);
 
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();

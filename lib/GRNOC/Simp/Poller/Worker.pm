@@ -57,7 +57,7 @@ sub start {
     $self->_set_logger($logger);
     my $worker_name = $self->worker_name;
     
-    $self->logger->debug( "Starting." );
+    $self->logger->debug( $self->worker_name." Starting." );
 
     # flag that we're running
     $self->_set_is_running( 1 );
@@ -68,20 +68,20 @@ sub start {
     # setup signal handlers
     $SIG{'TERM'} = sub {
 
-        $self->logger->info( "Received SIG TERM." );
+        $self->logger->info($self->worker_name. " Received SIG TERM." );
         $self->stop();
     };
 
     $SIG{'HUP'} = sub {
 
-        $self->logger->info( "Received SIG HUP." );
+        $self->logger->info($self->worker_name. " Received SIG HUP." );
     };
 
     # connect to redis
     my $redis_host = $self->config->get( '/config/redis/@host' )->[0];
     my $redis_port = $self->config->get( '/config/redis/@port' )->[0];
 
-    $self->logger->debug( "Connecting to Redis $redis_host:$redis_port." );
+    $self->logger->debug($self->worker_name." Connecting to Redis $redis_host:$redis_port." );
 
     my $redis;
 
@@ -96,7 +96,7 @@ sub start {
 			);
     }
     catch {
-        $self->logger->error( "Error connecting to Redis: $_" );
+        $self->logger->error($self->worker_name." Error connecting to Redis: $_" );
         #--- on error try to restart
         sleep 10;
         $self->start();
@@ -106,7 +106,7 @@ sub start {
 
     $self->_set_need_restart(0);
 
-    $self->logger->debug( 'Starting SNMP Poll loop.' );
+    $self->logger->debug($self->worker_name. ' Starting SNMP Poll loop.' );
 
     # where the magic happens
     return $self->_poll_loop();
@@ -147,7 +147,7 @@ sub _poll_callback{
       #--- track what we have in redis so we can expire later. 
       $self->{'cacheEntries'}{$req_time}{$oid}{$ip} = $key;
     } catch {
-        $self->logger->error( "$id Error in hset for data: $_" );
+        $self->logger->error(i$self->worker_name. " $id Error in hset for data: $_" );
         #--- on error try to restart
         $self->_set_need_restart(1);
         return;
@@ -162,7 +162,7 @@ sub _poll_callback{
     $redis->lpush("$ip,$id,$main_oid",$timestamp);
     $redis->select(0);
   } catch {
-    $self->logger->error( "$id Error in hset for timestamp: $_" );
+    $self->logger->error($self->worker_name. " $id Error in hset for timestamp: $_" );
     #--- on error try to restart
     $self->_set_need_restart(1);
     return;
@@ -197,7 +197,7 @@ sub _rebuild_cache{
       try{
         $keys = $redis->hkeys($oid);
       } catch {
-        $self->logger->error( $self->workder_name." Error rebuilding cache using hkeys: $_" );
+        $self->logger->error( $self->worker_name." Error rebuilding cache using hkeys: $_" );
         #--- on error try to restart
         $self->_set_need_restart(1);
         return;
@@ -225,32 +225,34 @@ sub _purge_data{
   my $redis   = $self->redis;
   my $id = $self->worker_name;  
 
-  $self->logger->error("Starting Purge of stale data");
+  $self->logger->error("$id Starting Purge of stale data");
+
+  return if(!defined $self->hosts);
 
   try{
       my @to_be_removed;
       my @ready_for_delete;
       foreach my $host(@{$self->hosts}){
           foreach my $oid (@{$self->oids}){
-              my $key = $host->{'ip'} . "," . $self->worker_name . "," . $oid;
+              my $key = $host->{'ip'} . "," . $id . "," . $oid;
               
               $redis->select(1);
               while( $redis->llen($key) > $self->polls_to_keep){
                   my $ts = $redis->rpop($key);
-                  $self->logger->error("Removing TS: " . $ts);
+                  #$self->logger->error("Removing TS: " . $ts);
                   push(@to_be_removed, $key . ",$ts");
               }
           }
       }
 
-      $self->logger->error("Have a list of stale entries");
+      #$self->logger->error("Have a list of stale entries");
 
       $redis->select(0);
       
       my @possible_oids;
       #find all the possible OIDs!
       foreach my $oid (@{$self->oids}){
-          $self->logger->error("Gathering all possible OIDs for main OID: " . $oid);
+          #$self->logger->error("Gathering all possible OIDs for main OID: " . $oid);
           my $cursor = 0;
           while(1){
               my $keys;
@@ -264,7 +266,7 @@ sub _purge_data{
           }
       }
 
-      $self->logger->error("Gathered all OIDs");
+      #$self->logger->error("Gathered all OIDs");
       
       if($#to_be_removed >= 0){
           foreach my $key (@possible_oids){
@@ -272,12 +274,13 @@ sub _purge_data{
           }
       }
 
-      $self->logger->error("Done purging!");
+      #$self->logger->error("Done purging!");
       
   } catch {
-      $self->logger->error( "Error purging entries using hdel: $_" );
+      $self->logger->error("$id Error purging entries using hdel: $_" );
                   #--- on error try to restart
-      $self->start();
+      die();
+      #$self->start();
   };
 
 }
@@ -292,6 +295,12 @@ sub _poll_loop {
   my $oids          = $self->oids;
 
   my %last_seen;
+
+  #--- if there are no hosts, there is nothing to do
+  if(!defined $hosts || scalar @$hosts == 0){
+    $self->logger->warn($self->worker_name. " no hosts found, nothing to do");
+    return; 
+  }
 
   foreach my $host(@$hosts){
      # build the SNMP object for each host of interest
@@ -316,7 +325,7 @@ sub _poll_loop {
 #  $self->_rebuild_cache();
 
 
-  while ( 1 ) {
+  while (1) {
     my $timestamp = time;
     my $waketime = $timestamp + $poll_interval;
 
