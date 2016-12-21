@@ -7,29 +7,56 @@ For now, you should have redis and rabbitmq installed locally and running.
 ./simp.pl --config /home/ebalas/config.xml --logging ../logging.conf
 ```
 
-The config file controls collection interval, and the number of workers to use, what to collect and from whom.
+The config file controls collection interval, and the number of workers to use and what to collect.
 
 ```
+<!--
+  config.xml defines the config for the simp collector, with the individual hosts defined in hosts.conf
+-->
 <config>
+ <! -- redis: defines how to connect to redis, which is used for data storage -->
  <redis host="127.0.0.1" port="6379"/>
   
-  <group name="group-a" active="1" workers="2" poll_interval="60">
-    <mib oid="1.3.6.1.2.1.2.2.1"/>
-    <mib oid="1.3.6.1.2.1.1.3"/>
-    <host ip="10.0.2.1" community="come on"/>
-    <host ip="10.0.2.2" community="farva"/>
-    <host ip="10.0.2.3" community="man"/>
+  <group name="int" active="1" workers="2" interval="60" retention="6">
+    <!-- mib: specifies the data to gather using getTree
+      oid: is set to an oid substing expressed as dotted decimal
+
+    -->
+    <mib oid="1.3.6.1.2.1.2.2"/>
+    <mib oid="1.3.6.1.2.1.31.1.1.1"/>
   </group>
 
-  <group name="group-b" active="0" workers="1" poll_interval="120">
-    <mib oid="1.3.6.1.2.1.2.2.1"/>
-    <mib oid="1.3.6.1.2.1.1.3"/>
-    <host ip="10.0.1.1" community="same"/>
-    <host ip="10.0.1.2" community="team"/>
+  <group name="bgp" active="0" workers="2" interval="30" retention="2">
+    <mib oid="1.3.6.1.2.1.15"/>
+  </group>
+
+  <group name="mac2ip" active="0" workers="5" interval="60" retention="2"
+    <mib oid="1.3.6.1.2.1.17.4.3"/>
   </group>
 
 </config>
 ```
+The host.conf file contains the set of hosts to collect from and defines the collection group assignments
+```
+<config>
+  <host ip="10.13.1.2" community="come on">
+    <group id="int"/>
+    <group id="bgp"/>
+  </host>
+  <host ip="10.13.1.1" community="farva man">
+    <group id="int"/>
+    <group id="bgp"/>
+  </host>
+  <host ip="10.13.2.2" community="same">
+    <group id="int"/>
+  </host>
+  <host ip="10.13.2.1" community="team">
+    <group id="mac2ip"/>
+  </host>
+  </group>
+</config>
+```
+
 
 ##running the data service:
 ```
