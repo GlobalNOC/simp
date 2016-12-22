@@ -238,7 +238,7 @@ sub _gen_hostkeys{
 }
 
 #--- callback to handle results from the hmgets issued in _get
-sub _get_cb_rate{
+sub _get_cb{
     my $self      = shift;
     my $hkeys     = shift;
     my $key       = shift;
@@ -250,29 +250,10 @@ sub _get_cb_rate{
         #--- Host Ip, Collector ID, TimeStamp
         my ($ip,$id,$oid,$ts) = split(/,/,$hk);
         my $val = shift @$reply;
-        next if(!defined $val);         #-- this OID key has no relevance to the IP in question if null here
+        next if(!defined $val);                  #-- this OID key has no relevance to the IP in question if null here
         $ref->{$ip}{$key}{'value'} = $val;       #-- external data representation is inverted from what we store
         $ref->{$ip}{$key}{'time'} = $ts;
     }
-}
-
-
-#--- callback to handle results from the hmgets issued in _get
-sub _get_cb{
-  my $self      = shift;
-  my $hkeys     = shift;
-  my $key       = shift;
-  my $ref       = shift;
-  my $reply     = shift;
-  my $error     = shift;
-  
-  foreach my $hk (@$hkeys){
-    #--- Host Ip, Collector ID, TimeStamp
-    my ($ip,$id,$oid,$ts) = split(/,/,$hk);
-    my $val = shift @$reply;
-    next if(!defined $val);         #-- this OID key has no relevance to the IP in question if null here
-    $ref->{$ip}{$key} = $val;       #-- external data representation is inverted from what we store
-  }
 }
 
 
@@ -346,8 +327,8 @@ sub _get_rate{
                 ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oid,COUNT=>200);
                 foreach my $key (@$keys){
                     #--- iterate on the returned OIDs and pull the values associated to each host
-                    my $vals = $redis->hmget($key,@$hkeys,sub {$self->_get_cb_rate($hkeys,$key,\%results,@_);});
-                    my $previous_vlans = $redis->hmget($key,@$hkeys_previous,sub {$self->_get_cb_rate($hkeys_previous,$key,\%results_previous,@_);});
+                    my $vals = $redis->hmget($key,@$hkeys,sub {$self->_get_cb($hkeys,$key,\%results,@_);});
+                    my $previous_vlans = $redis->hmget($key,@$hkeys_previous,sub {$self->_get_cb($hkeys_previous,$key,\%results_previous,@_);});
                 }
                 last if($cursor == 0);
             }
