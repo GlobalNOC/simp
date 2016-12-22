@@ -93,7 +93,7 @@ sub start {
             $self->logger->debug( 'Created daemon process.' );
 
             # change process name
-            $0 = "simpPoller";
+            $0 = "SimpData";
 
             $self->_create_workers();
         }

@@ -113,7 +113,10 @@ sub _start {
 
 
     my $method = GRNOC::RabbitMQ::Method->new(	name => "get",
-						callback =>  sub { $self->_get(@_) },
+						callback =>  sub {
+								   my ($method_ref,$params) = @_; 
+								   return $self->_get(0,$params); 
+								 },
 						description => "function to pull SNMP data out of cache");
 
     $method->add_input_parameter( name => "oidmatch",
@@ -134,7 +137,10 @@ sub _start {
     $dispatcher->register_method($method);
 
     $method = GRNOC::RabbitMQ::Method->new(  name => "get_rate",
-                                             callback =>  sub { $self->_get_rate(@_) },
+                                             callback =>  sub {
+							        my ($method_ref,$params) = @_; 
+								return $self->_get_rate($params);
+							  },
                                              description => "function to pull SNMP data out of cache and calculate the rate");
     
     $method->add_input_parameter( name => "oidmatch",
@@ -195,7 +201,6 @@ sub _gen_hostkeys{
   my $self        = shift;
   my $ipaddrs     = shift;
   my $index       = shift;
-  my $dispatcher  = shift;
   my $redis       = $self->redis;
 
   my $results_back = 
@@ -227,7 +232,6 @@ sub _gen_hostkeys{
       }
   } catch {
       $self->logger->error(" in gen_hostkeys: ". $_);
-      $dispatcher->stop_consuming();
   };
   
 
@@ -259,33 +263,31 @@ sub _get_cb{
 
 sub _get{
   #--- implementation using pipelining and callbacks 
-  my ($self,$method_ref,$params) = @_;
-  my $ipaddrs  = $params->{'ipaddrs'}{'value'};
-  my $oidmatch = $params->{'oidmatch'}{'value'};
-
-  my $redis    = $self->redis;
+  my $self      = shift;
+  my $pollcycle = shift;
+  my $params    = shift;
+  my $ipaddrs   = $params->{'ipaddrs'}{'value'};
+  my $oidmatch  = $params->{'oidmatch'}{'value'};
+  my $redis     = $self->redis;
 
   my %results;
 
-  my $dispatcher = $method_ref->get_dispatcher();
-
-
   try {
     #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
-    my $hkeys = $self->_gen_hostkeys($ipaddrs,0,$dispatcher);
+    my $hkeys = $self->_gen_hostkeys($ipaddrs,$pollcycle);
 
     foreach my $oid (@$oidmatch){
-        my $cursor = 0;
-        my $keys;
-        while(1){
-            #---- get the set of hash entries that match our pattern
-            ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oid,COUNT=>200);
-            foreach my $key (@$keys){
-                #--- iterate on the returned OIDs and pull the values associated to each host
-                my $vals =$redis->hmget($key,@$hkeys,sub {$self->_get_cb($hkeys,$key,\%results,@_);});
-            } 
-            last if($cursor == 0);
-        }
+      my $cursor = 0;
+      my $keys;
+      while(1){
+        #---- get the set of hash entries that match our pattern
+        ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oid,COUNT=>200);
+        foreach my $key (@$keys){
+          #--- iterate on the returned OIDs and pull the values associated to each host
+          my $vals =$redis->hmget($key,@$hkeys,sub {$self->_get_cb($hkeys,$key,\%results,@_);});
+        } 
+        last if($cursor == 0);
+      }
     }
 
     #--- wait for all pending responses to hmget requests
@@ -293,75 +295,78 @@ sub _get{
     
   } catch {
     $self->logger->error(" in get: ". $_);
-    $dispatcher->stop_consuming();
   };
-
 
   return \%results;
 }
+sub _rate{
+  my ($self,$cur_val,$cur_ts,$pre_val,$pre_ts,$context) = @_;
+  my $et      = $cur_ts - $pre_ts;
+  my $delta   = $cur_val - $pre_val;
+  my $max_val = 2**32;
+  
+  if($et <= 0){
+    #--- not elapse time cant calcualte rate / 0 and all
+    return 0;
+  }
+
+  if($cur_val > $max_val || $pre_val > $max_val){
+    #--- we have a value greater than 32bit assume 64bit counter
+    $max_val = 2**64;
+  }
+
+  if($delta < 0){
+    #--- counter wrap
+    if(defined $context){
+      $self->logger->debug("  counter wrap: $context");
+    }
+    $delta = ($max_val - $pre_val) + $cur_val;
+  }  
+
+  return $delta / $et;
+}
+
 
 sub _get_rate{
-    my $self = shift;
-    my $method_ref = shift;
-    my $params = shift;
+  my $self       = shift;
+  my $params     = shift;
+  my $redis      = $self->redis;
 
-    my $ipaddrs  = $params->{'ipaddrs'}{'value'};
-    my $oidmatch = $params->{'oidmatch'}{'value'};
+  my %current_data;
+  my %previous_data;
 
-    my $redis    = $self->redis;
+  #--- get the data for the current and a past poll cycle
+  my $current_data  = $self->_get(0,$params);
+  my $previous_data = $self->_get(2,$params);
 
-    my %results;
-    my %results_previous;
-    my $dispatcher = $method_ref->get_dispatcher();
-
-    try {
-        #--- convert the set of interesting ip address to the set of internal keys used to retrive data
-        my $hkeys = $self->_gen_hostkeys($ipaddrs,0,$dispatcher);
-        my $hkeys_previous = $self->_gen_hostkeys($ipaddrs,2,$dispatcher);
-
-        foreach my $oid (@$oidmatch){
-            my $cursor = 0;
-            my $keys;
-            while(1){
-                #---- get the set of hash entries that match our pattern
-                ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oid,COUNT=>200);
-                foreach my $key (@$keys){
-                    #--- iterate on the returned OIDs and pull the values associated to each host
-                    my $vals = $redis->hmget($key,@$hkeys,sub {$self->_get_cb($hkeys,$key,\%results,@_);});
-                    my $previous_vlans = $redis->hmget($key,@$hkeys_previous,sub {$self->_get_cb($hkeys_previous,$key,\%results_previous,@_);});
-                }
-                last if($cursor == 0);
-            }
-        }
-        #--- wait for all pending responses to hmget requests
-        $redis->wait_all_responses;
-    } catch {
-        $self->logger->error(" in get: ". $_);
-        $dispatcher->stop_consuming();
-    };
+  my %results;
     
-    my %rate_results;
-    
-    #ok calculate rates!
-    foreach my $ip (keys (%results)){
-        foreach my $oid (keys (%{$results{$ip}})){
-            #sanity check that we have a number...
-            if($results{$ip}{$oid}{'value'} =~ /^\d+$/){
-                #verify we have results from the previous object
-                if(!defined($results_previous{$ip}{$oid})){
-                    next;
-                }
-                
-                #$self->logger->debug("( " . $results{$ip}{$oid}{'value'} . " - " . $results_previous{$ip}{$oid}{'value'} . " ) / ( " . $results{$ip}{$oid}{'time'} . " - " . $results_previous{$ip}{$oid}{'time'} . " )");
-                $rate_results{$ip}{$oid} = ($results{$ip}{$oid}{'value'} - $results_previous{$ip}{$oid}{'value'}) / ($results{$ip}{$oid}{'time'} - $results_previous{$ip}{$oid}{'time'});
-                
-            }else{
-                #$self->logger->debug("OID: " . $oid . " with value " .  $results{$ip}{$oid}{'value'} . " is not number\n");
-            }
-        }
+  #iterate over current and previous data to calculate rates where sensible
+  foreach my $ip (keys (%$current_data)){
+    foreach my $oid (keys (%{$current_data->{$ip}})){
+      my $current_val  = $current_data->{$ip}{$oid}{'value'};
+      my $current_ts   = $current_data->{$ip}{$oid}{'time'};
+      my $previous_val = $previous_data->{$ip}{$oid}{'value'};
+      my $previous_ts  = $previous_data->{$ip}{$oid}{'time'};
+
+      #--- sanity check
+      if(!defined $current_val || !defined $previous_val || 
+        !defined $current_ts  || !defined $previous_ts){
+        #--- incomplete data
+        next;
+      } 
+
+      if(!($current_val =~/\d+$/)){
+        #--- not a number
+        next;
+      }
+
+      $results{$ip}{$oid} = $self->_rate($current_val,$current_ts,
+					 $previous_val,$previous_ts,
+					 "$ip->$oid");
     }
-    
-    return \%rate_results;
+  } 
+  return \%results;
 }
 
 
