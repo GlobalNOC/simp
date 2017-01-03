@@ -20,5 +20,4 @@ or otherwise managed semi-idependently. the ids used are only relevant if define
   <host ip="10.13.2.1" community="team"> 
     <group id="mac2ip"/>
   </host>
-  </group>
 </config>
