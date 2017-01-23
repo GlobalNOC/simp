@@ -7,7 +7,16 @@ Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
 Source0: simp-%{version}.tar.gz
 BuildRequires: perl
-BuildRequires: perl-GRNOC-RabbitMQ
+Requires: perl-GRNOC-RabbitMQ
+Requires: perl-Moo
+Requires: redis
+Requires: perl-GRNOC-Log
+Requires: perl-GRNOC-Config
+Requires: perl-Redis
+Requires: perl-Parallel-ForkManager
+Requires: perl-Try-Tiny
+Requires: perl-Net-SNMP
+
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
@@ -58,6 +67,7 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
 /usr/bin/simp.pl
 /usr/bin/simpData.pl
+/usr/bin/compData.pl
 %config(noreplace) /etc/grnoc/simp/config.xml
 %config(noreplace) /etc/grnoc/simp/hosts.xml
 %config(noreplace) /etc/grnoc/simp/logging.conf
