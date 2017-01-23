@@ -1,0 +1,75 @@
+<!-- hostType is used to control what instance to apply 
+     types are designed to act like progressively more specific strings 
+     /vendor/model/codeversion/arbitrary
+     if not set then its a default, setting it to "juniper" gives you 
+     something applicable to all juniper  "juniper/mx"  more specific
+     this is not full proof but just a convention to use between simp
+     and comp, with where we do the setting of hostType is not yet defined
+-->
+
+<config workers="3" >
+  <redis host="127.0.0.1" port="6379"/>
+  <rabbitMQ host="127.0.0.1" port="5672" user="guest" password="guest"/>
+
+
+  <composite id="interfaceGbps">
+    <input id="ipaddrs" required="1"/>
+    <input id="ifName"/>
+
+    <instance id="genericIfGbps" hostType="default">
+      <!-- if ifName not providd get all values in the table-->
+      <scan  id="ifIdx"  oid="1.3.6.1.2.1.2.2.1.2.*" var="ifName" />
+      <result>
+        <val id="host"   var="host"/>
+        <val id="ifName" var="ifName"/>
+        <val id="in"  type="rate"   oid="1.3.6.1.2.1.31.1.1.1.6.$ifIdx" >
+          <fctn name="/" value="1000000000"/>
+        </val>
+        <val id="out" type="rate"   oid="1.3.6.1.2.1.31.1.1.1.10.$ifIdx" >
+          <fctn name="/" value="1000000000"/>
+        </val>
+      </result>
+    </instance>  
+  </composite>
+
+  <composite id="CPU">
+    <input id="ipaddrs" required="1"/>
+    <instance id="jnprCPU" hostType="juniper">
+      <!--- get all values in the juniper hardware table-->
+      <scan  id="compoundHwIdx"  oid="1.3.6.1.4.1.2636.3.1.13.1.5.*" />
+      <result>
+        <val id="host"   var="host"/>
+        <val id="device" oid="1.3.6.1.4.1.2636.3.1.13.1.5.$compoundHwIdx"/>
+        <val id="cpu"   oid="1.3.6.1.4.1.2636.3.1.13.1.8.$compoundHwIdx" />
+         <!-- result returns last 1 min percentage as integer from 0-100 -->
+      </result>
+    </instance>
+
+    <instance id="ciscoCPU" type="CPU" hostType="cisco">
+      <!--- get all values in the cisco util table-->
+      <scan  id="utilIdx"  oid=".1.3.6.1.2.1.47.1.1.1.1.2.*" />
+      <val   id="hwIdx"    oid=".1.3.6.1.2.1.47.1.1.1.1.2.$utilIdx" />
+      <result>
+        <val id="host"   var="host"/>
+        <val id="device" oid=".1.3.6.1.2.1.47.1.1.1.1.7.$hwIdx"/>
+        <val id="cpu"   oid=".1.3.6.1.2.1.47.1.1.1.1.5.$utilIdx" />
+        <!-- result returns last 1 min percentage as integer from 0-100 -->
+      </result>
+    </instance>
+
+    <instance id="genericCPU" type="CPU" hostType="default" >
+      <!--- get all values in the cisco util table-->
+      <scan  id="hwIdx"  oid="1.3.6.1.2.1.25.3.3.*" />
+      <result>
+        <val id="host"   var="host"/>
+        <val id="device" oid="1.3.6.1.2.1.25.3.3.1.$utilIdx"/>
+        <val id="cpu"   oid="1.3.6.1.2.1.25.3.3.2.$utilIdx" />
+        <!-- returns last minute percentage as integer from 0-100 -->
+      </result>
+    </instance>
+
+  </composite>
+
+  
+  
+</config>

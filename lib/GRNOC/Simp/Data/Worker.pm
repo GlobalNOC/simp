@@ -10,7 +10,6 @@ use Redis;
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::WebService::Regex;
-use Net::SNMP;
 
 ### required attributes ###
 
@@ -44,11 +43,16 @@ sub start {
   while(1){
     #--- we use try catch to, react to issues such as com failure
     #--- when any error condition is found, the reactor stops and we then reinitialize 
-    $self->logger->debug( $self->worker_id." restarting." );
+    $self->logger->debug( $self->worker_id." starting." );
     $self->_start();
     sleep 2;
   }
 
+}
+
+sub stop{
+  my ($self ) = @_;
+  exit;
 }
 
 sub _start {
@@ -65,14 +69,17 @@ sub _start {
 
     # setup signal handlers
     $SIG{'TERM'} = sub {
-
-        $self->logger->info( "Received SIG TERM." );
-        $self->stop();
+      $self->logger->info( "Received SIG TERM." );
+      $self->stop();
     };
 
     $SIG{'HUP'} = sub {
+      $self->logger->info( "Received SIG HUP." );
+    };
 
-        $self->logger->info( "Received SIG HUP." );
+    $SIG{'INT'} = sub {
+      $self->logger->info( "Received SIG INT." );
+      $self->stop();
     };
 
     my $redis_host = $self->config->get( '/config/redis/@host' );
@@ -103,7 +110,7 @@ sub _start {
 
     $self->logger->debug( 'Setup RabbitMQ' );
 
-    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue => "Simp",
+    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue => "Simp.Data",
 							topic => "Simp.Data",
 							exchange => "Simp",
 							user => $rabbit_user,
@@ -167,6 +174,20 @@ sub _start {
                                                 description => "function to test latency");
 
     $dispatcher->register_method($method2);
+
+    #--- build host key cache every second 
+    $self->_gen_hostkeys(0);
+    $self->_gen_hostkeys(1);
+    AnyEvent->timer(	
+			after => 1, 
+			interval => 10, 
+			cb => sub { 
+					$self->_gen_hostkeys(0); 
+					$self->_gen_hostkeys(1);
+				}
+			);
+
+    sleep(1);
     
     #--- go into event loop handing requests that come in over rabbit  
     $self->logger->debug( 'Entering RabbitMQ event loop' );
@@ -187,49 +208,50 @@ sub _ping{
 #--- calllback function to process results when building our hostkey list
 sub _hostkey_cb{
     my $self      = shift;
+    my $index     = shift;
     my $key       = shift;
-    my $ref       = shift;
     my $reply     = shift; 
 
     return if(!defined($reply));
-    push(@$ref, $key . "," . $reply);
+
+    my ($host,@rest) = split(/,/,$key);
+
+    if( ! defined $self->{'host_cache'} || 
+	! defined $self->{'host_cache'}{$host} ||
+	! defined $self->{'host_cache'}{$host}{$index} ){
+      $self->{'host_cache'}{$host}{$index} = ();
+    }
+ 
+    push(@{$self->{'host_cache'}{$host}{$index}}, $key.",".$reply)   
 }
 
 
 #--- returns a hash that maps ip to the host key
 sub _gen_hostkeys{
   my $self        = shift;
-  my $ipaddrs     = shift;
   my $index       = shift;
   my $redis       = $self->redis;
 
-  my $results_back = 
-
-  my @results;
-  my $cursor = 0;
 
   try {
-      
       #--- the timestamps are kept in a different db "1" vs "0"
       $redis->select(1);
       
       my $keys;
-      foreach my $ip (@$ipaddrs){
-          while(1){
-              my $ip_str = $ip . ",*";
-              #---- get the set of hash entries that match our pattern
-              ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$ip_str,COUNT=>200);
-              foreach my $key (@$keys){
-                  #--- iterate on the returned OIDs and pull the values associated to each host
-                  $redis->lindex($key, $index, sub { $self->_hostkey_cb($key,\@results,@_)});
-              }
-              last if($cursor == 0);
-          }
-          
-          #--- wait for all the hgetall responses to return
-          $redis->wait_all_responses;
-          
+      my $cursor = 0;
+      while(1){
+        #---- get the set of hash entries that match our pattern
+        ($cursor,$keys) =  $redis->scan($cursor,COUNT=>2000);
+        foreach my $key (@$keys){
+	  #warn "$key -> $index\n";
+          #--- iterate on the returned OIDs and pull the values associated to each host
+          $redis->lindex($key, $index, sub {$self->_hostkey_cb($index,$key,@_)});
+        }
+        last if($cursor == 0);
       }
+          
+      #--- wait for all the hgetall responses to return
+      $redis->wait_all_responses;
   } catch {
       $self->logger->error(" in gen_hostkeys: ". $_);
   };
@@ -237,13 +259,14 @@ sub _gen_hostkeys{
 
   #--- return back to db 0
   $redis->select(0);
-
-  return \@results;
 }
 
 #--- callback to handle results from the hmgets issued in _get
 sub _get_cb{
     my $self      = shift;
+
+    #warn Dumper(@_);
+
     my $hkeys     = shift;
     my $key       = shift;
     my $ref       = shift;
@@ -253,10 +276,12 @@ sub _get_cb{
     foreach my $hk (@$hkeys){
         #--- Host Ip, Collector ID, TimeStamp
         my ($ip,$id,$oid,$ts) = split(/,/,$hk);
-        my $val = shift @$reply;
-        next if(!defined $val);                  #-- this OID key has no relevance to the IP in question if null here
-        $ref->{$ip}{$key}{'value'} = $val;       #-- external data representation is inverted from what we store
-        $ref->{$ip}{$key}{'time'} = $ts;
+        foreach my $val(@$reply){
+          next if(!defined $val);                  #-- this OID key has no relevance to the IP in question if null here
+	  #warn "$ip $id $oid $ts -> $val\n";
+          $ref->{$ip}{$key}{'value'} = $val;       #-- external data representation is inverted from what we store
+          $ref->{$ip}{$key}{'time'}  = $ts;
+	}
     }
 }
 
@@ -274,19 +299,38 @@ sub _get{
 
   try {
     #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
-    my $hkeys = $self->_gen_hostkeys($ipaddrs,$pollcycle);
+    my $hostkeys = (); 
+    foreach my $host(@$ipaddrs){
+	push(@{$hostkeys},@{$self->{'host_cache'}{$host}{$pollcycle}});
+    }
+    #warn "get\n";
+    #warn Dumper($hostkeys);
 
     foreach my $oid (@$oidmatch){
-      my $cursor = 0;
-      my $keys;
-      while(1){
-        #---- get the set of hash entries that match our pattern
-        ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oid,COUNT=>200);
-        foreach my $key (@$keys){
-          #--- iterate on the returned OIDs and pull the values associated to each host
-          my $vals =$redis->hmget($key,@$hkeys,sub {$self->_get_cb($hkeys,$key,\%results,@_);});
-        } 
-        last if($cursor == 0);
+      #warn "oid: $oid\n";
+      #---check to see if the oid is a full oid or a match
+      if(!($oid =~ /\*/)){
+          #warn "get $oid\n";
+          #--- this is a full OID not a search patterna, we can skip the scan phase
+	  #--- pull values from each relevant host for this OID
+	  #warn "  key: $oid\n";
+	  $redis->hmget($oid,@$hostkeys,sub {$self->_get_cb($hostkeys,$oid,\%results,@_);});
+      }else{
+        #--- this is a search pattern 
+        my $cursor =0;
+        my $keys;
+	while(1){
+          #warn "scan $oid $cursor\n";
+          #--- get the set of hash entries that match our pattern
+          ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oid,COUNT=>2000);
+          foreach my $key (@$keys){
+	    #warn "  key:$key\n";
+            #--- iterate on the returned OIDs and pull the values associated to each host
+            $redis->hmget($key,@$hostkeys,sub {$self->_get_cb($hostkeys,$key,\%results,@_);});
+          }
+
+          last if($cursor == 0);
+        }
       }
     }
 
@@ -337,7 +381,7 @@ sub _get_rate{
 
   #--- get the data for the current and a past poll cycle
   my $current_data  = $self->_get(0,$params);
-  my $previous_data = $self->_get(2,$params);
+  my $previous_data = $self->_get(1,$params);
 
   my %results;
     
@@ -361,9 +405,11 @@ sub _get_rate{
         next;
       }
 
-      $results{$ip}{$oid} = $self->_rate($current_val,$current_ts,
+      $results{$ip}{$oid}{'value'} = $self->_rate($current_val,$current_ts,
 					 $previous_val,$previous_ts,
 					 "$ip->$oid");
+      $results{$ip}{$oid}{'time'}  = $current_ts;
+
     }
   } 
   return \%results;
