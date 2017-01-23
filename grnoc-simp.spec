@@ -67,6 +67,7 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
 /usr/bin/simp.pl
 /usr/bin/simpData.pl
+/usr/bin/compData.pl
 %config(noreplace) /etc/grnoc/simp/config.xml
 %config(noreplace) /etc/grnoc/simp/hosts.xml
 %config(noreplace) /etc/grnoc/simp/logging.conf
