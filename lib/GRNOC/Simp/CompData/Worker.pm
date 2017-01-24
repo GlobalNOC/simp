@@ -123,10 +123,10 @@ sub _start {
         if(defined $input->{'required'}){$required = 1;}
 
         $method->add_input_parameter( name => "$input_id",
-                                  description => "we will add description to the config file later",
-                                  required => $required,
-                                  multiple => 1,
-                                  pattern => $GRNOC::WebService::Regex::TEXT);
+				      description => "we will add description to the config file later",
+				      required => $required,
+				      multiple => 1,
+				      pattern => $GRNOC::WebService::Regex::TEXT);
         
 
         print "  $input_id: $required:\n";
@@ -167,8 +167,6 @@ sub _do_scans{
   my $onComplete   = shift;
 
 
-   $onComplete->();
-   return;
   #--- find the set of required variables
   #-- for now hack host as its sorta special
   my $hosts = $params->{'ipaddrs'}{'value'};
@@ -186,7 +184,7 @@ sub _do_scans{
  
  foreach my $instance ($xrefs->get_nodelist){
     my $instance_id = $instance->getAttribute("id");
-    #warn "using instance: $instance_id\n";
+#    warn "using instance: $instance_id\n";
     #--- get the list of scans to perform
     my $scanres = $xc->find("./scan",$instance);
     foreach my $scan ($scanres->get_nodelist){
@@ -198,19 +196,18 @@ sub _do_scans{
         $targets = $params->{$var}{"value"};
       }
       $cv->begin;
-      #warn "get $oid:\n";
-      #warn Dumper($hosts);
+#      warn "get $oid:\n";
+#      warn Dumper($hosts);
       $self->client->get(
-		ipaddrs => $hosts, 
-		oidmatch => $oid,
-		async_callback => sub {
-					my $data= shift;
-					
-					#warn Dumper($data);
-					$self->_scan_cb($data->{'results'},$hosts,$id,$oid,$targets,$results); 
-					$cv->end;
-					undef $data;
-				} );
+	  ipaddrs => $hosts, 
+	  oidmatch => $oid,
+	  async_callback => sub {
+	      my $data= shift;
+	      
+#	      warn Dumper($data);
+	      $self->_scan_cb($data->{'results'},$hosts,$id,$oid,$targets,$results); 
+	      $cv->end;
+	  } );
     }
   }
   $cv->end; 
@@ -241,9 +238,9 @@ sub _scan_cb{
         }
       }else{
         #--- no val specified, return all
-        my $val = $data->{$host}{$oid}{'value'};
-        $oid =~ s/$oid_pattern//;
-        $results->{$host}{$id}{$val} = $oid;
+	  my $val = $data->{$host}{$oid}{'value'};
+	  $oid =~ s/$oid_pattern//;
+	  $results->{$host}{$id}{$val} = $oid;
       }
     }
   }
@@ -252,115 +249,100 @@ sub _scan_cb{
 }
 
 sub _do_vals{
-  my $self         = shift;
-  my $xrefs        = shift;
-  my $params       = shift;
-  my $results      = shift;
-  my $onComplete   = shift;
-
-  $onComplete->();
-  return;
-
-  #--- find the set of required variables
-  #-- for now hack host as its sorta special
-  my $hosts = $params->{'ipaddrs'}{'value'};
-
-
-  #--- this function will execute multiple gets in "parallel" using the begin / end apprach
-  #--- this first call to begin will call the $onComplete function when the number of end calls == number of begin
-  my $cv = AnyEvent->condvar;
-  $cv->begin($onComplete);
-
-  #--- give up on config object and go direct to xmllib to get proper xpath support
-  #--- these should be moved to the constructor
-  my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
-
- foreach my $instance ($xrefs->get_nodelist){
-    #--- get the list of scans to perform
-    my $valres = $xc->find("./result/val",$instance);
-    foreach my $val ($valres->get_nodelist){
-      my $id      = $val->getAttribute("id");
-      my $var     = $val->getAttribute("var");
-      my $oid     = $val->getAttribute("oid");
-      my $type    = $val->getAttribute("type");
-
-      #warn $val->toString() ."\n";
-     
-
-      if(!defined $var || !defined $id){
-	#--- required data missing
-	#warn "missing val or id\n";
-        next;
-      }
-
-      if(!defined $oid){
-        #warn "missing oid\n";
-        next;
-      }
-
-      #warn "get $id -> $var $oid \n";
-
-      #--- we need pull data from simp 
-      foreach my $host(@$hosts){
-        my @matches;
-        my @hostarray;
-        my %lut;
-
-        #--- each host gets its own array of match patterns
-        #--- as thse are very specific
-        my $ref = $results->{$host}{$var};
-        foreach my $key (keys %{$ref}){
-	  my $val = $ref->{$key};
-          my $match = $oid;
-          $match =~ s/$var/$val/;
-          $lut{$match} = $key;
-	  push(@matches,$match);
-        }
-        push(@hostarray,$host);
-        #--- send the array of matches to simp
-        $cv->begin;
-
-        #warn Dumper(\@matches);
-	
-	if(defined $type && $type eq "rate"){
-          #warn "getrate :\n";
-          #warn Dumper(\@hostarray);
-          #warn Dumper(\@matches);
-          $self->client->get_rate(
+    my $self         = shift;
+    my $xrefs        = shift;
+    my $params       = shift;
+    my $results      = shift;
+    my $onComplete   = shift;
+    
+    #--- find the set of required variables
+    #-- for now hack host as its sorta special
+    my $hosts = $params->{'ipaddrs'}{'value'};
+    
+    
+    #--- this function will execute multiple gets in "parallel" using the begin / end apprach
+    #--- this first call to begin will call the $onComplete function when the number of end calls == number of begin
+    my $cv = AnyEvent->condvar;
+    $cv->begin($onComplete);
+    
+    #--- give up on config object and go direct to xmllib to get proper xpath support
+    #--- these should be moved to the constructor
+    my $doc = $self->config->{'doc'};
+    my $xc  = XML::LibXML::XPathContext->new($doc);
+    
+    foreach my $instance ($xrefs->get_nodelist){
+	#--- get the list of scans to perform
+	my $valres = $xc->find("./result/val",$instance);
+	foreach my $val ($valres->get_nodelist){
+	    my $id      = $val->getAttribute("id");
+	    my $var     = $val->getAttribute("var");
+	    my $oid     = $val->getAttribute("oid");
+	    my $type    = $val->getAttribute("type");
+	    
+#	    warn $val->toString() ."\n";
+	    
+	    
+	    if(!defined $var || !defined $id){
+		#--- required data missing
+#		warn "missing val or id\n";
+		next;
+	    }
+	    
+	    if(!defined $oid){
+#		warn "missing oid\n";
+		next;
+	    }
+	    
+#	    warn "get $id -> $var $oid \n";
+	    
+	    #--- we need pull data from simp 
+	    foreach my $host(@$hosts){
+		my @matches;
+		my @hostarray;
+		my %lut;
+		
+		#--- each host gets its own array of match patterns
+		#--- as thse are very specific
+		my $ref = $results->{$host}{$var};
+		foreach my $key (keys %{$ref}){
+		    my $val = $ref->{$key};
+		    my $match = $oid;
+		    $match =~ s/$var/$val/;
+		    $lut{$match} = $key;
+		    push(@matches,$match);
+		}
+		push(@hostarray,$host);
+		#--- send the array of matches to simp
+		$cv->begin;
+		
+#		warn Dumper(\@matches);
+		
+		if(defined $type && $type eq "rate"){
+		    $self->client->get_rate(
                         ipaddrs => \@hostarray,
                         oidmatch => \@matches,
                         async_callback =>  sub {
-                                                 my $data= shift;
-						 #warn Dumper(\@hostarray);
-						 #warn Dumper(\@matches);
-  						 #warn Dumper($data);
-                                                 $self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
-                                                 $cv->end;
-                                                 undef $data;
-                                                } );
-        
-
-	}else{
-	  #warn "get :\n";
-	  #warn Dumper(\@hostarray);
-          #warn Dumper(\@matches);
-          $self->client->get(
+			    my $data= shift;
+			    $self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
+			    $cv->end;
+			} );
+		    
+		    
+		}else{
+		    $self->client->get(
 			ipaddrs => \@hostarray, 
 			oidmatch => \@matches,
 			async_callback =>  sub {
-						 my $data= shift; 
-						 #warn Dumper($data);
-						 $self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val); 
-						 $cv->end;
-						 undef $data;
-						} );      
-      
-        }
-      }
-    } 
-  }
-  $cv->end; 
+			    my $data= shift; 
+			    $self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val); 
+			    $cv->end;
+			} );      
+		    
+		}
+	    }
+	} 
+    }
+    $cv->end; 
 }
 
 sub _val_cb{
@@ -375,7 +357,7 @@ sub _val_cb{
   my $doc = $self->config->{'doc'};
   my $xc  = XML::LibXML::XPathContext->new($doc);
 
-  #warn "val callback: $id\n";
+#  warn "val callback: $id\n";
 
   foreach my $host (keys %$data){
     foreach my $oid (keys %{$data->{$host}}){
@@ -401,6 +383,7 @@ sub _val_cb{
 
       }
       $results->{'final'}{$host}{$var}{$id} =  $val; #sprintf("%.4f", $val);
+#      warn "HOst: " . $host . " var: " . $var . " " . $id . " = " . $val . "\n";
     }
   } 
 
@@ -434,19 +417,18 @@ sub _get{
   #---   \->_scan_cb    \->_val_cb 
   #--- results are accumulated in $results{'final'} 
 
-  my $onSuccess = sub { undef %results; 
-			my $dogshit = "fuckme";
-			#$rpc_ref->{'success_callback'}($results{'final'});
-			$rpc_ref->{'success_callback'}({success => 1});
-		      };
+  my $onSuccess = sub { my $cv = shift;
+			#warn "RESULTS: " . Dumper(%results);
+			$rpc_ref->{'success_callback'}($results{'final'});
+  };
   $self->_do_scans(
-		$ref,
-		$params,
-		\%results,
-		sub {
-		      $self->_do_vals($ref,$params,\%results,$onSuccess);
-		});
-
+      $ref,
+      $params,
+      \%results,
+      sub {
+	  $self->_do_vals($ref,$params,\%results,$onSuccess);
+      });
+  
 }
 
 1;
