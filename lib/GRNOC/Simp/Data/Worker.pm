@@ -85,6 +85,9 @@ sub _start {
     my $redis_host = $self->config->get( '/config/redis/@host' );
     my $redis_port = $self->config->get( '/config/redis/@port' );
   
+    warn Dumper($redis_host);
+    warn Dumper($redis_port);
+
     my $rabbit_host = $self->config->get( '/config/rabbitMQ/@host' );
     my $rabbit_port = $self->config->get( '/config/rabbitMQ/@port' );
     my $rabbit_user = $self->config->get( '/config/rabbitMQ/@user' );
@@ -178,15 +181,14 @@ sub _start {
     #--- build host key cache every second 
     $self->_gen_hostkeys(0);
     $self->_gen_hostkeys(1);
-    AnyEvent->timer(	
-			after => 1, 
-			interval => 10, 
-			cb => sub { 
-					$self->_gen_hostkeys(0); 
-					$self->_gen_hostkeys(1);
-				}
-			);
-
+    $self->{'host_key_timer'} = AnyEvent->timer( after => 1, 
+						 interval => 10, 
+						 cb => sub {
+						     
+						     $self->_gen_hostkeys(0); 
+						     $self->_gen_hostkeys(1);
+						 });
+    
     sleep(1);
     
     #--- go into event loop handing requests that come in over rabbit  
@@ -208,21 +210,20 @@ sub _ping{
 #--- calllback function to process results when building our hostkey list
 sub _hostkey_cb{
     my $self      = shift;
-    my $index     = shift;
     my $key       = shift;
+    my $host_key_cache = shift;
     my $reply     = shift; 
 
     return if(!defined($reply));
 
     my ($host,@rest) = split(/,/,$key);
-
-    if( ! defined $self->{'host_cache'} || 
-	! defined $self->{'host_cache'}{$host} ||
-	! defined $self->{'host_cache'}{$host}{$index} ){
-      $self->{'host_cache'}{$host}{$index} = ();
+    
+    if( ! defined $host_key_cache || 
+	! defined $host_key_cache->{$host} ){
+      $host_key_cache->{$host} = ();
     }
  
-    push(@{$self->{'host_cache'}{$host}{$index}}, $key.",".$reply)   
+    push(@{$host_key_cache->{$host}}, $key . "," . $reply);
 }
 
 
@@ -232,6 +233,7 @@ sub _gen_hostkeys{
   my $index       = shift;
   my $redis       = $self->redis;
 
+  my $host_key_cache = {};
 
   try {
       #--- the timestamps are kept in a different db "1" vs "0"
@@ -245,13 +247,14 @@ sub _gen_hostkeys{
         foreach my $key (@$keys){
 	  #warn "$key -> $index\n";
           #--- iterate on the returned OIDs and pull the values associated to each host
-          $redis->lindex($key, $index, sub {$self->_hostkey_cb($index,$key,@_)});
+          $redis->lindex($key, $index, sub {$self->_hostkey_cb($key,$host_key_cache,@_)});
         }
         last if($cursor == 0);
       }
           
       #--- wait for all the hgetall responses to return
       $redis->wait_all_responses;
+      $self->{'host_cache'}{$index} = $host_key_cache;
   } catch {
       $self->logger->error(" in gen_hostkeys: ". $_);
   };
@@ -301,7 +304,7 @@ sub _get{
     #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
     my $hostkeys = (); 
     foreach my $host(@$ipaddrs){
-	push(@{$hostkeys},@{$self->{'host_cache'}{$host}{$pollcycle}});
+	push(@{$hostkeys},@{$self->{'host_cache'}{$pollcycle}{$host}});
     }
     #warn "get\n";
     #warn Dumper($hostkeys);
@@ -346,6 +349,11 @@ sub _get{
 sub _rate{
   my ($self,$cur_val,$cur_ts,$pre_val,$pre_ts,$context) = @_;
   my $et      = $cur_ts - $pre_ts;
+  if(!($cur_val =~ /\d+$/)){
+      #not a number... 
+      return $cur_val;
+  }
+  
   my $delta   = $cur_val - $pre_val;
   my $max_val = 2**32;
   
@@ -406,8 +414,8 @@ sub _get_rate{
       }
 
       $results{$ip}{$oid}{'value'} = $self->_rate($current_val,$current_ts,
-					 $previous_val,$previous_ts,
-					 "$ip->$oid");
+						  $previous_val,$previous_ts,
+						  "$ip->$oid");
       $results{$ip}{$oid}{'time'}  = $current_ts;
 
     }
