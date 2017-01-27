@@ -369,7 +369,7 @@ sub _val_cb{
       foreach my $fctn ($fctns->get_nodelist){
         my $name      = $fctn->getAttribute("name");
         my $operand     = $fctn->getAttribute("value");
-     
+       
         if($name eq "/"){
 	  #warn "divide $val by $operand\n";
 	  #--- unary divide operator
@@ -380,7 +380,10 @@ sub _val_cb{
           #--- unary multiply operator
           $val = $val * $operand
         }
-
+        if($name eq "replace"){
+            my $replace = $fctn->getAttribute("replace");
+            $val =~ s/$operand/$replace/g;
+        }
       }
       $results->{'final'}{$host}{$var}{$id} =  $val; #sprintf("%.4f", $val);
 #      warn "HOst: " . $host . " var: " . $var . " " . $id . " = " . $val . "\n";

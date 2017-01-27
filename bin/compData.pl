@@ -12,8 +12,8 @@ sub usage {
 }
 
 
-use constant DEFAULT_CONFIG_FILE => '/etc/grnoc/compData/compDataConfig.xml';
-use constant DEFAULT_LOG_FILE    => '/etc/grnoc/compData/logging.conf';
+use constant DEFAULT_CONFIG_FILE => '/etc/grnoc/comp/compDataConfig.xml';
+use constant DEFAULT_LOG_FILE    => '/etc/grnoc/comp/logging.conf';
 
 my $config_file = DEFAULT_CONFIG_FILE;
 my $logging     = DEFAULT_LOG_FILE;
