@@ -12,6 +12,7 @@ use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::RabbitMQ::Client;
 use GRNOC::WebService::Regex;
 
+
 ### required attributes ###
 
 has config => ( is => 'ro',
@@ -182,37 +183,36 @@ sub _do_scans{
   my $doc = $self->config->{'doc'};
   my $xc  = XML::LibXML::XPathContext->new($doc);
  
- foreach my $instance ($xrefs->get_nodelist){
-    my $instance_id = $instance->getAttribute("id");
+  foreach my $instance ($xrefs->get_nodelist){
+      my $instance_id = $instance->getAttribute("id");
 #    warn "using instance: $instance_id\n";
-    #--- get the list of scans to perform
-    my $scanres = $xc->find("./scan",$instance);
-    foreach my $scan ($scanres->get_nodelist){
-      my $id      = $scan->getAttribute("id");
-      my $oid     = $scan->getAttribute("oid");
-      my $var     = $scan->getAttribute("var");
-      my $targets;
-      if(defined $var){
-        $targets = $params->{$var}{"value"};
+      #--- get the list of scans to perform
+      my $scanres = $xc->find("./scan",$instance);
+      foreach my $scan ($scanres->get_nodelist){
+	  my $id      = $scan->getAttribute("id");
+	  my $oid     = $scan->getAttribute("oid");
+	  my $var     = $scan->getAttribute("var");
+	  my $targets;
+	  if(defined $var){
+	      $targets = $params->{$var}{"value"};
+	  }
+	  $cv->begin;
+	  warn "SCAN HOST: " . Dumper($hosts);
+	  warn "SCAN OID: " . Dumper($oid);
+	  $self->client->get(
+	      ipaddrs => $hosts, 
+	      oidmatch => $oid,
+	      async_callback => sub {
+		  my $data= shift;
+		  warn Dumper($data);
+		  $self->_scan_cb($data->{'results'},$hosts,$id,$oid,$targets,$results); 
+		  $cv->end;
+	      } );
       }
-      $cv->begin;
-#      warn "get $oid:\n";
-#      warn Dumper($hosts);
-      $self->client->get(
-	  ipaddrs => $hosts, 
-	  oidmatch => $oid,
-	  async_callback => sub {
-	      my $data= shift;
-	      
-#	      warn Dumper($data);
-	      $self->_scan_cb($data->{'results'},$hosts,$id,$oid,$targets,$results); 
-	      $cv->end;
-	  } );
-    }
   }
   $cv->end; 
-
-
+  
+  
 }
 sub _scan_cb{
   my $self        = shift;
@@ -226,25 +226,30 @@ sub _scan_cb{
   $oid_pattern  =~s/\*//;
   $oid_pattern = quotemeta($oid_pattern);
 
+  warn "Data: " . Dumper($data);
+  
   foreach my $host (@$hosts){
-    foreach my $oid (keys %{$data->{$host}}){
-      if(defined $vals){
-        #--- return only those entries matching specified values
-        foreach my $val (@$vals){
-          if($data->{$host}{$oid}{'value'} eq $val){
-            $oid =~ s/$oid_pattern//;
-            $results->{$host}{$id}{$val} = $oid;
-          }
-        }
-      }else{
-        #--- no val specified, return all
-	  my $val = $data->{$host}{$oid}{'value'};
-	  $oid =~ s/$oid_pattern//;
-	  $results->{$host}{$id}{$val} = $oid;
+      warn "HOST: " . $host . "\n";
+      foreach my $oid (keys %{$data->{$host}}){
+	  warn "OID: " . $oid . "\n";
+	  if(defined $vals){
+	      #--- return only those entries matching specified values
+	      warn "VALS:" . Dumper($vals);
+	      foreach my $val (@$vals){
+		  if($data->{$host}{$oid}{'value'} eq $val){
+		      $oid =~ s/$oid_pattern//;
+		      $results->{$host}{$id}{$val} = $oid;
+		  }
+	      }
+	  }else{
+	      #--- no val specified, return all
+	      my $val = $data->{$host}{$oid}{'value'};
+	      $oid =~ s/$oid_pattern//;
+	      $results->{$host}{$id}{$val} = $oid;
+	  }
       }
-    }
   }
-
+  
   return ;
 }
 
@@ -279,21 +284,21 @@ sub _do_vals{
 	    my $oid     = $val->getAttribute("oid");
 	    my $type    = $val->getAttribute("type");
 	    
-#	    warn $val->toString() ."\n";
+	    warn $val->toString() ."\n";
 	    
 	    
 	    if(!defined $var || !defined $id){
 		#--- required data missing
-#		warn "missing val or id\n";
+		warn "missing val or id\n";
 		next;
 	    }
 	    
 	    if(!defined $oid){
-#		warn "missing oid\n";
+		warn "missing oid\n";
 		next;
 	    }
 	    
-#	    warn "get $id -> $var $oid \n";
+	    warn "get $id -> $var $oid \n";
 	    
 	    #--- we need pull data from simp 
 	    foreach my $host(@$hosts){
@@ -303,6 +308,9 @@ sub _do_vals{
 		
 		#--- each host gets its own array of match patterns
 		#--- as thse are very specific
+
+		warn Dumper($results);
+
 		my $ref = $results->{$host}{$var};
 		foreach my $key (keys %{$ref}){
 		    my $val = $ref->{$key};
@@ -315,8 +323,10 @@ sub _do_vals{
 		#--- send the array of matches to simp
 		$cv->begin;
 		
-#		warn Dumper(\@matches);
-		
+		warn Dumper(\@matches);
+		warn scalar(@matches);
+
+
 		if(defined $type && $type eq "rate"){
 		    $self->client->get_rate(
                         ipaddrs => \@hostarray,
@@ -380,9 +390,9 @@ sub _val_cb{
           #--- unary multiply operator
           $val = $val * $operand
         }
-        if($name eq "replace"){
-            my $replace = $fctn->getAttribute("replace");
-            $val =~ s/$operand/$replace/g;
+        if($name eq "regexp"){
+	    $val =~ /$operand/;
+	    $val = $1;
         }
       }
       $results->{'final'}{$host}{$var}{$id} =  $val; #sprintf("%.4f", $val);
@@ -398,7 +408,7 @@ sub _get{
   my $self      = shift;
   my $composite = shift;
   my $rpc_ref   = shift;
-  my $params    = $rpc_ref->{'input_params'};
+  my $params    = shift;
 
   my %results;  
 
@@ -419,10 +429,12 @@ sub _get{
   #--- _do_scans -> _do_vals -> success
   #---   \->_scan_cb    \->_val_cb 
   #--- results are accumulated in $results{'final'} 
+  my $success_callback = $rpc_ref->{'success_callback'};
+
 
   my $onSuccess = sub { my $cv = shift;
-			#warn "RESULTS: " . Dumper(%results);
-			$rpc_ref->{'success_callback'}($results{'final'});
+
+			\&$success_callback($results{'final'});
   };
   $self->_do_scans(
       $ref,

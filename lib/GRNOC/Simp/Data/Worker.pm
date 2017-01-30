@@ -244,7 +244,8 @@ sub _gen_hostkeys{
       while(1){
         #---- get the set of hash entries that match our pattern
         ($cursor,$keys) =  $redis->scan($cursor,COUNT=>2000);
-        foreach my $key (@$keys){
+        warn "Cursor: " . Dumper($cursor);
+	foreach my $key (@$keys){
 	  #warn "$key -> $index\n";
           #--- iterate on the returned OIDs and pull the values associated to each host
           $redis->lindex($key, $index, sub {$self->_hostkey_cb($key,$host_key_cache,@_)});
@@ -254,6 +255,7 @@ sub _gen_hostkeys{
           
       #--- wait for all the hgetall responses to return
       $redis->wait_all_responses;
+
       $self->{'host_cache'}{$index} = $host_key_cache;
   } catch {
       $self->logger->error(" in gen_hostkeys: ". $_);
@@ -277,13 +279,14 @@ sub _get_cb{
     my $error     = shift;
 
     foreach my $hk (@$hkeys){
+	#warn "HK: " . $hk . "\n";
         #--- Host Ip, Collector ID, TimeStamp
         my ($ip,$id,$oid,$ts) = split(/,/,$hk);
         foreach my $val(@$reply){
-          next if(!defined $val);                  #-- this OID key has no relevance to the IP in question if null here
-	  #warn "$ip $id $oid $ts -> $val\n";
-          $ref->{$ip}{$key}{'value'} = $val;       #-- external data representation is inverted from what we store
-          $ref->{$ip}{$key}{'time'}  = $ts;
+	    next if(!defined $val);                  #-- this OID key has no relevance to the IP in question if null here
+	    #warn "$ip $id $oid $ts -> $val\n";
+	    $ref->{$ip}{$key}{'value'} = $val;       #-- external data representation is inverted from what we store
+	    $ref->{$ip}{$key}{'time'}  = $ts;
 	}
     }
 }
@@ -304,15 +307,17 @@ sub _get{
     #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
     my $hostkeys = (); 
     foreach my $host(@$ipaddrs){
+	next if(!defined($self->{'host_cache'}{$pollcycle}{$host}));
 	push(@{$hostkeys},@{$self->{'host_cache'}{$pollcycle}{$host}});
     }
     #warn "get\n";
-    #warn Dumper($hostkeys);
+    warn Dumper($hostkeys);
 
     foreach my $oid (@$oidmatch){
       #warn "oid: $oid\n";
       #---check to see if the oid is a full oid or a match
       if(!($oid =~ /\*/)){
+          warn "Not doing a scan!\n";
           #warn "get $oid\n";
           #--- this is a full OID not a search patterna, we can skip the scan phase
 	  #--- pull values from each relevant host for this OID
@@ -323,11 +328,11 @@ sub _get{
         my $cursor =0;
         my $keys;
 	while(1){
-          #warn "scan $oid $cursor\n";
+          warn "scan $oid $cursor\n";
           #--- get the set of hash entries that match our pattern
           ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oid,COUNT=>2000);
           foreach my $key (@$keys){
-	    #warn "  key:$key\n";
+	    warn "  key:$key\n";
             #--- iterate on the returned OIDs and pull the values associated to each host
             $redis->hmget($key,@$hostkeys,sub {$self->_get_cb($hostkeys,$key,\%results,@_);});
           }
