@@ -106,12 +106,13 @@ sub start {
 
         # in child/daemon process
         if ( !$pid ) {
-
+            
             $self->logger->debug( 'Created daemon process.' );
-
+            
             # change process name
             $0 = "simpPoller";
-
+            my $uid = getpwnam('simp');
+            $> = $uid;
             $self->_create_workers();
         }
     }

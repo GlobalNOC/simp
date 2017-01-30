@@ -101,6 +101,9 @@ sub start {
             # change process name
             $0 = "SimpData";
 
+            my $uid = getpwnam('simp');
+            $> = $uid;
+
             $self->_create_workers();
         }
     }
