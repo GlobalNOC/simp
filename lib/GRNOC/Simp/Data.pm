@@ -83,7 +83,13 @@ sub start {
 
         $self->logger->debug( 'Daemonizing.' );
 
-        my $daemon = Proc::Daemon->new( pid_file => $self->config->get( '/config/pid-file' ) );
+        my $pid_file = $self->config->get( '/config/@pid-file' );
+        if(!defined($pid_file)){
+            $pid_file = "/var/run/simp_data.pid";
+        }
+
+        $self->logger->debug("PID FILE: " . $pid_file);
+        my $daemon = Proc::Daemon->new( pid_file => $pid_file );
 
         my $pid = $daemon->Init();
 
