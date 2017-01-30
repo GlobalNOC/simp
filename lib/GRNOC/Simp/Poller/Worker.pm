@@ -147,7 +147,7 @@ sub _poll_callback{
       #--- track what we have in redis so we can expire later. 
       $self->{'cacheEntries'}{$req_time}{$oid}{$ip} = $key;
     } catch {
-        $self->logger->error(i$self->worker_name. " $id Error in hset for data: $_" );
+        $self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
         #--- on error try to restart
         $self->_set_need_restart(1);
         return;

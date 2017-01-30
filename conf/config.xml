@@ -2,7 +2,7 @@
   config.xml defines the config for the simp collector, with the individual hosts defined in hosts.conf
 -->
 <config>
- <! -- redis: defines how to connect to redis, which is used for data storage -->
+ <!-- redis: defines how to connect to redis, which is used for data storage -->
  <redis host="127.0.0.1" port="6379"/>
   <!--
     <groups> define a collection profile for a set of OIDs, hosts and even oids can be collected
