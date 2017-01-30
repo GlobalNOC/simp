@@ -102,7 +102,7 @@ sub _start {
                                 server    => "$redis_host:$redis_port",
                                 reconnect => 60,
                                 every     => 500,
-                                read_timeout => .2,
+                                read_timeout => 2,
                                 write_timeout => .3,
                         );
 
@@ -178,15 +178,14 @@ sub _start {
     #--- build host key cache every second 
     $self->_gen_hostkeys(0);
     $self->_gen_hostkeys(1);
-    AnyEvent->timer(	
-			after => 1, 
-			interval => 10, 
-			cb => sub { 
-					$self->_gen_hostkeys(0); 
-					$self->_gen_hostkeys(1);
-				}
-			);
-
+    $self->{'host_key_timer'} = AnyEvent->timer( after => 1, 
+						 interval => 10, 
+						 cb => sub {
+						     
+						     $self->_gen_hostkeys(0); 
+						     $self->_gen_hostkeys(1);
+						 });
+    
     sleep(1);
     
     #--- go into event loop handing requests that come in over rabbit  
@@ -208,21 +207,20 @@ sub _ping{
 #--- calllback function to process results when building our hostkey list
 sub _hostkey_cb{
     my $self      = shift;
-    my $index     = shift;
     my $key       = shift;
+    my $host_key_cache = shift;
     my $reply     = shift; 
 
     return if(!defined($reply));
 
     my ($host,@rest) = split(/,/,$key);
-
-    if( ! defined $self->{'host_cache'} || 
-	! defined $self->{'host_cache'}{$host} ||
-	! defined $self->{'host_cache'}{$host}{$index} ){
-      $self->{'host_cache'}{$host}{$index} = ();
+    
+    if( ! defined $host_key_cache || 
+	! defined $host_key_cache->{$host} ){
+      $host_key_cache->{$host} = ();
     }
  
-    push(@{$self->{'host_cache'}{$host}{$index}}, $key.",".$reply)   
+    push(@{$host_key_cache->{$host}}, $key . "," . $reply);
 }
 
 
@@ -232,7 +230,9 @@ sub _gen_hostkeys{
   my $index       = shift;
   my $redis       = $self->redis;
 
+  my $host_key_cache = {};
 
+  $self->logger->debug("Starting Host Key Generation");
   try {
       #--- the timestamps are kept in a different db "1" vs "0"
       $redis->select(1);
@@ -242,16 +242,20 @@ sub _gen_hostkeys{
       while(1){
         #---- get the set of hash entries that match our pattern
         ($cursor,$keys) =  $redis->scan($cursor,COUNT=>2000);
-        foreach my $key (@$keys){
-	  #warn "$key -> $index\n";
-          #--- iterate on the returned OIDs and pull the values associated to each host
-          $redis->lindex($key, $index, sub {$self->_hostkey_cb($index,$key,@_)});
+	last if($cursor eq 'OK');
+	foreach my $key (@$keys){
+	    #--- iterate on the returned OIDs and pull the values associated to each host
+	    my $type = $redis->type($key);
+	    next if($type ne 'list');
+	    $redis->lindex($key, $index, sub {$self->_hostkey_cb($key,$host_key_cache,@_)});
         }
         last if($cursor == 0);
       }
           
       #--- wait for all the hgetall responses to return
       $redis->wait_all_responses;
+
+      $self->{'host_cache'}{$index} = $host_key_cache;
   } catch {
       $self->logger->error(" in gen_hostkeys: ". $_);
   };
@@ -265,8 +269,6 @@ sub _gen_hostkeys{
 sub _get_cb{
     my $self      = shift;
 
-    #warn Dumper(@_);
-
     my $hkeys     = shift;
     my $key       = shift;
     my $ref       = shift;
@@ -277,10 +279,9 @@ sub _get_cb{
         #--- Host Ip, Collector ID, TimeStamp
         my ($ip,$id,$oid,$ts) = split(/,/,$hk);
         foreach my $val(@$reply){
-          next if(!defined $val);                  #-- this OID key has no relevance to the IP in question if null here
-	  #warn "$ip $id $oid $ts -> $val\n";
-          $ref->{$ip}{$key}{'value'} = $val;       #-- external data representation is inverted from what we store
-          $ref->{$ip}{$key}{'time'}  = $ts;
+	    next if(!defined $val);                  #-- this OID key has no relevance to the IP in question if null here
+	    $ref->{$ip}{$key}{'value'} = $val;       #-- external data representation is inverted from what we store
+	    $ref->{$ip}{$key}{'time'}  = $ts;
 	}
     }
 }
@@ -301,51 +302,52 @@ sub _get{
     #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
     my $hostkeys = (); 
     foreach my $host(@$ipaddrs){
-	push(@{$hostkeys},@{$self->{'host_cache'}{$host}{$pollcycle}});
+	next if(!defined($self->{'host_cache'}{$pollcycle}{$host}));
+	push(@{$hostkeys},@{$self->{'host_cache'}{$pollcycle}{$host}});
     }
-    #warn "get\n";
-    #warn Dumper($hostkeys);
 
     foreach my $oid (@$oidmatch){
-      #warn "oid: $oid\n";
       #---check to see if the oid is a full oid or a match
       if(!($oid =~ /\*/)){
-          #warn "get $oid\n";
           #--- this is a full OID not a search patterna, we can skip the scan phase
 	  #--- pull values from each relevant host for this OID
-	  #warn "  key: $oid\n";
+	  next if($redis->type($oid) ne 'hash');
 	  $redis->hmget($oid,@$hostkeys,sub {$self->_get_cb($hostkeys,$oid,\%results,@_);});
       }else{
         #--- this is a search pattern 
         my $cursor =0;
         my $keys;
 	while(1){
-          #warn "scan $oid $cursor\n";
           #--- get the set of hash entries that match our pattern
           ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oid,COUNT=>2000);
           foreach my $key (@$keys){
-	    #warn "  key:$key\n";
             #--- iterate on the returned OIDs and pull the values associated to each host
-            $redis->hmget($key,@$hostkeys,sub {$self->_get_cb($hostkeys,$key,\%results,@_);});
+	      next if($redis->type($key) ne 'hash');
+              $redis->hmget($key,@$hostkeys,sub {$self->_get_cb($hostkeys,$key,\%results,@_);});
           }
-
+          
           last if($cursor == 0);
         }
       }
     }
-
+    
     #--- wait for all pending responses to hmget requests
     $redis->wait_all_responses;
     
   } catch {
-    $self->logger->error(" in get: ". $_);
+      $self->logger->error(" in get: ". $_);
   };
-
+  
   return \%results;
 }
 sub _rate{
   my ($self,$cur_val,$cur_ts,$pre_val,$pre_ts,$context) = @_;
   my $et      = $cur_ts - $pre_ts;
+  if(!($cur_val =~ /\d+$/)){
+      #not a number... 
+      return $cur_val;
+  }
+  
   my $delta   = $cur_val - $pre_val;
   my $max_val = 2**32;
   
@@ -406,8 +408,8 @@ sub _get_rate{
       }
 
       $results{$ip}{$oid}{'value'} = $self->_rate($current_val,$current_ts,
-					 $previous_val,$previous_ts,
-					 "$ip->$oid");
+						  $previous_val,$previous_ts,
+						  "$ip->$oid");
       $results{$ip}{$oid}{'time'}  = $current_ts;
 
     }

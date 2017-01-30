@@ -94,18 +94,25 @@ sub start {
 
         $self->logger->debug( 'Daemonizing.' );
 
-        my $daemon = Proc::Daemon->new( pid_file => $self->config->get( '/config/pid-file' ) );
+        my $pid_file = $self->config->get( '/config/@pid-file' )->[0];
+        if(!defined($pid_file)){
+            $pid_file = "/var/run/simp_poller.pid";
+        }
+
+        $self->logger->debug("PID FILE: " . $pid_file);
+        my $daemon = Proc::Daemon->new( pid_file => $pid_file );
 
         my $pid = $daemon->Init();
 
         # in child/daemon process
         if ( !$pid ) {
-
+            
             $self->logger->debug( 'Created daemon process.' );
-
+            
             # change process name
             $0 = "simpPoller";
-
+            my $uid = getpwnam('simp');
+            $> = $uid;
             $self->_create_workers();
         }
     }

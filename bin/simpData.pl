@@ -12,8 +12,8 @@ sub usage {
 }
 
 
-use constant DEFAULT_CONFIG_FILE => '/etc/grnoc/simpData/simpDataConfig.xml';
-use constant DEFAULT_LOG_FILE    => '/etc/grnoc/simpData/logging.conf';
+use constant DEFAULT_CONFIG_FILE => '/etc/grnoc/simp/simpDataConfig.xml';
+use constant DEFAULT_LOG_FILE    => '/etc/grnoc/simp/logging.conf';
 
 my $config_file = DEFAULT_CONFIG_FILE;
 my $logging     = DEFAULT_LOG_FILE;
