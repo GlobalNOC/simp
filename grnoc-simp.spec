@@ -12,7 +12,7 @@ Requires: perl-Moo
 Requires: redis
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
-Requires: perl-Redis
+Requires: perl-Redis >= 1.991
 Requires: perl-Parallel-ForkManager
 Requires: perl-Try-Tiny
 Requires: perl-Net-SNMP
