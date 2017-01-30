@@ -94,7 +94,8 @@ sub start {
 
         $self->logger->debug( 'Daemonizing.' );
 
-        my $pid_file = $self->config->get( '/config/@pid-file' );
+        my $pid_file = $self->config->get( '/config/@pid-file' )->[0];
+        warn Dumper($pid_file);
         if(!defined($pid_file)){
             $pid_file = "/var/run/simp_poller.pid";
         }
