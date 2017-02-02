@@ -143,9 +143,18 @@ sub _poll_callback{
     try {  
       my $key = "$ip,$id,$main_oid,$timestamp";
       $redis->hset($oid,$key,$data->{$oid},sub {});
-
       #--- track what we have in redis so we can expire later. 
       $self->{'cacheEntries'}{$req_time}{$oid}{$ip} = $key;
+
+      if(defined($host->{'node_name'})){
+	  my $node_name = $host->{'node_name'};
+	  
+	  #also push into node_name
+	  my $key2 = "$node_name,$id,$main_oid,$timestamp";
+	  $redis->hset($oid,$key2,$data->{$oid},sub {});
+	  #--- track what we have in redis so we can expire later.
+	  $self->{'cacheEntries'}{$req_time}{$oid}{$node_name} = $key;
+      }
     } catch {
         $self->logger->error(i$self->worker_name. " $id Error in hset for data: $_" );
         #--- on error try to restart
@@ -160,6 +169,10 @@ sub _poll_callback{
   try{  
     $redis->select(1);
     $redis->lpush("$ip,$id,$main_oid",$timestamp);
+    if(defined($host->{'node_name'})){
+	my $node_name = $host->{'node_name'};
+	$redis->lpush("$node_name,$id,$main_oid", $timestamp);
+    }
     $redis->select(0);
   } catch {
     $self->logger->error($self->worker_name. " $id Error in hset for timestamp: $_" );
@@ -235,16 +248,26 @@ sub _purge_data{
       foreach my $host(@{$self->hosts}){
           foreach my $oid (@{$self->oids}){
               my $key = $host->{'ip'} . "," . $id . "," . $oid;
-              
+      
               $redis->select(1);
               while( $redis->llen($key) > $self->polls_to_keep){
                   my $ts = $redis->rpop($key);
                   #$self->logger->error("Removing TS: " . $ts);
                   push(@to_be_removed, $key . ",$ts");
               }
+
+	      if(defined($host->{'node_name'})){
+		  my $node_key = $host->{'node_name'} . "," . $id . "," . $oid;
+		  while( $redis->llen($node_key) > $self->polls_to_keep){
+		      my $ts = $redis->rpop($node_key);
+		      #$self->logger->error("Removing TS: " . $ts);
+		      push(@to_be_removed, $node_key . ",$ts");
+		  }
+	      }
+	      
           }
       }
-
+      
       #$self->logger->error("Have a list of stale entries");
 
       $redis->select(0);
@@ -279,8 +302,7 @@ sub _purge_data{
   } catch {
       $self->logger->error("$id Error purging entries using hdel: $_" );
                   #--- on error try to restart
-      die();
-      #$self->start();
+      $self->start();
   };
 
 }
