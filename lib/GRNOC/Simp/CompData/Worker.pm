@@ -311,7 +311,7 @@ sub _do_vals{
 		
 		if(defined $type && $type eq "rate"){
 		    $self->client->get_rate(
-                        ipaddrs => \@hostarray,
+                        node => \@hostarray,
                         oidmatch => \@matches,
                         async_callback =>  sub {
 			    my $data= shift;
@@ -322,7 +322,7 @@ sub _do_vals{
 		    
 		}else{
 		    $self->client->get(
-			ipaddrs => \@hostarray, 
+			node => \@hostarray, 
 			oidmatch => \@matches,
 			async_callback =>  sub {
 			    my $data= shift; 
