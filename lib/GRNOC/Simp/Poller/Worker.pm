@@ -252,15 +252,13 @@ sub _purge_data{
               $redis->select(1);
               while( $redis->llen($key) > $self->polls_to_keep){
                   my $ts = $redis->rpop($key);
-                  #$self->logger->error("Removing TS: " . $ts);
-                  push(@to_be_removed, $key . ",$ts");
+		  push(@to_be_removed, $key . ",$ts");
               }
 
 	      if(defined($host->{'node_name'})){
 		  my $node_key = $host->{'node_name'} . "," . $id . "," . $oid;
 		  while( $redis->llen($node_key) > $self->polls_to_keep){
 		      my $ts = $redis->rpop($node_key);
-		      #$self->logger->error("Removing TS: " . $ts);
 		      push(@to_be_removed, $node_key . ",$ts");
 		  }
 	      }
@@ -283,21 +281,23 @@ sub _purge_data{
               #---- get the set of hash entries that match our pattern
               ($cursor,$keys) =  $redis->scan($cursor, MATCH => $oid_search, COUNT=>200);
               foreach my $key (@$keys){
-                  push(@possible_oids,$key);                  
+                  push(@possible_oids,$key);
               }
               last if($cursor == 0);
           }
       }
 
-      #$self->logger->error("Gathered all OIDs");
-      
-      if($#to_be_removed >= 0){
-          foreach my $key (@possible_oids){
-              $redis->hdel($key,\@to_be_removed, sub {});
-          }
-      }
+      my $removed = 0;
 
+      if(scalar(@to_be_removed) >= 1){
+          foreach my $key (@possible_oids){
+	      my $res = $redis->hdel($key, @to_be_removed);
+	      $removed += $res;
+	  }
+      }
+      
       #$self->logger->error("Done purging!");
+      warn "Total Removed: " . $removed . "\n";
       
   } catch {
       $self->logger->error("$id Error purging entries using hdel: $_" );
