@@ -1,7 +1,7 @@
 Summary: A small system for gathering large amounts of SNMP data and providing a RabbitMQ mechanism to access them 
 Name: grnoc-simp
 Version: 1.0.0
-Release: 1%{dist}
+Release: 2%{dist}
 License: GRNOC
 Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
@@ -40,23 +40,28 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller
 %{__install} -d -p %{buildroot}/etc/grnoc/simp
+%{__install} -d -p %{buildroot}/etc/init.d
+
 %{__install} -d -p %{buildroot}/usr/bin/
 
 %{__install} lib/GRNOC/Simp.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp.pm
-%{__install} lib/GRNOC/Simp.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data.pm
-%{__install} lib/GRNOC/Simp.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData.pm
-%{__install} lib/GRNOC/Simp.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller.pm
-%{__install} lib/GRNOC/Simp.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
-%{__install} lib/GRNOC/Simp.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
-%{__install} lib/GRNOC/Simp.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
+%{__install} lib/GRNOC/Simp/Data.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data.pm
+%{__install} lib/GRNOC/Simp/CompData.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData.pm
+%{__install} lib/GRNOC/Simp/Poller.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller.pm
+%{__install} lib/GRNOC/Simp/Data/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
+%{__install} lib/GRNOC/Simp/CompData/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
+%{__install} lib/GRNOC/Simp/Poller/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
 %{__install} bin/simp.pl %{buildroot}/usr/bin/simp.pl
 %{__install} bin/simpData.pl %{buildroot}/usr/bin/simpData.pl
 %{__install} bin/compData.pl %{buildroot}/usr/bin/compData.pl
-%{__install} conf/* %{buildroot}/etc/grnoc/simp/
+%{__install} conf/*.xml %{buildroot}/etc/grnoc/simp/
+%{__install} conf/*.conf %{buildroot}/etc/grnoc/simp/
+%{__install} conf/simp.init %{buildroot}/etc/init.d/simp
+%{__install} conf/simp_data.init %{buildroot}/etc/init.d/simpData
+%{__install} conf/comp_data.init %{buildroot}/etc/init.d/compData
 
 %clean
 rm -rf $RPM_BUILD_ROOT
-
 
 %files
 %defattr(-,root,root,-)
@@ -70,6 +75,9 @@ rm -rf $RPM_BUILD_ROOT
 /usr/bin/simp.pl
 /usr/bin/simpData.pl
 /usr/bin/compData.pl
+/etc/init.d/simp
+/etc/init.d/simpData
+/etc/init.d/compData
 %config(noreplace) /etc/grnoc/simp/config.xml
 %config(noreplace) /etc/grnoc/simp/hosts.xml
 %config(noreplace) /etc/grnoc/simp/logging.conf

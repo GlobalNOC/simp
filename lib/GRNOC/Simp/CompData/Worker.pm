@@ -185,7 +185,6 @@ sub _do_scans{
  
   foreach my $instance ($xrefs->get_nodelist){
       my $instance_id = $instance->getAttribute("id");
-#    warn "using instance: $instance_id\n";
       #--- get the list of scans to perform
       my $scanres = $xc->find("./scan",$instance);
       foreach my $scan ($scanres->get_nodelist){
@@ -197,14 +196,12 @@ sub _do_scans{
 	      $targets = $params->{$var}{"value"};
 	  }
 	  $cv->begin;
-	  warn "SCAN HOST: " . Dumper($hosts);
-	  warn "SCAN OID: " . Dumper($oid);
+
 	  $self->client->get(
 	      node => $hosts, 
 	      oidmatch => $oid,
 	      async_callback => sub {
 		  my $data= shift;
-		  warn Dumper($data);
 		  $self->_scan_cb($data->{'results'},$hosts,$id,$oid,$targets,$results); 
 		  $cv->end;
 	      } );
@@ -226,15 +223,10 @@ sub _scan_cb{
   $oid_pattern  =~s/\*//;
   $oid_pattern = quotemeta($oid_pattern);
 
-  warn "Data: " . Dumper($data);
-  
   foreach my $host (@$hosts){
-      warn "HOST: " . $host . "\n";
       foreach my $oid (keys %{$data->{$host}}){
-	  warn "OID: " . $oid . "\n";
 	  if(defined $vals){
 	      #--- return only those entries matching specified values
-	      warn "VALS:" . Dumper($vals);
 	      foreach my $val (@$vals){
 		  if($data->{$host}{$oid}{'value'} eq $val){
 		      $oid =~ s/$oid_pattern//;
@@ -284,21 +276,17 @@ sub _do_vals{
 	    my $oid     = $val->getAttribute("oid");
 	    my $type    = $val->getAttribute("type");
 	    
-	    warn $val->toString() ."\n";
-	    
 	    
 	    if(!defined $var || !defined $id){
 		#--- required data missing
-		warn "missing val or id\n";
+		
 		next;
 	    }
 	    
 	    if(!defined $oid){
-		warn "missing oid\n";
+		
 		next;
 	    }
-	    
-	    warn "get $id -> $var $oid \n";
 	    
 	    #--- we need pull data from simp 
 	    foreach my $host(@$hosts){
@@ -308,8 +296,6 @@ sub _do_vals{
 		
 		#--- each host gets its own array of match patterns
 		#--- as thse are very specific
-
-		warn Dumper($results);
 
 		my $ref = $results->{$host}{$var};
 		foreach my $key (keys %{$ref}){
@@ -323,10 +309,6 @@ sub _do_vals{
 		#--- send the array of matches to simp
 		$cv->begin;
 		
-		warn Dumper(\@matches);
-		warn scalar(@matches);
-
-
 		if(defined $type && $type eq "rate"){
 		    $self->client->get_rate(
                         ipaddrs => \@hostarray,
@@ -367,8 +349,6 @@ sub _val_cb{
   my $doc = $self->config->{'doc'};
   my $xc  = XML::LibXML::XPathContext->new($doc);
 
-#  warn "val callback: $id\n";
-
   foreach my $host (keys %$data){
     foreach my $oid (keys %{$data->{$host}}){
       my $val = $data->{$host}{$oid}{'value'};
@@ -381,12 +361,10 @@ sub _val_cb{
         my $operand     = $fctn->getAttribute("value");
        
         if($name eq "/"){
-	  #warn "divide $val by $operand\n";
 	  #--- unary divide operator
 	  $val = $val / $operand
 	}
         if($name eq "*"){
-          #warn "multiply $val by $operand\n";
           #--- unary multiply operator
           $val = $val * $operand
         }
@@ -396,7 +374,6 @@ sub _val_cb{
         }
       }
       $results->{'final'}{$host}{$var}{$id} =  $val; #sprintf("%.4f", $val);
-#      warn "HOst: " . $host . " var: " . $var . " " . $id . " = " . $val . "\n";
     }
   } 
 
@@ -414,7 +391,6 @@ sub _get{
 
   #--- figure out hostType
   my $hostType = "default";
-  #warn "get requst: $composite $hostType:\n";
 
   #--- give up on config object and go direct to xmllib to get proper xpath support
   my $doc = $self->config->{'doc'};

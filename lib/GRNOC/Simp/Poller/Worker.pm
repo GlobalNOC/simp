@@ -156,7 +156,7 @@ sub _poll_callback{
 	  $self->{'cacheEntries'}{$req_time}{$oid}{$node_name} = $key;
       }
     } catch {
-        $self->logger->error(i$self->worker_name. " $id Error in hset for data: $_" );
+        $self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
         #--- on error try to restart
         $self->_set_need_restart(1);
         return;
