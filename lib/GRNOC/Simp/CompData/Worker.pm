@@ -170,7 +170,7 @@ sub _do_scans{
 
   #--- find the set of required variables
   #-- for now hack host as its sorta special
-  my $hosts = $params->{'ipaddrs'}{'value'};
+  my $hosts = $params->{'node'}{'value'};
   
 
   #--- this function will execute multiple scans in "parallel" using the begin / end apprach
@@ -198,7 +198,7 @@ sub _do_scans{
 	  $cv->begin;
 
 	  $self->client->get(
-	      ipaddrs => $hosts, 
+	      node => $hosts, 
 	      oidmatch => $oid,
 	      async_callback => sub {
 		  my $data= shift;
@@ -254,7 +254,7 @@ sub _do_vals{
     
     #--- find the set of required variables
     #-- for now hack host as its sorta special
-    my $hosts = $params->{'ipaddrs'}{'value'};
+    my $hosts = $params->{'node'}{'value'};
     
     
     #--- this function will execute multiple gets in "parallel" using the begin / end apprach
@@ -311,7 +311,7 @@ sub _do_vals{
 		
 		if(defined $type && $type eq "rate"){
 		    $self->client->get_rate(
-                        ipaddrs => \@hostarray,
+                        node => \@hostarray,
                         oidmatch => \@matches,
                         async_callback =>  sub {
 			    my $data= shift;
@@ -322,7 +322,7 @@ sub _do_vals{
 		    
 		}else{
 		    $self->client->get(
-			ipaddrs => \@hostarray, 
+			node => \@hostarray, 
 			oidmatch => \@matches,
 			async_callback =>  sub {
 			    my $data= shift; 

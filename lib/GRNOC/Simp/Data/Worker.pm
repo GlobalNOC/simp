@@ -133,8 +133,8 @@ sub _start {
                                   pattern => $GRNOC::WebService::Regex::TEXT);
 
 
-    $method->add_input_parameter( name => "ipaddrs",
-                                  description => "array of ip addresses to fetch data for",
+    $method->add_input_parameter( name => "node",
+                                  description => "array of ip addresses or node_names to fetch data for",
                                   required => 1,
                                   schema => { 'type'  => 'array',
                                               'items' => [ 'type' => 'string',
@@ -157,8 +157,8 @@ sub _start {
                                   pattern => $GRNOC::WebService::Regex::TEXT);
     
     
-    $method->add_input_parameter( name => "ipaddrs",
-                                  description => "array of ip addresses to fetch data for",
+    $method->add_input_parameter( name => "node",
+                                  description => "array of ip addresses / node names to fetch data for",
                                   required => 1,
                                   schema => { 'type'  => 'array',
                                               'items' => [ 'type' => 'string',
@@ -292,7 +292,7 @@ sub _get{
   my $self      = shift;
   my $pollcycle = shift;
   my $params    = shift;
-  my $ipaddrs   = $params->{'ipaddrs'}{'value'};
+  my $node      = $params->{'node'}{'value'};
   my $oidmatch  = $params->{'oidmatch'}{'value'};
   my $redis     = $self->redis;
 
@@ -301,7 +301,7 @@ sub _get{
   try {
     #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
     my $hostkeys = (); 
-    foreach my $host(@$ipaddrs){
+    foreach my $host(@$node){
 	next if(!defined($self->{'host_cache'}{$pollcycle}{$host}));
 	push(@{$hostkeys},@{$self->{'host_cache'}{$pollcycle}{$host}});
     }
