@@ -93,7 +93,7 @@ sub _start {
 
     $self->_set_client($client);
 
-    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue => "Simp.CompData",
+    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue_name => "Simp.CompData",
 							topic => "Simp.CompData",
 							exchange => "Simp",
 							user => $rabbit_user,

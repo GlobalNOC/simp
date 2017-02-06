@@ -110,7 +110,7 @@ sub _start {
 
     $self->logger->debug( 'Setup RabbitMQ' );
 
-    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue => "Simp.Data",
+    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue_name => "Simp.Data",
 							topic => "Simp.Data",
 							exchange => "Simp",
 							user => $rabbit_user,
