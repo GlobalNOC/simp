@@ -362,11 +362,14 @@ sub _val_cb{
   my $xc  = XML::LibXML::XPathContext->new($doc);
 
   foreach my $host (keys %$data){
+      
     foreach my $oid (keys %{$data->{$host}}){
       my $val = $data->{$host}{$oid}{'value'};
       #--- use lookup table to map the OID back to a human readable value
       my $var = $lut->{$oid};
-
+      if(!defined($results->{'final'}{$host}{$var}{'time'})){
+	  $results->{'final'}{$host}{$var}{'time'} = $data->{$host}{$oid}{'time'};
+      }
       my $fctns = $xc->find("./fctn",$xref);
       foreach my $fctn ($fctns->get_nodelist){
         my $name      = $fctn->getAttribute("name");
