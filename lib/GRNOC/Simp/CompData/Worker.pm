@@ -115,6 +115,12 @@ sub _start {
                                                   description => "retrieve composite simp data of type $method_id, we should add a descr to the config");
 
 
+      $method->add_input_parameter( name => 'period',
+				    description => "period of time to request for the data!",
+				    required => 0,
+				    multiple => 0,
+				    pattern => $GRNOC::WebService::Regex::NUMBER);
+
       #--- let xpath do the iteration for us
       my $path = "/config/composite[\@id=\"$method_id\"]/input";
       my $inputs = $self->config->get($path);
@@ -317,7 +323,8 @@ sub _do_vals{
 		if(defined $type && $type eq "rate"){
 		    $self->client->get_rate(
                         node => \@hostarray,
-                        oidmatch => \@matches,
+                        period => $params->{'period'}{'value'},
+			oidmatch => \@matches,
                         async_callback =>  sub {
 			    my $data= shift;
 			    $self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
@@ -391,6 +398,10 @@ sub _get{
   my $composite = shift;
   my $rpc_ref   = shift;
   my $params    = shift;
+
+  if(!defined($params->{'period'}{'value'})){
+      $params->{'period'}{'value'} = 60;
+  }
 
   my %results;  
 
