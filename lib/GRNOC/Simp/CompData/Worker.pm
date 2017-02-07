@@ -305,6 +305,11 @@ sub _do_vals{
 		    $lut{$match} = $key;
 		    push(@matches,$match);
 		}
+
+		#if there are no matches for this host
+		#just go on to the next one!
+		next if(scalar(@matches) <= 0);
+
 		push(@hostarray,$host);
 		#--- send the array of matches to simp
 		$cv->begin;
