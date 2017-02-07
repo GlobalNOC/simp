@@ -436,13 +436,31 @@ sub _get_rate{
       $params->{'period'}{'value'} = 60;
   }
 
-  my $previous_time = time() - $params->{'period'}{'value'};
-
   #--- get the data for the current and a past poll cycle
   my $current_data  = $self->_get(time(),$params);
-  my $previous_data = $self->_get($previous_time,$params);
+
+  #need a close timestamp for us to use for data!
+  my @ips = keys %{$current_data};
+
+  my $previous_data;
+
+
+  if(defined($ips[0])){
+      my @oids = keys %{$current_data->{$ips[0]}};
+
+      if(defined($oids[0])){
+
+	  my $time = $current_data->{$ips[0]}{$oids[0]}{'time'};
+	  $time -= $params->{'period'}{'value'};
+
+	  $previous_data = $self->_get($time,$params);
+      }
+  }
+
 
   my %results;
+
+  return \%results if !defined($previous_data);
     
   #iterate over current and previous data to calculate rates where sensible
   foreach my $ip (keys (%$current_data)){
