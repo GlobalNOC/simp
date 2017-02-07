@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# Simple init-script
+# compData
 #
 # description: simp poller daemon
 # location:    /usr/bin/simp.pl
-
+#chkconfig: - 99 10
 # Source function library
 if [ -f /etc/rc.d/init.d/functions ]; then
 . /etc/rc.d/init.d/functions
