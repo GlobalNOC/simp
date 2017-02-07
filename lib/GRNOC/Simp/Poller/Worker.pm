@@ -143,17 +143,13 @@ sub _poll_callback{
     try {  
       my $key = "$ip,$id,$main_oid,$timestamp";
       $redis->hset($oid,$key,$data->{$oid},sub {});
-      #--- track what we have in redis so we can expire later. 
-      $self->{'cacheEntries'}{$req_time}{$oid}{$ip} = $key;
-
+      
       if(defined($host->{'node_name'})){
 	  my $node_name = $host->{'node_name'};
 	  
 	  #also push into node_name
 	  my $key2 = "$node_name,$id,$main_oid,$timestamp";
 	  $redis->hset($oid,$key2,$data->{$oid},sub {});
-	  #--- track what we have in redis so we can expire later.
-	  $self->{'cacheEntries'}{$req_time}{$oid}{$node_name} = $key;
       }
     } catch {
         $self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
@@ -182,54 +178,6 @@ sub _poll_callback{
   };
  
 }
-
-sub _rebuild_cache{
-  my $self   = shift;
-  my $redis  = $self->redis;
-
-  my $cursor = 0;
-  my $oids;
-  my $x =0;
-
-  #--- scan the set of records in redis
-  while(1){
-    #---- get the set of hash entries that match our pattern
-    try { 
-      ($cursor,$oids) =  $redis->scan($cursor,COUNT=>200);
-    } catch {
-      $self->logger->error( $self->workder_name." Error rebuilding cache in scan: $_" );
-      #--- on error try to restart
-      $self->_set_need_restart(1);
-      return;
-    };
-
-    $redis->select(0);
-    foreach my $oid (@$oids){
-      #--- now for each OID entry pull the set of compond keys that include a ts,ip
-      my $keys;
-      try{
-        $keys = $redis->hkeys($oid);
-      } catch {
-        $self->logger->error( $self->worker_name." Error rebuilding cache using hkeys: $_" );
-        #--- on error try to restart
-        $self->_set_need_restart(1);
-        return;
-      };
-
-      foreach my $key (@$keys){
-	my ($ip,$id,$ts) = split(/,/,$key);
-        next if(!defined $id || !($id eq $self->worker_name)  || ! defined $ip);
-        $self->{'cacheEntries'}{$ts}{$oid}{$ip} = $key;    
-        $x++;   
-
-      }
-    }
-    last if($cursor == 0);
-  }
-  $self->logger->debug($self->worker_name. " cache rebuilt: added $x entries" );
-
-}
-
 
 
 sub _purge_data{

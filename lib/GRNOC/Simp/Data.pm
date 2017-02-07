@@ -83,7 +83,7 @@ sub start {
 
         $self->logger->debug( 'Daemonizing.' );
 
-        my $pid_file = $self->config->get( '/config/@pid-file' )->[0];
+        my $pid_file = $self->config->get( '/config/@pid-file' );
         if(!defined($pid_file)){
             $pid_file = "/var/run/simp_data.pid";
         }

@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# Simple init-script
+# compData
 #
 # description: simp poller daemon
 # location:    /usr/bin/simp.pl
-
+#chkconfig: - 99 10
 # Source function library
 if [ -f /etc/rc.d/init.d/functions ]; then
 . /etc/rc.d/init.d/functions
@@ -26,7 +26,7 @@ options=""
 username=vce
 lockfile=/var/lock/subsys/$name
 command="$exec_file $options"
-PIDFILE=/var/run/comp_data.pid
+PIDFILE=/var/run/simp_comp.pid
 
 start() {
     if [ -f $PIDFILE ]; then

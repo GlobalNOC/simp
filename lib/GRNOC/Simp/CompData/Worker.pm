@@ -93,7 +93,7 @@ sub _start {
 
     $self->_set_client($client);
 
-    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue => "Simp.CompData",
+    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue_name => "Simp.CompData",
 							topic => "Simp.CompData",
 							exchange => "Simp",
 							user => $rabbit_user,
@@ -114,6 +114,12 @@ sub _start {
                                                   callback =>  sub {$self->_get($method_id,@_) },
                                                   description => "retrieve composite simp data of type $method_id, we should add a descr to the config");
 
+
+      $method->add_input_parameter( name => 'period',
+				    description => "period of time to request for the data!",
+				    required => 0,
+				    multiple => 0,
+				    pattern => $GRNOC::WebService::Regex::NUMBER);
 
       #--- let xpath do the iteration for us
       my $path = "/config/composite[\@id=\"$method_id\"]/input";
@@ -305,6 +311,11 @@ sub _do_vals{
 		    $lut{$match} = $key;
 		    push(@matches,$match);
 		}
+
+		#if there are no matches for this host
+		#just go on to the next one!
+		next if(scalar(@matches) <= 0);
+
 		push(@hostarray,$host);
 		#--- send the array of matches to simp
 		$cv->begin;
@@ -312,7 +323,8 @@ sub _do_vals{
 		if(defined $type && $type eq "rate"){
 		    $self->client->get_rate(
                         node => \@hostarray,
-                        oidmatch => \@matches,
+                        period => $params->{'period'}{'value'},
+			oidmatch => \@matches,
                         async_callback =>  sub {
 			    my $data= shift;
 			    $self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
@@ -350,11 +362,14 @@ sub _val_cb{
   my $xc  = XML::LibXML::XPathContext->new($doc);
 
   foreach my $host (keys %$data){
+      
     foreach my $oid (keys %{$data->{$host}}){
       my $val = $data->{$host}{$oid}{'value'};
       #--- use lookup table to map the OID back to a human readable value
       my $var = $lut->{$oid};
-
+      if(!defined($results->{'final'}{$host}{$var}{'time'})){
+	  $results->{'final'}{$host}{$var}{'time'} = $data->{$host}{$oid}{'time'};
+      }
       my $fctns = $xc->find("./fctn",$xref);
       foreach my $fctn ($fctns->get_nodelist){
         my $name      = $fctn->getAttribute("name");
@@ -386,6 +401,10 @@ sub _get{
   my $composite = shift;
   my $rpc_ref   = shift;
   my $params    = shift;
+
+  if(!defined($params->{'period'}{'value'})){
+      $params->{'period'}{'value'} = 60;
+  }
 
   my %results;  
 
