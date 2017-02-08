@@ -162,7 +162,7 @@ sub _start {
 				  required => 0,
 				  multiple => 0,
 				  default => 60,
-				  pattern => $GRNOC::WebService::Regex::NUMBER);
+				  pattern => $GRNOC::WebService::Regex::ANY_NUMBER);
     
     $method->add_input_parameter( name => "node",
                                   description => "array of ip addresses / node names to fetch data for",
