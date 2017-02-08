@@ -119,7 +119,7 @@ sub _start {
 				    description => "period of time to request for the data!",
 				    required => 0,
 				    multiple => 0,
-				    pattern => $GRNOC::WebService::Regex::NUMBER);
+				    pattern => $GRNOC::WebService::Regex::ANY_NUMBER);
 
       #--- let xpath do the iteration for us
       my $path = "/config/composite[\@id=\"$method_id\"]/input";
