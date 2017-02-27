@@ -216,12 +216,12 @@ sub _create_workers {
         # create worker in this process
         my $worker = GRNOC::Simp::Poller::Worker->new( worker_name   => "$name$worker_id",
 						       config        => $self->config,
- 						       oids          => \@oids,
+						       oids          => \@oids,
 						       hosts 	     => $hostsByWorker{$worker_id}, 
-                                                       poll_interval => $poll_interval,
-                                                       retention     => $retention,
-                                                       logger        => $self->logger);
-
+						       poll_interval => $poll_interval,
+						       retention     => $retention,
+						       logger        => $self->logger);
+	
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
 
