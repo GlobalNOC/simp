@@ -161,6 +161,8 @@ sub _create_workers {
 
       my $poll_interval = $group->{'interval'};
       my $retention     = $group->{'retention'};
+      my $snmp_timeout  = $group->{'snmp_timeout'};
+      my $max_reps      = $group->{'max_reps'};
 
       #--- get the set of OIDS for this group
       my @oids;
@@ -216,12 +218,15 @@ sub _create_workers {
         # create worker in this process
         my $worker = GRNOC::Simp::Poller::Worker->new( worker_name   => "$name$worker_id",
 						       config        => $self->config,
- 						       oids          => \@oids,
+						       oids          => \@oids,
 						       hosts 	     => $hostsByWorker{$worker_id}, 
-                                                       poll_interval => $poll_interval,
-                                                       retention     => $retention,
-                                                       logger        => $self->logger);
-
+						       poll_interval => $poll_interval,
+						       retention     => $retention,
+						       logger        => $self->logger,
+						       max_reps      => $max_reps,
+						       snmp_timeout  => $snmp_timeout
+	    );
+	
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
 
