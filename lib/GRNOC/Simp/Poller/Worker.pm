@@ -45,6 +45,12 @@ has redis => ( is => 'rwp' );
 has retention => (is => 'rwp',
 		  default => 5);
 
+has max_reps => (is => 'rwp',
+		 default => 1);
+
+has snmp_timeout => (is => 'rwp',
+		     default => 5);
+
 ### public methods ###
 
 sub start {
@@ -360,6 +366,7 @@ sub _collect_data{
 	    #--- iterate through the the provided set of base OIDs to collect
 	    my $res =  $self->{'snmp'}{$host->{'ip'}}->get_table(
 		-baseoid      => $oid,
+		-maxrepetitions => $self->max_reps,
 		-callback     => sub{ 
 		    my $session = shift;
 		    $self->_poll_cb( host => $host,
@@ -396,6 +403,7 @@ sub _poll_loop {
         -community        => $host->{'community'},
         -version          => 'snmpv2c',
         -maxmsgsize       => 65535,
+	 -timeout          => $self->snmp_timeout,
         -translate        => [-octetstring => 0],
         -nonblocking      => 1,
       );
