@@ -210,6 +210,16 @@ sub _create_workers {
         push( @{$self->children}, $pid );
       } );
 
+      # keep track of children pids
+      $forker->run_on_finish( sub {
+
+	  my ( $pid ) = @_;
+	  
+	  $self->logger->error( "Child worker process $pid has died." );
+	  
+	  
+			      } );
+      
 
       # create workers
       for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
@@ -239,6 +249,20 @@ sub _create_workers {
 
     } 
 
+
+    $forker->start();
+    #create the purger
+    my $purger = GRNOC::Simp::Poller::Purger->new( worker_name   => "purger",
+						   config        => $self->config,
+						   logger        => $self->logger,
+						   purge_interval => $self->purge_interval );
+    
+    # this should only return if we tell it to stop via TERM signal etc.
+    $purger->start();
+    
+    #finish the forker
+    $forker->finish();
+    
     $self->logger->debug( 'Waiting for all child worker processes to exit.' );
 
     # wait for all children to return

@@ -111,36 +111,39 @@ sub _purge_data{
   my $redis   = $self->redis;
   my $id      = $self->worker_name;  
 
-  $self->logger->error("$id Starting Purge of stale data");
-
+  $self->logger->info("$id Starting Purge of stale data");
+  my $removed=0;
   my @to_be_removed;
-  my @ready_for_delete;
 
   #get all the keys
-
-  $redis->select(1);
-  my @keys = $redis->keys( '*' );
-
-  foreach my $key (@keys){
-      while( $redis->llen($key) > 15){
-	  my $ts = $redis->rpop($key);
-	  push(@to_be_removed, $key . ",$ts");
-      }      
-  }
-  
-  $redis->select(0);
-  
-  my @possible_oids = $redis->keys('*');
-  my $removed = 0;
-  
-  if(scalar(@to_be_removed) >= 1){
-      foreach my $key (@possible_oids){
-	  my $res = $redis->hdel($key, @to_be_removed);
-	  $removed += $res;
+  try{
+      $redis->select(1);
+      my @keys = $redis->keys( '*' );
+      
+      foreach my $key (@keys){
+	  while( $redis->llen($key) > 15){
+	      my $ts = $redis->rpop($key);
+	      push(@to_be_removed, $key . ",$ts");
+	  }      
       }
-  }
+      
+      $redis->select(0);
   
-  warn "Total Removed: " . $removed . "\n";  
+      my @possible_oids = $redis->keys('*');
+      
+      if(scalar(@to_be_removed) >= 1){
+	  foreach my $key (@possible_oids){
+	      my $res = $redis->hdel($key, @to_be_removed);
+	      $removed += $res;
+	  }
+      }
+      $self->logger->info("Total Purged Entries: " . $removed . "\n");
+
+  }catch{
+
+      $self->logger->error("Error attempting to purge entries: " . $_);
+
+  }
 }
 
 1;
