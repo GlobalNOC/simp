@@ -70,7 +70,7 @@ sub start {
     my $redis_host = $self->config->get( '/config/redis/@host' )->[0];
     my $redis_port = $self->config->get( '/config/redis/@port' )->[0];
     
-    $self->logger->debug($self->worker_name." Connecting to Redis $redis_host:$redis_port." );
+    $self->logger->error($self->worker_name." Connecting to Redis $redis_host:$redis_port." );
     
     my $redis;
 
@@ -80,7 +80,7 @@ sub start {
 	    server    => "$redis_host:$redis_port",
 	    reconnect => 60,
 	    every     => 500,
-	    read_timeout => .5,
+	    read_timeout => 5,
 	    write_timeout => 3,
 	    );
     }
@@ -97,7 +97,7 @@ sub start {
     $self->logger->debug( $self->worker_name . ' Starting Purger loop.' );
     
 
-    $self->{'purge_timer'} = AnyEvent->timer( after => 1, 
+    $self->{'purge_timer'} = AnyEvent->timer( after => 40, 
 					      interval => $self->purge_interval,
 					      cb => sub {
 						  $self->_purge_data();
@@ -159,7 +159,7 @@ sub _purge_data{
 	  #instead of just looking at the length of the key, lets look at the time as well!
 	  while( my $len = $redis->llen($key)){
 	      last if $len == 0;
-	      if($redis->lindex($len -1) < $expire_time){
+	      if($redis->lindex($key,$len -1) < $expire_time){
 		  my $ts = $redis->rpop($key);
 		  push(@to_be_removed, $key . ",$ts");
 	      }else{

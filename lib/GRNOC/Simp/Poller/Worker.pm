@@ -111,7 +111,7 @@ sub start {
     
     $self->_connect_to_snmp();
 
-    $self->{'collector_timer'} = AnyEvent->timer( after => 1,
+    $self->{'collector_timer'} = AnyEvent->timer( after => 10,
 						  interval => $self->poll_interval,
 						  cb => sub {
 						      $self->_collect_data();
@@ -137,13 +137,14 @@ sub _poll_cb{
     my $data      = $session->var_bind_list();
 
     my $id        = $self->worker_name;
-    my $timestamp = time;
+    my $timestamp = $req_time;
     my $ip        = $host->{'ip'};
-
+    
 
     if(!defined $data){
 	my $error = $session->error();
-	$self->logger->debug("$id failed     $reqstr");
+	$self->logger->error("$id failed     $reqstr");
+	$self->logger->error("Error: $error");
 	return;
     }
 
@@ -267,6 +268,10 @@ sub _connect_to_snmp{
 	    -nonblocking      => 1,
 	    );
 	
+	if(!defined($snmp)){
+	    $self->logger->error("Error creating SNMP Session: " . $error);
+	}
+
 	$self->{'snmp'}{$host->{'ip'}} = $snmp;
 	
 	$self->logger->debug($self->worker_name . " assigned host " . $host->{'ip'});
@@ -283,6 +288,10 @@ sub _collect_data{
 
     for my $host (@$hosts){
 	for my $oid (@$oids){
+	    if(!defined($self->{'snmp'}{$host->{'ip'}})){
+		$self->logger->error("No SNMP session defined for " . $host->{'ip'});
+		next;
+	    }
 	    my $reqstr = " $oid -> ".$host->{'ip'};
 	    $self->logger->debug($self->worker_name ." requesting ". $reqstr);
 	    #--- iterate through the the provided set of base OIDs to collect
