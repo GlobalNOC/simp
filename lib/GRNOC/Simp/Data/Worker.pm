@@ -122,7 +122,11 @@ sub _start {
     my $method = GRNOC::RabbitMQ::Method->new(	name => "get",
 						callback =>  sub {
 								   my ($method_ref,$params) = @_; 
-								   return $self->_get(time(),$params); 
+								   my $epoch = time();
+								   if(defined($params->{'epoch'}{'value'})){
+								       $epoch = $params->{'epoch'}{'value'};
+								   }
+								   return $self->_get($epoch,$params); 
 								 },
 						description => "function to pull SNMP data out of cache");
 
@@ -140,6 +144,11 @@ sub _start {
                                               'items' => [ 'type' => 'string',
                                                          ]
                                             } );
+
+    $method->add_input_parameter( name => "epoch",
+                                  description => "Epoch time of data you are interested in",
+                                  required => 0,
+                                  schema => { 'type'  => 'integer'  } );
 
     $dispatcher->register_method($method);
 
