@@ -316,14 +316,23 @@ sub _find_host_key_time{
 	    if($oid =~ /$oid_group/){
 		#make sure the oid exists in the oid_group
 		my $closest;
-		foreach my $ts (@{$self->{'host_cache'}{$host}{$group}{$oid_group}}){
+		my $times = $self->{'host_cache'}{$host}{$group}{$oid_group};
+		foreach my $ts (@$times){
 		    if($ts < $requested && !defined($closest)){
 			$closest = $ts;
+			#break out of the loop... we found what we were looking for!
+			last;
 		    }
 		}
 		
+		
+
 		if(!defined($closest)){
-		    $closest = $self->{'host_cache'}{$host}{$group}{$oid_group}[$#{$self->{'host_cache'}{$host}{$group}{$oid_group}}];
+		    if($#{$times} < 0){
+			$self->logger->error("No timestamps found for this group");
+			next;
+		    }
+		    $closest = $times->[$#{$times}];
 		}
 		
 		if(!defined($closest)){
