@@ -35,6 +35,8 @@ has redis => ( is => 'rwp' );
 has worker_name => (is => 'ro',
 		    default => "purger");
 
+has groups => (is => 'rwp');
+
 ### public methods ###
 
 sub start {
@@ -90,6 +92,8 @@ sub start {
     
     $self->_set_need_restart(0);
     
+    $self->_process_config();
+
     $self->logger->debug( $self->worker_name . ' Starting Purger loop.' );
     
 
@@ -105,6 +109,20 @@ sub start {
 
 }
 
+sub _process_config{
+    my $self = shift;
+
+    my %groups;
+    my $groups  = $self->config->get( "/config/group" );
+    foreach my $group (@$groups){
+	next if($group->{'active'} == 0);
+
+	$groups{$group->{"name"}} = {interval => $group->{'interval'},
+				     retention => $group->{'retention'}};
+    }
+    $self->_set_groups(\%groups);
+}
+
 sub _purge_data{
   my $self    = shift;
 
@@ -115,20 +133,44 @@ sub _purge_data{
   my $removed=0;
   my @to_be_removed;
 
+
   #get all the keys
   try{
       $redis->select(1);
       my @keys = $redis->keys( '*' );
       
       foreach my $key (@keys){
-	  while( $redis->llen($key) > 15){
-	      my $ts = $redis->rpop($key);
-	      push(@to_be_removed, $key . ",$ts");
-	  }      
+	  #determine the "class" and its retention policy
+	  my @vals = split(',',$key);
+
+	  #IP,Class,MIB
+	  $vals[1] =~ /(.*)\d+/;
+	  my $group_name = $1;
+
+	  if(!defined($self->groups->{$group_name})){
+	      $self->logger->error("Unable to find a group called: " . $group_name);
+	      next;
+	  }
+
+          my $interval = $self->groups->{$group_name}{'interval'};
+          my $retention = $self->groups->{$group_name}{'retention'};
+	  my $expire_time = time() - ($interval * $retention);
+
+	  #instead of just looking at the length of the key, lets look at the time as well!
+	  while( my $len = $redis->llen($key)){
+	      last if $len == 0;
+	      if($redis->lindex($len -1) < $expire_time){
+		  my $ts = $redis->rpop($key);
+		  push(@to_be_removed, $key . ",$ts");
+	      }else{
+		  #ok so we are no longer after our stale time... don't go any further
+		  last;
+	      }
+	  }
       }
-      
+
       $redis->select(0);
-  
+      
       my @possible_oids = $redis->keys('*');
       
       if(scalar(@to_be_removed) >= 1){
