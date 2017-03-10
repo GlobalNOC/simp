@@ -89,7 +89,7 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
-* Fri March 10 2017 Andrew Ragusa <aragusa@globalnoc.iu.edu> - 1.0.2
+* Fri Mar 10 2017 Andrew Ragusa <aragusa@globalnoc.iu.edu> - 1.0.2
   - Fixes for holes in graphs
   - improvements in the poller
   - creation of the purger
