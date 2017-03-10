@@ -89,6 +89,10 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
-* Fri Jan 20 2017 Andrew Ragusa <aragusa@aj-dev6.grnoc.iu.edu> - simp-1
+* Fri March 10 2017 Andrew Ragusa <aragusa@globalnoc.iu.edu> - 1.0.2
+  - Fixes for holes in graphs
+  - improvements in the poller
+  - creation of the purger
+* Fri Jan 20 2017 Andrew Ragusa <aragusa@globalnoc.iu.edu> - 1.0.0
 - Initial build.
 
