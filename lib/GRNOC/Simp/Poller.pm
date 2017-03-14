@@ -257,33 +257,33 @@ sub _create_workers {
 
     } 
 
-    my $purger_interval = $self->config->get('/config/@purge_interval')->[0];
-    warn Dumper($purger_interval);
-    if(!defined($purger_interval)){
-	$purger_interval = 500;
-    }
+#    my $purger_interval = $self->config->get('/config/@purge_interval')->[0];
+#    warn Dumper($purger_interval);
+#    if(!defined($purger_interval)){
+#	$purger_interval = 500;
+#    }
 
-    $self->logger->info("Creating purger at " . $purger_interval);
+#    $self->logger->info("Creating purger at " . $purger_interval);
 
-    warn "Creating the purger\n";
+#    warn "Creating the purger\n";
 
-    for(my $i=0; $i < 1; $i++){
-	$forker->start() and next;
-	#create the purger
-	my $purger = GRNOC::Simp::Poller::Purger->new( worker_name   => "purger",
-						       config        => $self->config,
-						       logger        => $self->logger,
-						       purge_interval => $purger_interval );
-	
-	# this should only return if we tell it to stop via TERM signal etc.
-	$purger->start();
-	
-	#finish the forker
-	$forker->finish();
-    }
+#    for(my $i=0; $i < 1; $i++){
+#	$forker->start() and next;
+#	#create the purger
+#	my $purger = GRNOC::Simp::Poller::Purger->new( worker_name   => "purger",
+#						       config        => $self->config,
+#						       logger        => $self->logger,
+#						       purge_interval => $purger_interval );
+#	
+#	# this should only return if we tell it to stop via TERM signal etc.
+#	$purger->start();
+#	
+#	#finish the forker
+#	$forker->finish();
+#    }
 
 
-    warn "Created purger\n";
+#    warn "Created purger\n";
     
     $self->logger->debug( 'Waiting for all child worker processes to exit.' );
 

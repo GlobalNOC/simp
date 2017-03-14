@@ -150,32 +150,42 @@ sub _poll_cb{
 
     for my $oid (keys %$data){
 	try {
-	    my $key = "$ip,$id,$main_oid,$timestamp";
-	    $redis->hset($oid,$key,$data->{$oid});
-	    
-	    if(defined($host->{'node_name'})){
-		my $node_name = $host->{'node_name'};
-		
-		#also push into node_name
-		my $key2 = "$node_name,$id,$main_oid,$timestamp";
-		$redis->hset($oid,$key2,$data->{$oid});
-	    }
+	    my $key = "$ip,$oid,$id,$timestamp";
+	    $redis->set($key, $data->{$oid});
+	    $redis->expire($key, ($timestamp + ($self->retention * $self->poll_interval)) );
 	} catch {
 	    $self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
-	    #--- on error try to restart
 	    return;
-	};
+	}
+
+	#try {
+	#    my $key = "$ip,$id,$main_oid,$timestamp";
+	#    $redis->hset($oid,$key,$data->{$oid});
+	#    
+	#    if(defined($host->{'node_name'})){
+	#    my $node_name = $host->{'node_name'};
+	#	
+	#	#also push into node_name
+	#	my $key2 = "$node_name,$id,$main_oid,$timestamp";
+	#	$redis->hset($oid,$key2,$data->{$oid});
+	#    }
+	#} catch {
+	#    $self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
+	#    #--- on error try to restart
+	#    return;
+	#};
     }
 	
     #--- last update records stored in database index "1" vs "0" for data
     #--- track last seen timestamp on per host per worker to account for different parallel poll cycles
     try{
 	$redis->select(1);
-	$redis->lpush("$ip,$id,$main_oid",$timestamp);
-	if(defined($host->{'node_name'})){
-	    my $node_name = $host->{'node_name'};
-	    $redis->lpush("$node_name,$id,$main_oid", $timestamp);
-	}
+	$redis->set(
+#	$redis->lpush("$ip,$main_oid,$id",$timestamp);
+#	if(defined($host->{'node_name'})){
+#	    my $node_name = $host->{'node_name'};
+#	    $redis->lpush("$node_name,$main_oid,$id", $timestamp);
+#	}
 	$redis->select(0);
     } catch {
 	$self->logger->error($self->worker_name. " $id Error in hset for timestamp: $_" );
