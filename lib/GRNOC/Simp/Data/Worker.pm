@@ -366,6 +366,8 @@ sub _get{
 
     foreach my $oid (@$oidmatch){
 	my $hostkeys = ();
+
+	my $start = [gettimeofday];
 	foreach my $host (@$node){
 
 	    #find the correct key to fetch for!
@@ -375,7 +377,8 @@ sub _get{
 							   requested => $requested)});
 		 
 	}
-	
+	my $end = [gettimeofday];
+	$self->logger->error("Total Time for hostkey lookup: " . tv_interval($start,$end));
 	#---check to see if the oid is a full oid or a match
 	if(!($oid =~ /\*/)){
 	    #--- this is a full OID not a search patterna, we can skip the scan phase
