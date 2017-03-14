@@ -218,68 +218,6 @@ sub _ping{
   return gettimeofday();
 }
 
-#--- calllback function to process results when building our hostkey list
-sub _hostkey_cb{
-    my $self      = shift;
-    my $key       = shift;
-    my $host_key_cache = shift;
-    my $reply     = shift; 
-
-    return if(!defined($reply));
-
-    my ($host,$group,$oid) = split(/,/,$key);
-    
-    if( ! defined $host_key_cache || 
-	! defined $host_key_cache->{$host} ){
-      $host_key_cache->{$host} = ();
-    }
- 
-    push(@{$host_key_cache->{$host}{$group}{$oid}}, @{$reply});
-}
-
-
-#--- returns a hash that maps ip to the host key
-sub _gen_hostkeys{
-  my $self        = shift;
-  my $index       = shift;
-  my $redis       = $self->redis;
-
-  my $host_key_cache = {};
-
-  $self->logger->debug("Starting Host Key Generation");
-  try {
-      #--- the timestamps are kept in a different db "1" vs "0"
-      $redis->select(1);
-      
-      my $keys;
-      my $cursor = 0;
-      while(1){
-        #---- get the set of hash entries that match our pattern
-        ($cursor,$keys) =  $redis->scan($cursor,COUNT=>2000);
-	last if($cursor eq 'OK');
-	foreach my $key (@$keys){
-	    #--- iterate on the returned OIDs and pull the values associated to each host
-	    my $type = $redis->type($key);
-	    next if($type ne 'list');
-	    my $len = $redis->llen($key);
-	    $redis->lrange($key, 0, $len, sub {$self->_hostkey_cb($key,$host_key_cache,@_)});
-        }
-        last if($cursor == 0);
-      }
-          
-      #--- wait for all the hgetall responses to return
-      $redis->wait_all_responses;
-
-      $self->{'host_cache'} = $host_key_cache;
-  } catch {
-      $self->logger->error(" in gen_hostkeys: ". $_);
-  };
-  
-
-  #--- return back to db 0
-  $redis->select(0);
-}
-
 #--- callback to handle results from the hmgets issued in _get
 sub _get_cb{
     my $self      = shift;
@@ -290,12 +228,9 @@ sub _get_cb{
     my $error     = shift;
 
     my ($node, $oid, $poller, $time) = split(',',$key);
-    $self->logger->error("NOde: " . $node . " oid: " . $oid . " poller: " . $poller . " time: $time"); 
-    $self->logger->error("REPLY: " . Dumper($reply));
+
     $ref->{$node}{$oid}{'value'} = $reply;
     $ref->{$node}{$oid}{'time'}  = $time;
-
-    $self->logger->error("RESULTS: " . Dumper($ref));
 
 }
 
@@ -336,8 +271,9 @@ sub _find_host_key_time{
     my @sorted_times = reverse sort { $a->{'time'} <=> $b->{'time'} } @temp_times;
 
     foreach my $obj (@sorted_times){
+        $self->logger->debug("TIME: " . $obj->{'time'} . " vs requested " . $requested);
         #find the time closest to the one I want!
-        if($obj->{'time'} < $requested){
+        if($obj->{'time'} < $requested && !defined($final_key)){
             $final_key = $host . "," . $oid . "," . $obj->{'collector'} . "," . $obj->{'time'};
         }
     }
@@ -358,7 +294,7 @@ sub _get{
 
   my %results;
 
-  $self->logger->error("HERE!");
+  $self->logger->debug("processing get request for time " . $requested);
 
   try {
     #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
@@ -384,14 +320,13 @@ sub _get{
                 my $keys;
 		my $cursor = 0;
 
-                $self->logger->error("Scanning for " . $match);
+                $self->logger->debug("Scanning for " . $match);
 
 		while(1){
 		    #--- get the set of hash entries that match our pattern
 		    ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$match,COUNT=>2000);
 		    foreach my $key (@$keys){
 			#--- iterate on the returned OIDs and pull the values associated to each host
-                        $self->logger->error("Got a key!  $key");
 			$redis->get($key, sub { $self->_get_cb($key, \%results, @_); });
 		    }
 				
@@ -401,7 +336,7 @@ sub _get{
 	}
     }
     
-    $self->logger->warn("Waiting for responses");
+    $self->logger->debug("Waiting for responses");
 
     #--- wait for all pending responses to hmget requests
     $redis->wait_all_responses;
@@ -410,7 +345,7 @@ sub _get{
       $self->logger->error(" in get: ". $_);
   };
   
-  $self->logger->warn("Response ready!");
+  $self->logger->debug("Response ready!");
 
   return \%results;
 }
@@ -461,25 +396,20 @@ sub _get_rate{
 
   #--- get the data for the current and a past poll cycle
   my $current_data  = $self->_get(time(),$params);
-
-  #need a close timestamp for us to use for data!
-  my @ips = keys %{$current_data};
-
   my $previous_data;
 
-
+  my @ips = keys %{$current_data};
   if(defined($ips[0])){
       my @oids = keys %{$current_data->{$ips[0]}};
 
       if(defined($oids[0])){
 
-	  my $time = $current_data->{$ips[0]}{$oids[0]}{'time'};
-	  $time -= $params->{'period'}{'value'};
+          my $time = $current_data->{$ips[0]}{$oids[0]}{'time'};
+          $time -= $params->{'period'}{'value'};
 
-	  $previous_data = $self->_get($time,$params);
+          $previous_data = $self->_get($time,$params);
       }
   }
-
 
   my %results;
 
