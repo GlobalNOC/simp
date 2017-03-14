@@ -290,12 +290,13 @@ sub _get_cb{
     my $error     = shift;
 
     my ($node, $oid, $poller, $time) = split(',',$key);
+    $self->logger->error("NOde: " . $node . " oid: " . $oid . " poller: " . $poller . " time: $time"); 
+    $self->logger->error("REPLY: " . Dumper($reply));
+    $ref->{$node}{$oid}{'value'} = $reply;
+    $ref->{$node}{$oid}{'time'}  = $time;
 
-    foreach my $val(@$reply){
-	next if(!defined $val);                  #-- this OID key has no relevance to the IP in question if null here
-	$ref->{$node}{$oid}{'value'} = $val;       #-- external data representation is inverted from what we store
-	$ref->{$node}{$oid}{'time'}  = $ts;
-    }
+    $self->logger->error("RESULTS: " . Dumper($ref));
+
 }
 
 sub _find_host_key_time{
@@ -306,43 +307,49 @@ sub _find_host_key_time{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    $redis->select(1);
+    $self->redis->select(1);
     
     my $match = "$host,*";
 
+    my $keys;
     my $cursor = 0;
+    my @temp_times;
     while(1){
 	#--- get the set of hash entries that match our pattern
-	($cursor,$keys) =  $redis->scan($cursor,MATCH=>$match,COUNT=>2000);
+	($cursor,$keys) =  $self->redis->scan($cursor,MATCH=>$match,COUNT=>2000);
 	foreach my $key (@$keys){
 	    my @vals = split(',',$key);
 	    if($oid =~ /$vals[1]/){
 		#get all the values in the array so we can determine which one we want
-		my $len = $redis->llen($key);
-		my @times = $redis->lrange($key, 0, $len);
-		
-		#find the time we want
-		foreach my $time (@times){
-		    if($time < $requested){
-			#change back the database!
-			$redis->select(0);
-			return $host . "," $oid . "," . $vals[2] . "," . $time;
-		    }
-		}
-
+                push(@temp_times, {time => $vals[3], collector => $vals[2]});
 	    }else{
 		next;
 	    }
 	}
+        last if($cursor == 0);
     }
-    #uh oh didn't find it... change back database and return undef
-    $redis->select(0);
+
+    my $final_key;
+    #ok found all the possible keys
+
+    #sort the times
+    my @sorted_times = reverse sort { $a->{'time'} <=> $b->{'time'} } @temp_times;
+
+    foreach my $obj (@sorted_times){
+        #find the time closest to the one I want!
+        if($obj->{'time'} < $requested){
+            $final_key = $host . "," . $oid . "," . $obj->{'collector'} . "," . $obj->{'time'};
+        }
+    }
+
+    $self->redis->select(0);
+    return $final_key;
 }
 
 
 sub _get{
   #--- implementation using pipelining and callbacks 
-  my $self      = shift;
+    my $self      = shift;
   my $requested = shift;
   my $params    = shift;
   my $node      = $params->{'node'}{'value'};
@@ -351,11 +358,12 @@ sub _get{
 
   my %results;
 
+  $self->logger->error("HERE!");
+
   try {
     #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
 
     foreach my $oid (@$oidmatch){
-	my $hostkeys = ();
 	foreach my $host (@$node){
 
 	    #find the correct key to fetch for!
@@ -369,29 +377,32 @@ sub _get{
 	    }
 	    
 	    if(!($oid =~ /\*/)){
-		
-		$redis->get($match, sub { $self->_get_cb($key, \%results, @_) });
+
+		$redis->get($match, sub { $self->_get_cb($match, \%results, @_) });
 		
 	    }else{
-						
+                my $keys;
 		my $cursor = 0;
+
+                $self->logger->error("Scanning for " . $match);
+
 		while(1){
 		    #--- get the set of hash entries that match our pattern
 		    ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$match,COUNT=>2000);
 		    foreach my $key (@$keys){
 			#--- iterate on the returned OIDs and pull the values associated to each host
-			my $val = $redis->get($key, sub { $self->_get_cb($key, \%results, @_); });
-			#last one!
-			last;
+                        $self->logger->error("Got a key!  $key");
+			$redis->get($key, sub { $self->_get_cb($key, \%results, @_); });
 		    }
-		}
-		
-		last if($cursor == 0);
+				
+                    last if($cursor == 0);
+                }
 	    }
-	    
 	}
     }
     
+    $self->logger->warn("Waiting for responses");
+
     #--- wait for all pending responses to hmget requests
     $redis->wait_all_responses;
     
@@ -399,6 +410,8 @@ sub _get{
       $self->logger->error(" in get: ". $_);
   };
   
+  $self->logger->warn("Response ready!");
+
   return \%results;
 }
 sub _rate{
