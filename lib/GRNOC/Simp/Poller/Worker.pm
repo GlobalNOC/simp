@@ -166,13 +166,11 @@ sub _poll_cb{
         my $key = "$ip,$main_oid,$id,$timestamp";
 	$redis->set($key,1);
         $redis->expireat($key, ($timestamp + ($self->retention * $self->poll_interval)));
-#	$redis->lpush("$ip,$main_oid,$id",$timestamp);
 	if(defined($host->{'node_name'})){
 	    my $node_name = $host->{'node_name'};
             my $key = "$node_name,$main_oid,$id,$timestamp";
             $redis->set($key,1);
             $redis->expireat($key, ($timestamp + ($self->retention * $self->poll_interval)));
-#	    $redis->lpush("$node_name,$main_oid,$id", $timestamp);
 	}
 	$redis->select(0);
     } catch {
@@ -182,74 +180,6 @@ sub _poll_cb{
 	return;
     };
 }
-
-### privatge methods ###
-sub _poll_callback{
-  my $session   = shift;
-  my $self      = shift;
-  my $host      = shift;
-  my $req_time  = shift;
-  my $last_seen = shift;
-  my $reqstr    = shift;
-  my $main_oid  = shift;
-
-  my $redis     = $self->redis;
-  my $data      = $session->var_bind_list();
-
-  my $id        = $self->worker_name;
-  my $timestamp = time;
-  my $ip        = $host->{'ip'};
-
-  if(!defined $data){
-    my $error = $session->error();
-    $self->logger->debug("$id failed     $reqstr");
-    return;
-  }
-  $self->logger->debug("$id recieved   $reqstr");
-  $last_seen->{$ip} = $timestamp;
-
-  for my $oid (keys %$data){
-    #--- use a compound key IP, PollerID and Request Timestamp. 
-    #--- Request Timestamp used so that all oids requests for a node are keyed the same
-    try {  
-      my $key = "$ip,$id,$main_oid,$timestamp";
-      $redis->hset($oid,$key,$data->{$oid});
-     
-      if(defined($host->{'node_name'})){
-	  my $node_name = $host->{'node_name'};
-	  
-	  #also push into node_name
-	  my $key2 = "$node_name,$id,$main_oid,$timestamp";
-	  $redis->hset($oid,$key2,$data->{$oid});
-      }
-    } catch {
-        $self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
-        #--- on error try to restart
-        $self->_set_need_restart(1);
-        return;
-    };
-
-  }
-
-  #--- last update records stored in database index "1" vs "0" for data
-  #--- track last seen timestamp on per host per worker to account for different parallel poll cycles
-  try{  
-    $redis->select(1);
-    $redis->lpush("$ip,$id,$main_oid",$timestamp);
-    if(defined($host->{'node_name'})){
-	my $node_name = $host->{'node_name'};
-	$redis->lpush("$node_name,$id,$main_oid", $timestamp);
-    }
-    $redis->select(0);
-  } catch {
-    $self->logger->error($self->worker_name. " $id Error in hset for timestamp: $_" );
-    #--- on error try to restart
-    $self->_set_need_restart(1);
-    return;
-  };
- 
-}
-
 
 sub _connect_to_snmp{
     my $self = shift;
