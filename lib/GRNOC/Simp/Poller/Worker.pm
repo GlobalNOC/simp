@@ -148,37 +148,28 @@ sub _poll_cb{
 	return;
     }
 
+    my @values;
+
     for my $oid (keys %$data){
-	try {
-	    my $key = "$ip,$oid,$id,$timestamp";
-	    $redis->set($key, $data->{$oid});
-	    $redis->expireat($key, ($timestamp + ($self->retention * $self->poll_interval)) );
-	} catch {
-	    $self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
-	    return;
-	}
+	push(@values, "$oid," .  $data->{$oid});
     }
+
+
+    try {
+	my $key = "$ip,$main_oid,$id,$timestamp";
+	$redis->sadd($key, @values);
+	$redis->expireat($key, ($timestamp + ($self->retention * $self->poll_interval)) );
 	
-    #--- last update records stored in database index "1" vs "0" for data
-    #--- track last seen timestamp on per host per worker to account for different parallel poll cycles
-    try{
-	$redis->select(1);
-        my $key = "$ip,$main_oid,$id,$timestamp";
-	$redis->set($key,1);
-        $redis->expireat($key, ($timestamp + ($self->retention * $self->poll_interval)));
 	if(defined($host->{'node_name'})){
-	    my $node_name = $host->{'node_name'};
-            my $key = "$node_name,$main_oid,$id,$timestamp";
-            $redis->set($key,1);
-            $redis->expireat($key, ($timestamp + ($self->retention * $self->poll_interval)));
+	    my $host_key = $host->{'node_name'} . ",$main_oid,$id,$timestamp";
+	    $redis->sadd($host_key, @values);
+	    $redis->expireat($host_key, ($timestamp + ($self->retention * $self->poll_interval)) );
 	}
-	$redis->select(0);
+	
     } catch {
-	$self->logger->error($self->worker_name. " $id Error in set for timestamp: $_" );
-	#--- on error try to restart
-	$redis->select(0);
+	$self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
 	return;
-    };
+    }
 }
 
 sub _connect_to_snmp{

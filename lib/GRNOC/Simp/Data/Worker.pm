@@ -191,17 +191,6 @@ sub _start {
 
     $dispatcher->register_method($method2);
 
-    #--- build host key cache every second 
-#    $self->_gen_hostkeys();
-#
-#    $self->{'host_key_timer'} = AnyEvent->timer( after => 1, 
-#						 interval => 10, 
-#						 cb => sub {
-#						     $self->_gen_hostkeys(); 
-#						 });
-#    
-#    sleep(1);
-    
     #--- go into event loop handing requests that come in over rabbit  
     $self->logger->debug( 'Entering RabbitMQ event loop' );
     $dispatcher->start_consuming();
@@ -234,7 +223,7 @@ sub _get_cb{
 
 }
 
-sub _find_host_key_time{
+sub _find_key{
     my $self = shift;
     my %params = @_;
 
@@ -242,7 +231,6 @@ sub _find_host_key_time{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    $self->redis->select(1);
     
     my $match = "$host,*";
 
@@ -253,10 +241,10 @@ sub _find_host_key_time{
 	#--- get the set of hash entries that match our pattern
 	($cursor,$keys) =  $self->redis->scan($cursor,MATCH=>$match,COUNT=>2000);
 	foreach my $key (@$keys){
-	    my @vals = split(',',$key);
-	    if($oid =~ /$vals[1]/){
+	    my ($host,$base_oid,$collection,$time) = split(',',$key);
+	    if($oid =~ /$base_oid/){
 		#get all the values in the array so we can determine which one we want
-                push(@temp_times, {time => $vals[3], collector => $vals[2]});
+                push(@temp_times, {time => $time, key => $key});
 	    }else{
 		next;
 	    }
@@ -273,78 +261,70 @@ sub _find_host_key_time{
     foreach my $obj (@sorted_times){
         $self->logger->debug("TIME: " . $obj->{'time'} . " vs requested " . $requested);
         #find the time closest to the one I want!
-        if($obj->{'time'} < $requested && !defined($final_key)){
-            $final_key = $host . "," . $oid . "," . $obj->{'collector'} . "," . $obj->{'time'};
+        if($obj->{'time'} < $requested){
+            return $obj;
         }
     }
 
-    $self->redis->select(0);
-    return $final_key;
 }
 
 
 sub _get{
   #--- implementation using pipelining and callbacks 
     my $self      = shift;
-  my $requested = shift;
-  my $params    = shift;
-  my $node      = $params->{'node'}{'value'};
-  my $oidmatch  = $params->{'oidmatch'}{'value'};
-  my $redis     = $self->redis;
-
-  my %results;
-
-  $self->logger->debug("processing get request for time " . $requested);
-
-  try {
-    #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
-
-    foreach my $oid (@$oidmatch){
-	foreach my $host (@$node){
-
-	    #find the correct key to fetch for!
-
-	    my $match = $self->_find_host_key_time( host => $host,
-						    oid => $oid, 
-						    requested => $requested);
-	    
-	    if(!defined($match)){
-		next;
-	    }
-	    
-	    if(!($oid =~ /\*/)){
-
-		$redis->get($match, sub { $self->_get_cb($match, \%results, @_) });
+    my $requested = shift;
+    my $params    = shift;
+    my $node      = $params->{'node'}{'value'};
+    my $oidmatch  = $params->{'oidmatch'}{'value'};
+    my $redis     = $self->redis;
+    
+    my %results;
+    
+    $self->logger->debug("processing get request for time " . $requested);
+    
+    try {
+	#--- convert the set of interesting ip address to the set of internal keys used to retrive data 
+	
+	foreach my $oid (@$oidmatch){
+	    foreach my $host (@$node){
 		
-	    }else{
-                my $keys;
+		#find the correct key to fetch for!
+		
+		my $obj = $self->_find_key( host => $host,
+					    oid => $oid,
+					    requested => $requested);
+		
+		if(!defined($obj) || !defined($obj->{'key'}) || !defined($obj->{'time'})){
+		    next;
+		}
+		
+		my $keys;
 		my $cursor = 0;
-
-                $self->logger->debug("Scanning for " . $match);
-
 		while(1){
 		    #--- get the set of hash entries that match our pattern
-		    ($cursor,$keys) =  $redis->scan($cursor,MATCH=>$match,COUNT=>2000);
+		    ($cursor,$keys) =  $redis->sscan($obj->{'key'}, $cursor,MATCH=>$oid . "*",COUNT=>2000);
 		    foreach my $key (@$keys){
-			#--- iterate on the returned OIDs and pull the values associated to each host
-			$redis->get($key, sub { $self->_get_cb($key, \%results, @_); });
+			#$ref->{$node}{$oid}{'value'} = $reply;
+			#$ref->{$node}{$oid}{'time'}  = $time;
+			my ($oid,$value) = split(',',$key);
+			$results{$host}{$oid}{'value'} = $value;
+			$results{$host}{$oid}{'time'} = $obj->{'time'};
 		    }
-				
-                    last if($cursor == 0);
-                }
+		    
+		    last if($cursor == 0);
+		}
 	    }
 	}
-    }
-    
-    $self->logger->debug("Waiting for responses");
 
-    #--- wait for all pending responses to hmget requests
-    $redis->wait_all_responses;
-    
-  } catch {
-      $self->logger->error(" in get: ". $_);
-  };
-  
+	$self->logger->debug("Waiting for responses");
+	
+	#--- wait for all pending responses to hmget requests
+	$redis->wait_all_responses;
+	
+    } catch {
+	$self->logger->error(" in get: ". $_);
+    };
+
   $self->logger->debug("Response ready!");
 
   return \%results;
