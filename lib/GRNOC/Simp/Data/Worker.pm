@@ -207,23 +207,7 @@ sub _ping{
   return gettimeofday();
 }
 
-#--- callback to handle results from the hmgets issued in _get
-sub _get_cb{
-    my $self      = shift;
-
-    my $key       = shift;
-    my $ref       = shift;
-    my $reply     = shift;
-    my $error     = shift;
-
-    my ($node, $oid, $poller, $time) = split(',',$key);
-
-    $ref->{$node}{$oid}{'value'} = $reply;
-    $ref->{$node}{$oid}{'time'}  = $time;
-
-}
-
-sub _find_key{
+sub _find_group{
     my $self = shift;
     my %params = @_;
 
@@ -231,41 +215,134 @@ sub _find_key{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    
-    my $match = "$host,*";
+    my @host_groups;
 
-    my $keys;
-    my $cursor = 0;
-    my @temp_times;
-    while(1){
-	#--- get the set of hash entries that match our pattern
-	($cursor,$keys) =  $self->redis->scan($cursor,MATCH=>$match,COUNT=>2000);
-	foreach my $key (@$keys){
-	    my ($host,$base_oid,$collection,$time) = split(',',$key);
-	    if($oid =~ /$base_oid/){
-		#get all the values in the array so we can determine which one we want
-                push(@temp_times, {time => $time, key => $key});
-	    }else{
-		next;
-	    }
+    my $start = [gettimeofday];
+
+    try{
+	$self->redis->select(3);
+	@host_groups = $self->redis->smembers($host);
+	$self->redis->select(0);
+    }catch{
+	$self->redis->select(0);
+	$self->logger->error("Error fetching all groups host is a part of");
+	return;
+    };	
+
+    my $after_first_lookup = [gettimeofday];
+
+    my @new_host_groups;
+    foreach my $hg (@host_groups){
+	my ($base_oid, $group, $interval) = split(',', $hg);
+	if($oid =~ /$base_oid/){
+	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
 	}
-        last if($cursor == 0);
+    }
+    
+    my $after_processing = [gettimeofday];
+
+    #ok we are close! we only have matching host groups...
+    #if we have none... return undef
+    if(scalar(@new_host_groups) <= 0){
+	$self->logger->error("NO host groups found for $host and $oid"); 
+	return;
     }
 
-    my $final_key;
-    #ok found all the possible keys
+    $self->logger->error("Time to get members: " . tv_interval($start, $after_first_lookup));
+    $self->logger->error("Time to process: " . tv_interval($after_first_lookup, $after_processing));
 
-    #sort the times
-    my @sorted_times = reverse sort { $a->{'time'} <=> $b->{'time'} } @temp_times;
-
-    foreach my $obj (@sorted_times){
-        $self->logger->debug("TIME: " . $obj->{'time'} . " vs requested " . $requested);
-        #find the time closest to the one I want!
-        if($obj->{'time'} < $requested){
-            return $obj;
-        }
+    #if we have 1 return that group
+    if(scalar(@new_host_groups) == 1){
+	return $new_host_groups[0];
     }
 
+    #ok if we have multiple... sort by length of base_oid
+    my @sorted = sort { length($a->{'base_oid'}) <=> length($b->{'base_oid'}) } @new_host_groups;
+
+    my @longest_base_oids;
+    push(@longest_base_oids, $sorted[0]);
+
+    for(my $i=1; $i<=$#sorted; $i++){
+	if(length($sorted[$i-1]->{'base_oid'}) == length($sorted[$i]->{'base_oid'})){
+	    push(@longest_base_oids, $sorted[$i]);
+	}else{
+	    last;
+	}
+    }
+
+    if(scalar(@sorted) == 1){
+	return $sorted[0];
+    }
+    
+    #damn ok so we have 2 that are the same length now check the intervals...
+    my @sorted_intervals = sort { $a->{'interval'} <=> $b->{'interval'} } @sorted;
+
+    return $sorted[0];
+
+}
+
+sub _find_key{
+
+    my $self = shift;
+    my %params = @_;
+
+    my $host = $params{'host'};
+    my $oid = $params{'oid'};
+    my $requested = $params{'requested'};
+
+    my $start = [gettimeofday];
+
+    my $group = $self->_find_group( host => $host, 
+				    oid => $oid,
+				    requested => $requested);
+    
+    
+    if(!defined($group)){
+	$self->logger->error("unable to find group for $host $oid");
+	return;
+    }
+    my $time_to_group = [gettimeofday];
+
+    #ok so we have the group name we want now... grab the key that leads to the current time chunk
+    $self->redis->select(2);
+    my $res = $self->redis->get($host . "," . $group->{'group'});
+    $self->redis->select(0);
+    
+    #key should be poll_id,ts
+    my ($poll_id,$time) = split(',',$res);
+
+    my $poll_id_time = [gettimeofday];
+
+    #if the requested time is newer than our poll time OR the poll time - the requested time is less than 1 poll interval return the current one
+    my $lookup;
+    if($requested > $time){
+	$lookup = $host . "," . $group->{'group'} . "," . $poll_id;
+    }else{
+	#find the closest poll cycle
+	my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
+	if($poll_id >= $poll_ids_back){
+	    $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - $poll_ids_back);
+	}else{
+	    $self->logger->error("No time available that matches the requested time!");
+	    return;
+	}
+    }
+
+    my $after_poll_id = [gettimeofday];
+
+    #ok so lookup is now defined
+    #lookup will give us the right set to sscan through
+    $self->redis->select(1);
+    my $set = $self->redis->get($lookup);
+    $self->redis->select(0);
+
+    my $after_all_lookup = [gettimeofday];
+
+    $self->logger->error("Time for _find_group: " . tv_interval($start,  $time_to_group));
+    $self->logger->error("Time for current_poll_id: " . tv_interval( $time_to_group, $poll_id_time));
+    $self->logger->error("Time to find poll_id: " . tv_interval($poll_id_time, $after_poll_id));
+    $self->logger->error("time to lookup key: " . tv_interval($after_poll_id, $after_all_lookup));
+    return $set;
 }
 
 
@@ -284,31 +361,42 @@ sub _get{
     
     try {
 	#--- convert the set of interesting ip address to the set of internal keys used to retrive data 
-	
+	my $scan_start;
 	foreach my $oid (@$oidmatch){
 	    foreach my $host (@$node){
 		
 		#find the correct key to fetch for!
-		
-		my $obj = $self->_find_key( host => $host,
+		my $start = [gettimeofday];
+		my $set = $self->_find_key( host => $host,
 					    oid => $oid,
 					    requested => $requested);
-		
-		if(!defined($obj) || !defined($obj->{'key'}) || !defined($obj->{'time'})){
+
+		my ($host, $group, $time) = split(',',$set);
+		my $set_find = [gettimeofday];
+		$self->logger->error("Time to find set: " . tv_interval($start, $set_find));
+		if(!defined($set)){
+		    $self->logger->error("Unable to find set to look at");
 		    next;
 		}
 		
+
+		$self->logger->error("Set: " . $set . " vs. " . time());
+		$self->logger->error("Set has: " . $redis->scard($set) . " members");
+
+		$scan_start = [gettimeofday];
 		my $keys;
 		my $cursor = 0;
 		while(1){
 		    #--- get the set of hash entries that match our pattern
-		    ($cursor,$keys) =  $redis->sscan($obj->{'key'}, $cursor,MATCH=>$oid . "*",COUNT=>2000);
+		    ($cursor,$keys) =  $redis->sscan($set, $cursor,MATCH=>$oid . "*",COUNT=>2000);
 		    foreach my $key (@$keys){
-			#$ref->{$node}{$oid}{'value'} = $reply;
-			#$ref->{$node}{$oid}{'time'}  = $time;
-			my ($oid,$value) = split(',',$key);
+			
+			$key =~ /([\d+|\.]+),(.*)/;
+			my $oid = $1;
+			my $value = $2;
+
 			$results{$host}{$oid}{'value'} = $value;
-			$results{$host}{$oid}{'time'} = $obj->{'time'};
+			$results{$host}{$oid}{'time'} = $time;
 		    }
 		    
 		    last if($cursor == 0);
@@ -320,7 +408,8 @@ sub _get{
 	
 	#--- wait for all pending responses to hmget requests
 	$redis->wait_all_responses;
-	
+	my $end_scan = [gettimeofday];
+	$self->logger->error("Scan Time: " . tv_interval($scan_start, $end_scan));
     } catch {
 	$self->logger->error(" in get: ". $_);
     };

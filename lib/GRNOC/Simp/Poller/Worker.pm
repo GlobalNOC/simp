@@ -12,8 +12,11 @@ use Redis;
 
 ### required attributes ###
 
-has worker_name => ( is => 'ro',
-                required => 1 );
+has group_name => (is => 'ro',
+		   required => 1);
+
+has instance => (is => 'ro',
+		 required => 1);
 
 has config      => ( is => 'ro',
 		     required => 1 );
@@ -33,6 +36,10 @@ has poll_interval => ( is => 'ro',
 
 
 ### internal attributes ###
+
+has worker_name => (is => 'rwp',
+		    required => 0,
+		    default => 'unknown');
 
 has is_running => ( is => 'rwp',
                     default => 0 );
@@ -57,11 +64,13 @@ sub start {
     
     my ( $self ) = @_;
     
+    $self->_set_worker_name($self->group_name . $self->instance);
+
     my $logger = GRNOC::Log->get_logger($self->worker_name);
     $self->_set_logger($logger);
+
     my $worker_name = $self->worker_name;
-    
-    $self->logger->debug( $self->worker_name." Starting." );
+    $self->logger->error( $self->worker_name." Starting." );
     
     # flag that we're running
     $self->_set_is_running( 1 );
@@ -136,7 +145,7 @@ sub _poll_cb{
     my $redis     = $self->redis;
     my $data      = $session->var_bind_list();
 
-    my $id        = $self->worker_name;
+    my $id        = $self->group_name;
     my $timestamp = $req_time;
     my $ip        = $host->{'ip'};
     
@@ -154,19 +163,48 @@ sub _poll_cb{
 	push(@values, "$oid," .  $data->{$oid});
     }
 
+    my $expires = $timestamp + $self->retention;
+    $self->logger->error("Expires: " . $expires);
+
+    delete $host->{'pending_replies'}->{$main_oid};
 
     try {
-	my $key = "$ip,$main_oid,$id,$timestamp";
+
+	$redis->select(0);
+	my $key = $host->{'node_name'} . "," . $self->worker_name . ",$timestamp";
 	$redis->sadd($key, @values);
-	$redis->expireat($key, ($timestamp + ($self->retention * $self->poll_interval)) );
 	
-	if(defined($host->{'node_name'})){
-	    my $host_key = $host->{'node_name'} . ",$main_oid,$id,$timestamp";
-	    $redis->sadd($host_key, @values);
-	    $redis->expireat($host_key, ($timestamp + ($self->retention * $self->poll_interval)) );
+	if(scalar(keys %{$host->{'pending_replies'}}) == 0){
+	    
+	    $redis->expireat($key, $expires);
+	    
+	    #our poll_id to time lookup
+	    $redis->select(1);
+	    $redis->set($host->{'node_name'} . "," . $self->group_name . "," . $host->{'poll_id'}, $key);
+	    $redis->set($ip . "," . $self->group_name . "," . $host->{'poll_id'}, $key);
+	    #and expire
+	    $redis->expireat($host->{'node_name'} . "," . $self->group_name . "," . $host->{'poll_id'}, $expires);
+	    $redis->expireat($ip . "," . $self->group_name . "," . $host->{'poll_id'},$expires);
+	    
+	    #and the current poll_id lookup
+	    $redis->select(2);
+	    $redis->set($host->{'node_name'} . "," . $self->group_name, $host->{'poll_id'} . "," . $timestamp);
+	    $redis->set($ip . "," . $self->group_name, $host->{'poll_id'} . "," . $timestamp);
+	    #and expire
+	    $redis->expireat($host->{'node_name'} . "," . $self->group_name, $expires);
+	    $redis->expireat($ip . "," . $self->group_name, $expires);
+	    
+	    $redis->select(3);
+	    $redis->sadd($host->{'node_name'}, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
+	    $redis->sadd($ip, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
+	    $host->{'poll_id'}++;
 	}
 	
+	#change back to the primary db...
+	$redis->select(0);
+	#complete the transaction
     } catch {
+	$redis->select(0);
 	$self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
 	return;
     }
@@ -191,6 +229,24 @@ sub _connect_to_snmp{
 	    $self->logger->error("Error creating SNMP Session: " . $error);
 	}
 
+	my $host_poll_id;
+	try{
+	    $self->redis->select(2);
+	    $host_poll_id = $self->redis->get($host->{'node_name'} . ",main_oid");
+	    $self->redis->select(0);
+	    
+	    if(!defined($host_poll_id)){
+		$host_poll_id = 0;
+	    }
+
+	}catch{
+	    $self->redis->select(0);
+	    $host_poll_id = 0;
+	    $self->logger->error("Error fetching the current poll cycle id from redis: $_");
+	};
+
+	$host->{'poll_id'} = $host_poll_id;
+	$host->{'pending_replies'} = {};
 	$self->{'snmp'}{$host->{'ip'}} = $snmp;
 	
 	$self->logger->debug($self->worker_name . " assigned host " . $host->{'ip'});
@@ -206,6 +262,12 @@ sub _collect_data{
     $self->logger->debug($self->worker_name. " start poll cycle" );
 
     for my $host (@$hosts){
+
+	if(scalar(keys %{$host->{'pending_replies'}}) > 0){
+	    $self->logger->error("Unable to query device " . $host->{'ip'} . " in poll cycle for group: " . $self->group_name);
+	    next;
+	}
+
 	for my $oid (@$oids){
 	    if(!defined($self->{'snmp'}{$host->{'ip'}})){
 		$self->logger->error("No SNMP session defined for " . $host->{'ip'});
@@ -214,6 +276,7 @@ sub _collect_data{
 	    my $reqstr = " $oid -> ".$host->{'ip'};
 	    $self->logger->debug($self->worker_name ." requesting ". $reqstr);
 	    #--- iterate through the the provided set of base OIDs to collect
+	    $host->{'pending_replies'}->{$oid} = 1;
 	    my $res =  $self->{'snmp'}{$host->{'ip'}}->get_table(
 		-baseoid      => $oid,
 		-maxrepetitions => $self->max_reps,

@@ -234,7 +234,8 @@ sub _create_workers {
         $forker->start() and next;
    
         # create worker in this process
-        my $worker = GRNOC::Simp::Poller::Worker->new( worker_name   => "$name$worker_id",
+        my $worker = GRNOC::Simp::Poller::Worker->new( instance      => $worker_id,
+						       group_name    => $name,
 						       config        => $self->config,
 						       oids          => \@oids,
 						       hosts 	     => $hostsByWorker{$worker_id}, 
