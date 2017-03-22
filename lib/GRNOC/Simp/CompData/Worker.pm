@@ -197,6 +197,7 @@ sub _do_scans{
 	  my $id      = $scan->getAttribute("id");
 	  my $oid     = $scan->getAttribute("oid");
 	  my $var     = $scan->getAttribute("var");
+	  my $substr  = $scan_>getAttribute("substr");
 	  my $targets;
 	  if(defined $var){
 	      $targets = $params->{$var}{"value"};
@@ -208,7 +209,13 @@ sub _do_scans{
 	      oidmatch => $oid,
 	      async_callback => sub {
 		  my $data= shift;
-		  $self->_scan_cb($data->{'results'},$hosts,$id,$oid,$targets,$results); 
+		  $self->_scan_cb(data => $data->{'results'}
+				  hosts => ,$hosts,
+				  id => $id,
+				  oid => $oid,
+				  substr => $substr,
+				  targets => $targets,
+				  res => $results); 
 		  $cv->end;
 	      } );
       }
@@ -219,12 +226,18 @@ sub _do_scans{
 }
 sub _scan_cb{
   my $self        = shift;
-  my $data        = shift;
-  my $hosts       = shift;
-  my $id          = shift;
-  my $oid_pattern = shift;
-  my $vals        = shift;
-  my $results     = shift; 
+
+  my %params = @_;
+
+  
+
+  my $data        = $params{'data'};
+  my $hosts       = $params{'hosts'};
+  my $id          = $params{'id'};
+  my $oid_pattern = $params{'oid'};
+  my $vals        = $params{'targets'};
+  my $results     = $params{'results'};
+  my $substr      = $params{'substr'};
 
   $oid_pattern  =~s/\*//;
   $oid_pattern = quotemeta($oid_pattern);

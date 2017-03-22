@@ -10,7 +10,7 @@ use Redis;
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::WebService::Regex;
-
+use POSIX;
 ### required attributes ###
 
 has config => ( is => 'ro',
@@ -217,8 +217,6 @@ sub _find_group{
 
     my @host_groups;
 
-    my $start = [gettimeofday];
-
     try{
 	$self->redis->select(3);
 	@host_groups = $self->redis->smembers($host);
@@ -229,8 +227,6 @@ sub _find_group{
 	return;
     };	
 
-    my $after_first_lookup = [gettimeofday];
-
     my @new_host_groups;
     foreach my $hg (@host_groups){
 	my ($base_oid, $group, $interval) = split(',', $hg);
@@ -239,17 +235,12 @@ sub _find_group{
 	}
     }
     
-    my $after_processing = [gettimeofday];
-
     #ok we are close! we only have matching host groups...
     #if we have none... return undef
     if(scalar(@new_host_groups) <= 0){
 	$self->logger->error("NO host groups found for $host and $oid"); 
 	return;
     }
-
-    $self->logger->error("Time to get members: " . tv_interval($start, $after_first_lookup));
-    $self->logger->error("Time to process: " . tv_interval($after_first_lookup, $after_processing));
 
     #if we have 1 return that group
     if(scalar(@new_host_groups) == 1){
@@ -290,18 +281,14 @@ sub _find_key{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    my $start = [gettimeofday];
-
     my $group = $self->_find_group( host => $host, 
 				    oid => $oid,
 				    requested => $requested);
-    
     
     if(!defined($group)){
 	$self->logger->error("unable to find group for $host $oid");
 	return;
     }
-    my $time_to_group = [gettimeofday];
 
     #ok so we have the group name we want now... grab the key that leads to the current time chunk
     $self->redis->select(2);
@@ -311,8 +298,6 @@ sub _find_key{
     #key should be poll_id,ts
     my ($poll_id,$time) = split(',',$res);
 
-    my $poll_id_time = [gettimeofday];
-
     #if the requested time is newer than our poll time OR the poll time - the requested time is less than 1 poll interval return the current one
     my $lookup;
     if($requested > $time){
@@ -321,14 +306,15 @@ sub _find_key{
 	#find the closest poll cycle
 	my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
 	if($poll_id >= $poll_ids_back){
+	    $self->logger->error("looking " . $poll_ids_back);
 	    $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - $poll_ids_back);
+	    $self->logger->error("lookup key: " . $lookup);
 	}else{
 	    $self->logger->error("No time available that matches the requested time!");
 	    return;
 	}
     }
 
-    my $after_poll_id = [gettimeofday];
 
     #ok so lookup is now defined
     #lookup will give us the right set to sscan through
@@ -336,12 +322,6 @@ sub _find_key{
     my $set = $self->redis->get($lookup);
     $self->redis->select(0);
 
-    my $after_all_lookup = [gettimeofday];
-
-    $self->logger->error("Time for _find_group: " . tv_interval($start,  $time_to_group));
-    $self->logger->error("Time for current_poll_id: " . tv_interval( $time_to_group, $poll_id_time));
-    $self->logger->error("Time to find poll_id: " . tv_interval($poll_id_time, $after_poll_id));
-    $self->logger->error("time to lookup key: " . tv_interval($after_poll_id, $after_all_lookup));
     return $set;
 }
 
@@ -356,7 +336,6 @@ sub _get{
     my $redis     = $self->redis;
     
     my %results;
-    
     $self->logger->debug("processing get request for time " . $requested);
     
     try {
@@ -366,24 +345,17 @@ sub _get{
 	    foreach my $host (@$node){
 		
 		#find the correct key to fetch for!
-		my $start = [gettimeofday];
 		my $set = $self->_find_key( host => $host,
 					    oid => $oid,
 					    requested => $requested);
 
 		my ($host, $group, $time) = split(',',$set);
-		my $set_find = [gettimeofday];
-		$self->logger->error("Time to find set: " . tv_interval($start, $set_find));
 		if(!defined($set)){
 		    $self->logger->error("Unable to find set to look at");
 		    next;
 		}
 		
 
-		$self->logger->error("Set: " . $set . " vs. " . time());
-		$self->logger->error("Set has: " . $redis->scard($set) . " members");
-
-		$scan_start = [gettimeofday];
 		my $keys;
 		my $cursor = 0;
 		while(1){
@@ -408,8 +380,6 @@ sub _get{
 	
 	#--- wait for all pending responses to hmget requests
 	$redis->wait_all_responses;
-	my $end_scan = [gettimeofday];
-	$self->logger->error("Scan Time: " . tv_interval($scan_start, $end_scan));
     } catch {
 	$self->logger->error(" in get: ". $_);
     };

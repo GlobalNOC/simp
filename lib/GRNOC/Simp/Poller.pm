@@ -228,23 +228,23 @@ sub _create_workers {
 	  
 			      } );
       
-
+      
       # create workers
       for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
-        $forker->start() and next;
-   
-        # create worker in this process
-        my $worker = GRNOC::Simp::Poller::Worker->new( instance      => $worker_id,
-						       group_name    => $name,
-						       config        => $self->config,
-						       oids          => \@oids,
-						       hosts 	     => $hostsByWorker{$worker_id}, 
-						       poll_interval => $poll_interval,
-						       retention     => $retention,
-						       logger        => $self->logger,
-						       max_reps      => $max_reps,
-						       snmp_timeout  => $snmp_timeout
-	    );
+	  $forker->start() and next;
+	  
+	  # create worker in this process
+	  my $worker = GRNOC::Simp::Poller::Worker->new( instance      => $worker_id,
+							 group_name    => $name,
+							 config        => $self->config,
+							 oids          => \@oids,
+							 hosts 	     => $hostsByWorker{$worker_id}, 
+							 poll_interval => $poll_interval,
+							 retention     => $retention,
+							 logger        => $self->logger,
+							 max_reps      => $max_reps,
+							 snmp_timeout  => $snmp_timeout
+	      );
 	
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();

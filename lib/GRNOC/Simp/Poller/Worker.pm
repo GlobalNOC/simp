@@ -141,7 +141,7 @@ sub _poll_cb{
     my $req_time  = $params{'timestamp'};
     my $reqstr    = $params{'reqstr'};
     my $main_oid  = $params{'oid'};
-
+    my $context_id = $params{'context_id'};
     my $redis     = $self->redis;
     my $data      = $session->var_bind_list();
 
@@ -152,6 +152,7 @@ sub _poll_cb{
 
     if(!defined $data){
 	my $error = $session->error();
+	$self->logger->error("Context ID: " . $context_id);
 	$self->logger->error("$id failed     $reqstr");
 	$self->logger->error("Error: $error");
 	return;
@@ -164,9 +165,15 @@ sub _poll_cb{
     }
 
     my $expires = $timestamp + $self->retention;
-    $self->logger->error("Expires: " . $expires);
+#    $self->logger->error("Expires: " . $expires);
 
-    delete $host->{'pending_replies'}->{$main_oid};
+#    $self->logger->error("Received response for context_id: " . $context_id);
+#    $self->logger->error(Dumper(\@values));
+    if(defined($context_id)){
+	delete $host->{'pending_replies'}->{$main_oid . "," . $context_id};
+    }else{
+	delete $host->{'pending_replies'}->{$main_oid};
+    }
 
     try {
 
@@ -175,7 +182,7 @@ sub _poll_cb{
 	$redis->sadd($key, @values);
 	
 	if(scalar(keys %{$host->{'pending_replies'}}) == 0){
-	    
+	    #$self->logger->error("Received all responses!");
 	    $redis->expireat($key, $expires);
 	    
 	    #our poll_id to time lookup
@@ -215,20 +222,48 @@ sub _connect_to_snmp{
     my $hosts = $self->hosts;
     foreach my $host(@$hosts){
 	# build the SNMP object for each host of interest
-	my ($snmp, $error) = Net::SNMP->session(
-	    -hostname         => $host->{'ip'},
-	    -community        => $host->{'community'},
-	    -version          => 'snmpv2c',
-	    -timeout          => $self->snmp_timeout,
-	    -maxmsgsize       => 65535,
-	    -translate        => [-octetstring => 0],
-	    -nonblocking      => 1,
+	my ($snmp,$error);
+	if(!defined($host->{'snmp_version'}) || $host->{'snmp_version'} eq '2c'){
+	    
+	    ($snmp, $error) = Net::SNMP->session(
+		-hostname         => $host->{'ip'},
+		-community        => $host->{'community'},
+		-version          => 'snmpv2c',
+		-timeout          => $self->snmp_timeout,
+		-maxmsgsize       => 65535,
+		-translate        => [-octetstring => 0],
+		-nonblocking      => 1,
 	    );
-	
-	if(!defined($snmp)){
-	    $self->logger->error("Error creating SNMP Session: " . $error);
-	}
 
+	    if(!defined($snmp)){
+		$self->logger->error("Error creating SNMP Session: " . $error);
+	    }
+
+	    $self->{'snmp'}{$host->{'ip'}} = $snmp;
+
+	}elsif($host->{'snmp_version'} eq '3'){
+	    foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
+		($snmp, $error) = Net::SNMP->session(
+		    -hostname         => $host->{'ip'},
+		    -version          => '3',
+		    -timeout          => $self->snmp_timeout,
+		    -maxmsgsize       => 65535,
+		    -translate        => [-octetstring => 0],
+		    -username         => $host->{'username'},
+		    -nonblocking      => 1,
+		    );
+
+		if(!defined($snmp)){
+		    $self->logger->error("Error creating SNMP Session: " . $error);
+		}
+
+		$self->{'snmp'}{$host->{'ip'}}{$ctxEngine} = $snmp;
+
+	    }
+	}else{
+	    $self->logger->error("Invalid SNMP Version for SIMP");
+	}
+	
 	my $host_poll_id;
 	try{
 	    $self->redis->select(2);
@@ -247,7 +282,6 @@ sub _connect_to_snmp{
 
 	$host->{'poll_id'} = $host_poll_id;
 	$host->{'pending_replies'} = {};
-	$self->{'snmp'}{$host->{'ip'}} = $snmp;
 	
 	$self->logger->debug($self->worker_name . " assigned host " . $host->{'ip'});
     }
@@ -276,19 +310,43 @@ sub _collect_data{
 	    my $reqstr = " $oid -> ".$host->{'ip'};
 	    $self->logger->debug($self->worker_name ." requesting ". $reqstr);
 	    #--- iterate through the the provided set of base OIDs to collect
-	    $host->{'pending_replies'}->{$oid} = 1;
-	    my $res =  $self->{'snmp'}{$host->{'ip'}}->get_table(
-		-baseoid      => $oid,
-		-maxrepetitions => $self->max_reps,
-		-callback     => sub{ 
-		    my $session = shift;
-		    $self->_poll_cb( host => $host,
-				     timestamp => $timestamp,
-				     reqstr => $reqstr,
-				     oid => $oid,
-				     session => $session);
+	    my $res;
+
+	    if($host->{'snmp_version'} eq '2c'){
+		$host->{'pending_replies'}->{$oid} = 1;
+		$res = $self->{'snmp'}{$host->{'ip'}}->get_table(
+		    -baseoid      => $oid,
+		    -maxrepetitions => $self->max_reps,
+		    -callback     => sub{ 
+			my $session = shift;
+			$self->_poll_cb( host => $host,
+					 timestamp => $timestamp,
+					 reqstr => $reqstr,
+					 oid => $oid,
+					 session => $session);
+		    }
+		    );
+	    }else{
+		#for each context engine specified for the group
+		#$self->logger->error("Host: " . Dumper($host->{'group'}));
+		foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
+		    $host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
+		    $res = $self->{'snmp'}{$host->{'ip'}}{$ctxEngine}->get_table(
+			-baseoid      => $oid,
+			-maxrepetitions => $self->max_reps,
+			-contextengineid => $ctxEngine,
+			-callback     => sub{
+			    my $session = shift;
+			    $self->_poll_cb( host => $host,
+					     timestamp => $timestamp,
+					     reqstr => $reqstr,
+					     oid => $oid,
+					     context_id => $ctxEngine,
+					     session => $session);
+			}
+			);
 		}
-		);
+	    }
 	}
     }
 }
