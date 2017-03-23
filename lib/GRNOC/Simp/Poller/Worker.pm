@@ -193,6 +193,19 @@ sub _poll_cb{
 	    $redis->expireat($host->{'node_name'} . "," . $self->group_name . "," . $host->{'poll_id'}, $expires);
 	    $redis->expireat($ip . "," . $self->group_name . "," . $host->{'poll_id'},$expires);
 	    
+            $redis->select(0);
+	    $self->logger->error(Dumper($host->{'group'}{$self->group_name}));
+	    my %add_values = %{$host->{'group'}{$self->group_name}{'additional_value'}};
+            foreach my $name (keys %add_values){
+		my $str = $name . "," . $add_values{$name}->{'value'};
+		$redis->select(0);
+		$redis->sadd($key, $str);
+		
+		$redis->select(3);
+		$redis->sadd($host->{'node_name'}, $name . "," . $self->group_name . "," . $self->poll_interval);
+		$redis->sadd($ip, $name . "," . $self->group_name . "," . $self->poll_interval);
+	    }
+
 	    #and the current poll_id lookup
 	    $redis->select(2);
 	    $redis->set($host->{'node_name'} . "," . $self->group_name, $host->{'poll_id'} . "," . $timestamp);
@@ -200,13 +213,15 @@ sub _poll_cb{
 	    #and expire
 	    $redis->expireat($host->{'node_name'} . "," . $self->group_name, $expires);
 	    $redis->expireat($ip . "," . $self->group_name, $expires);
-	    
-	    $redis->select(3);
-	    $redis->sadd($host->{'node_name'}, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
-	    $redis->sadd($ip, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
+
 	    $host->{'poll_id'}++;
 	}
+
 	
+	$redis->select(3);
+	$redis->sadd($host->{'node_name'}, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
+	$redis->sadd($ip, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
+
 	#change back to the primary db...
 	$redis->select(0);
 	#complete the transaction

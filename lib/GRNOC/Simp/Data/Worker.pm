@@ -349,12 +349,11 @@ sub _get{
 					    oid => $oid,
 					    requested => $requested);
 
-		my ($host, $group, $time) = split(',',$set);
 		if(!defined($set)){
 		    $self->logger->error("Unable to find set to look at");
 		    next;
 		}
-		
+		my ($host, $group, $time) = split(',',$set);
 
 		my $keys;
 		my $cursor = 0;
@@ -366,6 +365,12 @@ sub _get{
 			$key =~ /([\d+|\.]+),(.*)/;
 			my $oid = $1;
 			my $value = $2;
+
+			if(!defined($oid)){
+			    $key =~ /(.*),(.*)/;
+			    $oid = $1;
+			    $value = $2;
+			}
 
 			$results{$host}{$oid}{'value'} = $value;
 			$results{$host}{$oid}{'time'} = $time;

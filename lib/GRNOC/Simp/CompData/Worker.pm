@@ -197,7 +197,6 @@ sub _do_scans{
 	  my $id      = $scan->getAttribute("id");
 	  my $oid     = $scan->getAttribute("oid");
 	  my $var     = $scan->getAttribute("var");
-	  my $substr  = $scan_>getAttribute("substr");
 	  my $targets;
 	  if(defined $var){
 	      $targets = $params->{$var}{"value"};
@@ -209,13 +208,7 @@ sub _do_scans{
 	      oidmatch => $oid,
 	      async_callback => sub {
 		  my $data= shift;
-		  $self->_scan_cb(data => $data->{'results'}
-				  hosts => ,$hosts,
-				  id => $id,
-				  oid => $oid,
-				  substr => $substr,
-				  targets => $targets,
-				  res => $results); 
+		  $self->_scan_cb($data->{'results'},$hosts,$id,$oid,$targets,$results); 
 		  $cv->end;
 	      } );
       }
@@ -226,18 +219,12 @@ sub _do_scans{
 }
 sub _scan_cb{
   my $self        = shift;
-
-  my %params = @_;
-
-  
-
-  my $data        = $params{'data'};
-  my $hosts       = $params{'hosts'};
-  my $id          = $params{'id'};
-  my $oid_pattern = $params{'oid'};
-  my $vals        = $params{'targets'};
-  my $results     = $params{'results'};
-  my $substr      = $params{'substr'};
+  my $data        = shift;
+  my $hosts       = shift;
+  my $id          = shift;
+  my $oid_pattern = shift;
+  my $vals        = shift;
+  my $results     = shift; 
 
   $oid_pattern  =~s/\*//;
   $oid_pattern = quotemeta($oid_pattern);
@@ -400,6 +387,30 @@ sub _val_cb{
 	    $val =~ /$operand/;
 	    $val = $1;
         }
+####TODO
+#### Make this work
+#	if($name eq "replace"){
+#	    $self->logger->error("HERE!!!!");
+#	    my $regex = $fctn->getAttribute("regexp");
+#	    my $variable = $fctn->getAttribute("var");
+#	    my @replaces = ($val =~ /$regex/);
+#	    my $val = $operand;
+#	    $self->logger->error("Variable: " . Dumper($variable));
+#	    $self->logger->error("All res: " . Dumper($results->{'final'}{$host}));
+#	    my $var_replace = $results->{'final'}{$host}{$var}{$variable};
+#	    $self->logger->error("Variable Replace: " . Dumper($var_replace));
+#	    $val =~ s/$variable/$var_replace/;
+#	    $self->logger->error("VAL: " . $val);
+#	    
+#	    
+#	    for(my $i=0;$i<=scalar(@replaces);$i++){
+#		my $replace_var = "\$" . $i;
+#		my $replace_val = $replaces[$i];
+#		$val =~ s/$replace_var/$replace_val/;
+#	    }
+#	    $self->logger->error("FINAL VAL: " . $val);
+#	}
+
       }
       $results->{'final'}{$host}{$var}{$id} =  $val; #sprintf("%.4f", $val);
     }
