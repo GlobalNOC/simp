@@ -306,11 +306,11 @@ sub _find_key{
 	#find the closest poll cycle
 	my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
 	if($poll_id >= $poll_ids_back){
-	    $self->logger->error("looking " . $poll_ids_back);
+	    $self->logger->debug("looking " . $poll_ids_back);
 	    $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - $poll_ids_back);
-	    $self->logger->error("lookup key: " . $lookup);
+	    $self->logger->debug("lookup key: " . $lookup);
 	}else{
-	    $self->logger->error("No time available that matches the requested time!");
+	    $self->logger->debug("No time available that matches the requested time!");
 	    return;
 	}
     }
