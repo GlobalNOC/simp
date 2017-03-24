@@ -148,13 +148,20 @@ sub _poll_cb{
     my $id        = $self->group_name;
     my $timestamp = $req_time;
     my $ip        = $host->{'ip'};
-    
+
+
+    if(defined($context_id)){
+        delete $host->{'pending_replies'}->{$main_oid . "," . $context_id};
+    }else{
+        delete $host->{'pending_replies'}->{$main_oid};
+    }    
 
     if(!defined $data){
 	my $error = $session->error();
 	$self->logger->error("Context ID: " . $context_id);
 	$self->logger->error("$id failed     $reqstr");
 	$self->logger->error("Error: $error");
+
 	return;
     }
 
@@ -165,15 +172,6 @@ sub _poll_cb{
     }
 
     my $expires = $timestamp + $self->retention;
-#    $self->logger->error("Expires: " . $expires);
-
-#    $self->logger->error("Received response for context_id: " . $context_id);
-#    $self->logger->error(Dumper(\@values));
-    if(defined($context_id)){
-	delete $host->{'pending_replies'}->{$main_oid . "," . $context_id};
-    }else{
-	delete $host->{'pending_replies'}->{$main_oid};
-    }
 
     try {
 
@@ -194,16 +192,19 @@ sub _poll_cb{
 	    $redis->expireat($ip . "," . $self->group_name . "," . $host->{'poll_id'},$expires);
 	    
             $redis->select(0);
-	    $self->logger->error(Dumper($host->{'group'}{$self->group_name}));
-	    my %add_values = %{$host->{'group'}{$self->group_name}{'additional_value'}};
-            foreach my $name (keys %add_values){
-		my $str = $name . "," . $add_values{$name}->{'value'};
-		$redis->select(0);
-		$redis->sadd($key, $str);
-		
-		$redis->select(3);
-		$redis->sadd($host->{'node_name'}, $name . "," . $self->group_name . "," . $self->poll_interval);
-		$redis->sadd($ip, $name . "," . $self->group_name . "," . $self->poll_interval);
+	    #$self->logger->error(Dumper($host->{'group'}{$self->group_name}));
+
+	    if(defined($host->{'group'}{$self->group_name}{'additional_value'})){
+		my %add_values = %{$host->{'group'}{$self->group_name}{'additional_value'}};
+		foreach my $name (keys %add_values){
+		    my $str = $name . "," . $add_values{$name}->{'value'};
+		    $redis->select(0);
+		    $redis->sadd($key, $str);
+		    
+		    $redis->select(3);
+		    $redis->sadd($host->{'node_name'}, $name . "," . $self->group_name . "," . $self->poll_interval);
+		    $redis->sadd($ip, $name . "," . $self->group_name . "," . $self->poll_interval);
+		}
 	    }
 
 	    #and the current poll_id lookup
@@ -257,7 +258,7 @@ sub _connect_to_snmp{
 	    $self->{'snmp'}{$host->{'ip'}} = $snmp;
 
 	}elsif($host->{'snmp_version'} eq '3'){
-	    foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
+	    if(!defined($host->{'group'}{$self->group_name}{'context_id'})){
 		($snmp, $error) = Net::SNMP->session(
 		    -hostname         => $host->{'ip'},
 		    -version          => '3',
@@ -267,13 +268,30 @@ sub _connect_to_snmp{
 		    -username         => $host->{'username'},
 		    -nonblocking      => 1,
 		    );
-
+		
 		if(!defined($snmp)){
 		    $self->logger->error("Error creating SNMP Session: " . $error);
 		}
-
-		$self->{'snmp'}{$host->{'ip'}}{$ctxEngine} = $snmp;
-
+		
+		$self->{'snmp'}{$host->{'ip'}} = $snmp;
+	    }else{
+		foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
+		    ($snmp, $error) = Net::SNMP->session(
+			-hostname         => $host->{'ip'},
+			-version          => '3',
+			-timeout          => $self->snmp_timeout,
+			-maxmsgsize       => 65535,
+			-translate        => [-octetstring => 0],
+			-username         => $host->{'username'},
+			-nonblocking      => 1,
+			);
+		    
+		    if(!defined($snmp)){
+			$self->logger->error("Error creating SNMP Session: " . $error);
+		    }
+		    
+		    $self->{'snmp'}{$host->{'ip'}}{$ctxEngine} = $snmp;
+		}
 	    }
 	}else{
 	    $self->logger->error("Invalid SNMP Version for SIMP");
@@ -313,7 +331,7 @@ sub _collect_data{
     for my $host (@$hosts){
 
 	if(scalar(keys %{$host->{'pending_replies'}}) > 0){
-	    $self->logger->error("Unable to query device " . $host->{'ip'} . " in poll cycle for group: " . $self->group_name);
+	    $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $host->{'name'} . " in poll cycle for group: " . $self->group_name);
 	    next;
 	}
 
@@ -343,23 +361,39 @@ sub _collect_data{
 		    );
 	    }else{
 		#for each context engine specified for the group
-		#$self->logger->error("Host: " . Dumper($host->{'group'}));
-		foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
-		    $host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
-		    $res = $self->{'snmp'}{$host->{'ip'}}{$ctxEngine}->get_table(
+		if(!defined($host->{'group'}{$self->group_name}{'context_id'})){
+		    $host->{'pending_replies'}->{$oid} = 1;
+		    $res = $self->{'snmp'}{$host->{'ip'}}->get_table(
 			-baseoid      => $oid,
 			-maxrepetitions => $self->max_reps,
-			-contextengineid => $ctxEngine,
 			-callback     => sub{
 			    my $session = shift;
 			    $self->_poll_cb( host => $host,
 					     timestamp => $timestamp,
 					     reqstr => $reqstr,
 					     oid => $oid,
-					     context_id => $ctxEngine,
 					     session => $session);
 			}
 			);
+		    
+		}else{
+		    foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
+			$host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
+			$res = $self->{'snmp'}{$host->{'ip'}}{$ctxEngine}->get_table(
+			    -baseoid      => $oid,
+			    -maxrepetitions => $self->max_reps,
+			    -contextengineid => $ctxEngine,
+			    -callback     => sub{
+				my $session = shift;
+				$self->_poll_cb( host => $host,
+						 timestamp => $timestamp,
+						 reqstr => $reqstr,
+						 oid => $oid,
+						 context_id => $ctxEngine,
+						 session => $session);
+			    }
+			    );
+		    }
 		}
 	    }
 	}
