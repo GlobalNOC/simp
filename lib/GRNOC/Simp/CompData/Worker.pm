@@ -304,47 +304,87 @@ sub _do_vals{
 		#--- as thse are very specific
 
 		my $ref = $results->{$host}{$var};
-		foreach my $key (keys %{$ref}){
-		    my $val = $ref->{$key};
-		    my $match = $oid;
-		    $match =~ s/$var/$val/;
-		    $lut{$match} = $key;
-		    push(@matches,$match);
-		}
-
-		#if there are no matches for this host
-		#just go on to the next one!
-		next if(scalar(@matches) <= 0);
-
 		push(@hostarray,$host);
-		#--- send the array of matches to simp
-		$cv->begin;
-		
-		if(defined $type && $type eq "rate"){
-		    $self->client->get_rate(
-                        node => \@hostarray,
-                        period => $params->{'period'}{'value'},
-			oidmatch => \@matches,
-                        async_callback =>  sub {
-			    my $data= shift;
-			    $self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
-			    $cv->end;
-			} );
+		if(scalar(keys %{$ref}) == 1){
 		    
+		    foreach my $key (keys %{$ref}){
+			my $val = $ref->{$key};
+			my $match = $oid;
+			$match =~ s/$var/$val/;
+			$lut{$match} = $key;
+			push(@matches,$match);
+		    }
 		    
+		    #if there are no matches for this host
+		    #just go on to the next one!
+		    next if(scalar(@matches) <= 0);
+		    
+		    #--- send the array of matches to simp
+		    $cv->begin;
+		    
+		    if(defined $type && $type eq "rate"){
+			$self->client->get_rate(
+			    node => \@hostarray,
+			    period => $params->{'period'}{'value'},
+			    oidmatch => \@matches,
+			    async_callback =>  sub {
+				my $data= shift;
+				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
+				$cv->end;
+			    } );
+			
+			
+		    }else{
+			$self->client->get(
+			    node => \@hostarray, 
+			    oidmatch => \@matches,
+			    async_callback =>  sub {
+				my $data= shift; 
+				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val); 
+				$cv->end;
+			    } );      
+			
+		    }
 		}else{
-		    $self->client->get(
-			node => \@hostarray, 
-			oidmatch => \@matches,
-			async_callback =>  sub {
-			    my $data= shift; 
-			    $self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val); 
-			    $cv->end;
-			} );      
-		    
+		    #do an optimized search!
+		    my $match = $oid;
+		    $match =~ s/$var/\*/;
+		    #--- send the array of matches to simp
+                    $cv->begin;
+
+		    foreach my $key (keys %{$ref}){
+                        my $val = $ref->{$key};
+                        my $new_match = $oid;
+                        $new_match =~ s/$var/$val/;
+                        $lut{$new_match} = $key;
+                    }
+
+                    if(defined $type && $type eq "rate"){
+			$self->logger->error("Asking SIMP for rate: " . Dumper(\@hostarray) . " for Match: " . $match);
+			$self->client->get_rate(
+                            node => \@hostarray,
+			    period => $params->{'period'}{'value'},
+                            oidmatch => $match,
+			    async_callback =>  sub {
+				my $data= shift;
+				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
+				$cv->end;
+			    } );
+
+		    }else{
+			$self->logger->error("Asking SIMP for: " . Dumper(\@hostarray) . " for Match: " . $match);
+			$self->client->get(
+                            node => \@hostarray,
+                            oidmatch => $match,
+			    async_callback =>  sub {
+				my $data= shift;
+				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
+				$cv->end;
+			    } );
+		    }
 		}
-	    }
-	} 
+	    } 
+	}
     }
     $cv->end; 
 }
