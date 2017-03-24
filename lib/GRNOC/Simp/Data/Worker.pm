@@ -10,7 +10,7 @@ use Redis;
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::WebService::Regex;
-
+use POSIX;
 ### required attributes ###
 
 has config => ( is => 'ro',
@@ -191,17 +191,6 @@ sub _start {
 
     $dispatcher->register_method($method2);
 
-    #--- build host key cache every second 
-    $self->_gen_hostkeys();
-
-    $self->{'host_key_timer'} = AnyEvent->timer( after => 1, 
-						 interval => 10, 
-						 cb => sub {
-						     $self->_gen_hostkeys(); 
-						 });
-    
-    sleep(1);
-    
     #--- go into event loop handing requests that come in over rabbit  
     $self->logger->debug( 'Entering RabbitMQ event loop' );
     $dispatcher->start_consuming();
@@ -218,90 +207,7 @@ sub _ping{
   return gettimeofday();
 }
 
-#--- calllback function to process results when building our hostkey list
-sub _hostkey_cb{
-    my $self      = shift;
-    my $key       = shift;
-    my $host_key_cache = shift;
-    my $reply     = shift; 
-
-    return if(!defined($reply));
-
-    my ($host,$group,$oid) = split(/,/,$key);
-    
-    if( ! defined $host_key_cache || 
-	! defined $host_key_cache->{$host} ){
-      $host_key_cache->{$host} = ();
-    }
- 
-    push(@{$host_key_cache->{$host}{$group}{$oid}}, @{$reply});
-}
-
-
-#--- returns a hash that maps ip to the host key
-sub _gen_hostkeys{
-  my $self        = shift;
-  my $index       = shift;
-  my $redis       = $self->redis;
-
-  my $host_key_cache = {};
-
-  $self->logger->debug("Starting Host Key Generation");
-  try {
-      #--- the timestamps are kept in a different db "1" vs "0"
-      $redis->select(1);
-      
-      my $keys;
-      my $cursor = 0;
-      while(1){
-        #---- get the set of hash entries that match our pattern
-        ($cursor,$keys) =  $redis->scan($cursor,COUNT=>2000);
-	last if($cursor eq 'OK');
-	foreach my $key (@$keys){
-	    #--- iterate on the returned OIDs and pull the values associated to each host
-	    my $type = $redis->type($key);
-	    next if($type ne 'list');
-	    my $len = $redis->llen($key);
-	    $redis->lrange($key, 0, $len, sub {$self->_hostkey_cb($key,$host_key_cache,@_)});
-        }
-        last if($cursor == 0);
-      }
-          
-      #--- wait for all the hgetall responses to return
-      $redis->wait_all_responses;
-
-      $self->{'host_cache'} = $host_key_cache;
-  } catch {
-      $self->logger->error(" in gen_hostkeys: ". $_);
-  };
-  
-
-  #--- return back to db 0
-  $redis->select(0);
-}
-
-#--- callback to handle results from the hmgets issued in _get
-sub _get_cb{
-    my $self      = shift;
-
-    my $hkeys     = shift;
-    my $key       = shift;
-    my $ref       = shift;
-    my $reply     = shift;
-    my $error     = shift;
-
-    foreach my $hk (@$hkeys){
-        #--- Host Ip, Collector ID, TimeStamp
-        my ($ip,$id,$oid,$ts) = split(/,/,$hk);
-        foreach my $val(@$reply){
-	    next if(!defined $val);                  #-- this OID key has no relevance to the IP in question if null here
-	    $ref->{$ip}{$key}{'value'} = $val;       #-- external data representation is inverted from what we store
-	    $ref->{$ip}{$key}{'time'}  = $ts;
-	}
-    }
-}
-
-sub _find_host_key_time{
+sub _find_group{
     my $self = shift;
     my %params = @_;
 
@@ -309,104 +215,182 @@ sub _find_host_key_time{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    my @hostkeys;
-    
-    foreach my $group (keys (%{$self->{'host_cache'}{$host}})){
-	foreach my $oid_group (keys (%{$self->{'host_cache'}{$host}{$group}})){
-	    if($oid =~ /$oid_group/){
-		#make sure the oid exists in the oid_group
-		my $closest;
-		my $times = $self->{'host_cache'}{$host}{$group}{$oid_group};
-		foreach my $ts (@$times){
-		    if($ts < $requested && !defined($closest)){
-			$closest = $ts;
-			#break out of the loop... we found what we were looking for!
-			last;
-		    }
-		}
-		
-		
+    my @host_groups;
 
-		if(!defined($closest)){
-		    if($#{$times} < 0){
-			$self->logger->error("No timestamps found for this group");
-			next;
-		    }
-		    $closest = $times->[$#{$times}];
-		}
-		
-		if(!defined($closest)){
-		    #no data available
-		}else{
-		    #ok create our key based on the closest time stamp!
-		    push(@hostkeys, $host . "," . $group . "," . $oid_group . "," . $closest);
-		}
-		
-	    }
+    try{
+	$self->redis->select(3);
+	@host_groups = $self->redis->smembers($host);
+	$self->redis->select(0);
+    }catch{
+	$self->redis->select(0);
+	$self->logger->error("Error fetching all groups host is a part of");
+	return;
+    };	
+
+    my @new_host_groups;
+    foreach my $hg (@host_groups){
+	my ($base_oid, $group, $interval) = split(',', $hg);
+	if($oid =~ /$base_oid/){
+	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
+	}
+    }
+    
+    #ok we are close! we only have matching host groups...
+    #if we have none... return undef
+    if(scalar(@new_host_groups) <= 0){
+	$self->logger->error("NO host groups found for $host and $oid"); 
+	return;
+    }
+
+    #if we have 1 return that group
+    if(scalar(@new_host_groups) == 1){
+	return $new_host_groups[0];
+    }
+
+    #ok if we have multiple... sort by length of base_oid
+    my @sorted = sort { length($a->{'base_oid'}) <=> length($b->{'base_oid'}) } @new_host_groups;
+
+    my @longest_base_oids;
+    push(@longest_base_oids, $sorted[0]);
+
+    for(my $i=1; $i<=$#sorted; $i++){
+	if(length($sorted[$i-1]->{'base_oid'}) == length($sorted[$i]->{'base_oid'})){
+	    push(@longest_base_oids, $sorted[$i]);
+	}else{
+	    last;
 	}
     }
 
-    return \@hostkeys;
+    if(scalar(@sorted) == 1){
+	return $sorted[0];
+    }
+    
+    #damn ok so we have 2 that are the same length now check the intervals...
+    my @sorted_intervals = sort { $a->{'interval'} <=> $b->{'interval'} } @sorted;
+
+    return $sorted[0];
+
+}
+
+sub _find_key{
+
+    my $self = shift;
+    my %params = @_;
+
+    my $host = $params{'host'};
+    my $oid = $params{'oid'};
+    my $requested = $params{'requested'};
+
+    my $group = $self->_find_group( host => $host, 
+				    oid => $oid,
+				    requested => $requested);
+    
+    if(!defined($group)){
+	$self->logger->error("unable to find group for $host $oid");
+	return;
+    }
+
+    #ok so we have the group name we want now... grab the key that leads to the current time chunk
+    $self->redis->select(2);
+    my $res = $self->redis->get($host . "," . $group->{'group'});
+    $self->redis->select(0);
+    
+    #key should be poll_id,ts
+    my ($poll_id,$time) = split(',',$res);
+
+    #if the requested time is newer than our poll time OR the poll time - the requested time is less than 1 poll interval return the current one
+    my $lookup;
+    if($requested > $time){
+	$lookup = $host . "," . $group->{'group'} . "," . $poll_id;
+    }else{
+	#find the closest poll cycle
+	my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
+	if($poll_id >= $poll_ids_back){
+	    $self->logger->debug("looking " . $poll_ids_back);
+	    $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - $poll_ids_back);
+	    $self->logger->debug("lookup key: " . $lookup);
+	}else{
+	    $self->logger->debug("No time available that matches the requested time!");
+	    return;
+	}
+    }
+
+
+    #ok so lookup is now defined
+    #lookup will give us the right set to sscan through
+    $self->redis->select(1);
+    my $set = $self->redis->get($lookup);
+    $self->redis->select(0);
+
+    return $set;
 }
 
 
 sub _get{
   #--- implementation using pipelining and callbacks 
-  my $self      = shift;
-  my $requested = shift;
-  my $params    = shift;
-  my $node      = $params->{'node'}{'value'};
-  my $oidmatch  = $params->{'oidmatch'}{'value'};
-  my $redis     = $self->redis;
-
-  my %results;
-
-  try {
-    #--- convert the set of interesting ip address to the set of internal keys used to retrive data 
-
-    foreach my $oid (@$oidmatch){
-	my $hostkeys = ();
-	foreach my $host (@$node){
-
-	    #find the correct key to fetch for!
-
-	    push(@$hostkeys, @{$self->_find_host_key_time( host => $host,
-							   oid => $oid, 
-							   requested => $requested)});
-		 
-	}
-	
-	#---check to see if the oid is a full oid or a match
-	if(!($oid =~ /\*/)){
-	    #--- this is a full OID not a search patterna, we can skip the scan phase
-	    #--- pull values from each relevant host for this OID
-	    next if($redis->type($oid) ne 'hash');
-	    $redis->hmget($oid,@$hostkeys,sub {$self->_get_cb($hostkeys,$oid,\%results,@_);});
-	}else{
-	    #--- this is a search pattern 
-	    my $cursor =0;
-	    my $keys;
-	    while(1){
-		#--- get the set of hash entries that match our pattern
-		($cursor,$keys) =  $redis->scan($cursor,MATCH=>$oid,COUNT=>2000);
-		foreach my $key (@$keys){
-		    #--- iterate on the returned OIDs and pull the values associated to each host
-		    next if($redis->type($key) ne 'hash');
-		    $redis->hmget($key,@$hostkeys,sub {$self->_get_cb($hostkeys,$key,\%results,@_);});
-		}
+    my $self      = shift;
+    my $requested = shift;
+    my $params    = shift;
+    my $node      = $params->{'node'}{'value'};
+    my $oidmatch  = $params->{'oidmatch'}{'value'};
+    my $redis     = $self->redis;
+    
+    my %results;
+    $self->logger->debug("processing get request for time " . $requested);
+    
+    try {
+	#--- convert the set of interesting ip address to the set of internal keys used to retrive data 
+	my $scan_start;
+	foreach my $oid (@$oidmatch){
+	    foreach my $host (@$node){
 		
-		last if($cursor == 0);
+		#find the correct key to fetch for!
+		my $set = $self->_find_key( host => $host,
+					    oid => $oid,
+					    requested => $requested);
+
+		if(!defined($set)){
+		    $self->logger->error("Unable to find set to look at");
+		    next;
+		}
+		my ($host, $group, $time) = split(',',$set);
+
+		my $keys;
+		my $cursor = 0;
+		while(1){
+		    #--- get the set of hash entries that match our pattern
+		    ($cursor,$keys) =  $redis->sscan($set, $cursor,MATCH=>$oid . "*",COUNT=>2000);
+		    foreach my $key (@$keys){
+			
+			$key =~ /([\d+|\.]+),(.*)/;
+			my $oid = $1;
+			my $value = $2;
+
+			if(!defined($oid)){
+			    $key =~ /(.*),(.*)/;
+			    $oid = $1;
+			    $value = $2;
+			}
+
+			$results{$host}{$oid}{'value'} = $value;
+			$results{$host}{$oid}{'time'} = $time;
+		    }
+		    
+		    last if($cursor == 0);
+		}
 	    }
 	}
-    }
-    
-    #--- wait for all pending responses to hmget requests
-    $redis->wait_all_responses;
-    
-  } catch {
-      $self->logger->error(" in get: ". $_);
-  };
-  
+
+	$self->logger->debug("Waiting for responses");
+	
+	#--- wait for all pending responses to hmget requests
+	$redis->wait_all_responses;
+    } catch {
+	$self->logger->error(" in get: ". $_);
+    };
+
+  $self->logger->debug("Response ready!");
+
   return \%results;
 }
 sub _rate{
@@ -456,25 +440,20 @@ sub _get_rate{
 
   #--- get the data for the current and a past poll cycle
   my $current_data  = $self->_get(time(),$params);
-
-  #need a close timestamp for us to use for data!
-  my @ips = keys %{$current_data};
-
   my $previous_data;
 
-
+  my @ips = keys %{$current_data};
   if(defined($ips[0])){
       my @oids = keys %{$current_data->{$ips[0]}};
 
       if(defined($oids[0])){
 
-	  my $time = $current_data->{$ips[0]}{$oids[0]}{'time'};
-	  $time -= $params->{'period'}{'value'};
+          my $time = $current_data->{$ips[0]}{$oids[0]}{'time'};
+          $time -= $params->{'period'}{'value'};
 
-	  $previous_data = $self->_get($time,$params);
+          $previous_data = $self->_get($time,$params);
       }
   }
-
 
   my %results;
 
