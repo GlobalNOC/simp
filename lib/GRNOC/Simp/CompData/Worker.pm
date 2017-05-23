@@ -285,12 +285,33 @@ sub _do_vals{
 	    
 	    if(!defined $var || !defined $id){
 		#--- required data missing
-		
+		$self->logger->error("NO VAR OR ID Specified");
 		next;
 	    }
 	    
 	    if(!defined $oid){
-		
+		$self->logger->error("NO OID Specified! Just appending vars!");
+		my %data;
+		foreach my $host(@$hosts){
+		    foreach my $key (keys %{$results->{$host}{$var}}){
+			$self->logger->error("Processing ID: " . $id . " with VAR: " . $var . " with key: " . $key . " and value: " . $results->{$host}{$var}{$key});
+
+			if(!defined($results->{'final'}{$host}{$key})){
+			    $results->{'final'}{$host}{$key} = {};
+			}
+			
+			
+
+			$self->_do_functions(values => [$results->{$host}{$var}{$key}],
+					     var => $var,
+					     xpath => $val,
+					     results => $results->{'final'}{$host}{$key},
+					     id => $id);
+			#$results->{'final'}{$host}{$key}{$id} = $self->_do_functions( value => $results->{$host}{$var}{$key},
+			#							      xpath => $xref, 
+			#							      results => $results->{'final'}{$host}{$key}{$id});
+		    }
+		}
 		next;
 	    }
 	    
@@ -400,9 +421,9 @@ sub _val_cb{
 
   my $doc = $self->config->{'doc'};
   my $xc  = XML::LibXML::XPathContext->new($doc);
-  my $treat_as_array = 0;
-  foreach my $host (keys %$data){
-      
+
+  my %groups;
+  foreach my $host (keys %$data){    
     foreach my $oid (keys %{$data->{$host}}){
 	my $val = $data->{$host}{$oid}{'value'};
 		
@@ -410,7 +431,7 @@ sub _val_cb{
 	if(!defined($var)){
 	    #well shoot its not a direct match... so there is the possiblity we have additional datas!
 	    foreach my $key (keys (%{$lut})){
-		if($oid =~ /$key/){
+		if($oid =~ /$key\./){
 		    #we found it!
 		    $var = $lut->{$key};
 		}
@@ -424,64 +445,102 @@ sub _val_cb{
 	if(!defined($results->{'final'}{$host}{$var}{'time'})){
 	    $results->{'final'}{$host}{$var}{'time'} = $data->{$host}{$oid}{'time'};
 	}
-	my $fctns = $xc->find("./fctn",$xref);
-	foreach my $fctn ($fctns->get_nodelist){
-	    my $name      = $fctn->getAttribute("name");
-	    my $operand     = $fctn->getAttribute("value");
 
-	    if($name eq "sum"){
-		if(!defined($results->{'final'}{$host}{$var})){
-		    $results->{'final'}{$host}{$var}{$id} = $val;
-		}else{
-		    $results->{'final'}{$host}{$var}{$id} += $val;
+	if(!defined($groups{$var})){
+	    $groups{$var} = ();
+	}
+
+	push(@{$groups{$var}}, $val);
+
+    }
+
+    foreach my $group (keys (%groups)){
+	$self->_do_functions(values => $groups{$group},
+			     xpath => $xref,
+			     results => $results->{'final'}{$host}{$group},
+			     id => $id);
+    }
+    
+  }
+  return;
+}
+
+sub _do_functions{
+    my $self = shift;
+    my %params = @_;
+
+    my $vals = $params{'values'};
+    my $var = $params{'var'};
+    my $xref = $params{'xpath'};
+    my $results = $params{'results'};
+    my $id = $params{'id'};
+
+    my $doc = $self->config->{'doc'};
+    my $xc  = XML::LibXML::XPathContext->new($doc);
+    
+    my $fctns = $xc->find("./fctn",$xref);
+    foreach my $fctn ($fctns->get_nodelist){
+	my $name      = $fctn->getAttribute("name");
+	my $operand     = $fctn->getAttribute("value");
+	
+	if($name eq "max" || $name eq "min" || $name eq "sum"){
+
+	    my $new_val;
+	    if($name eq 'sum'){
+		$new_val = 0;
+		foreach my $val (@$vals){
+		    $new_val += $val;
 		}
+	    }elsif($name eq 'min'){
+		foreach my $val (@$vals){
+		    if(!defined($new_val)){
+			$new_val = $val;
+		    }
+		    if($new_val > $val){
+			$new_val = $val;
+		    }
+		}
+	    }elsif($name eq 'max'){
+		foreach my $val (@$vals){
+		    if(!defined($new_val)){
+                        $new_val = $val;
+                    }
+                    if($new_val > $val){
+                        $new_val = $val;
+                    }
+		}
+	    }else{
+		$self->logger->error("Unknown consolidation function: $name");
 	    }
-	    
-            if($name eq "max"){
-                if(!defined($results->{'final'}{$host}{$var})){
-                    $results->{'final'}{$host}{$var}{$id} = $val;
-                }elsif($results->{'final'}{$host}{$var}{$id} < $val){
-                    $results->{'final'}{$host}{$var}{$id} = $val;
-                }
-            }	    
+	    $vals = [$new_val];
+	}else{
 
-	    if($name eq "min"){
-                if(!defined($results->{'final'}{$host}{$var}{$id})){
-                    $results->{'final'}{$host}{$var} = $val;
-                }elsif($results->{'final'}{$host}{$var} > $val){
-                    $results->{'final'}{$host}{$var} = $val;
-                }
-            }
-
-	    if($name eq "/"){
-                #not supported in ARRAY FORM
-		if(!defined($results->{'final'}{$host}{$var}{$id})){
+	    foreach my $val (@$vals){
+		
+		if($name eq "/"){
+		    #not supported in ARRAY FORM
 		    #--- unary divide operator
 		    $val = $val / $operand;
-		    $results->{'final'}{$host}{$var}{$id} = $val;
-		}
-	    }
-	    if($name eq "*"){
-		#not supported in ARRAY FORM
-		if(!defined($results->{'final'}{$host}{$var}{$id})){
+		}elsif($name eq "*"){
 		    #--- unary multiply operator
 		    $val = $val * $operand;
-		    $results->{'final'}{$host}{$var}{$id} = $val;
-		}
-	    }
-	    if($name eq "regexp"){
-		#not supported in ARRAY FORM
-		if(!defined($results->{'final'}{$host}{$var}{$id})){
+		}elsif($name eq "regexp"){
 		    $val =~ /$operand/;
 		    $val = $1;
-		    $results->{'final'}{$host}{$var}{$id} = $val;
+		}elsif($name eq "replace"){
+		    my $replace_with = $fctn->getAttribute("with");
+		    $operand =~ s/$var/$val/;
+		    $replace_with =~ s/$var/$val/;
+		    $val =~ s/$operand/$replace_with/;
+		}else{
+		    $self->logger->error("Unknown function: $name");
 		}
 	    }
 	}
     }
-  }
-  
-  return;
+
+    $results->{$id} = $vals->[0];
+
 }
 
 
