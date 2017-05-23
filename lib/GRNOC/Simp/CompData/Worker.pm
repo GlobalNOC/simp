@@ -400,63 +400,88 @@ sub _val_cb{
 
   my $doc = $self->config->{'doc'};
   my $xc  = XML::LibXML::XPathContext->new($doc);
-
+  my $treat_as_array = 0;
   foreach my $host (keys %$data){
       
     foreach my $oid (keys %{$data->{$host}}){
-      my $val = $data->{$host}{$oid}{'value'};
-      #--- use lookup table to map the OID back to a human readable value
-      my $var = $lut->{$oid};
-      if(!defined($results->{'final'}{$host}{$var}{'time'})){
-	  $results->{'final'}{$host}{$var}{'time'} = $data->{$host}{$oid}{'time'};
-      }
-      my $fctns = $xc->find("./fctn",$xref);
-      foreach my $fctn ($fctns->get_nodelist){
-        my $name      = $fctn->getAttribute("name");
-        my $operand     = $fctn->getAttribute("value");
-       
-        if($name eq "/"){
-	  #--- unary divide operator
-	  $val = $val / $operand
+	my $val = $data->{$host}{$oid}{'value'};
+		
+	my $var = $lut->{$oid};
+	if(!defined($var)){
+	    #well shoot its not a direct match... so there is the possiblity we have additional datas!
+	    foreach my $key (keys (%{$lut})){
+		if($oid =~ /$key/){
+		    #we found it!
+		    $var = $lut->{$key};
+		}
+	    }
 	}
-        if($name eq "*"){
-          #--- unary multiply operator
-          $val = $val * $operand
-        }
-        if($name eq "regexp"){
-	    $val =~ /$operand/;
-	    $val = $1;
-        }
-####TODO
-#### Make this work
-#	if($name eq "replace"){
-#	    $self->logger->error("HERE!!!!");
-#	    my $regex = $fctn->getAttribute("regexp");
-#	    my $variable = $fctn->getAttribute("var");
-#	    my @replaces = ($val =~ /$regex/);
-#	    my $val = $operand;
-#	    $self->logger->error("Variable: " . Dumper($variable));
-#	    $self->logger->error("All res: " . Dumper($results->{'final'}{$host}));
-#	    my $var_replace = $results->{'final'}{$host}{$var}{$variable};
-#	    $self->logger->error("Variable Replace: " . Dumper($var_replace));
-#	    $val =~ s/$variable/$var_replace/;
-#	    $self->logger->error("VAL: " . $val);
-#	    
-#	    
-#	    for(my $i=0;$i<=scalar(@replaces);$i++){
-#		my $replace_var = "\$" . $i;
-#		my $replace_val = $replaces[$i];
-#		$val =~ s/$replace_var/$replace_val/;
-#	    }
-#	    $self->logger->error("FINAL VAL: " . $val);
-#	}
 
-      }
-      $results->{'final'}{$host}{$var}{$id} =  $val; #sprintf("%.4f", $val);
+	if(!defined($var)){
+	    next;
+	}
+
+	if(!defined($results->{'final'}{$host}{$var}{'time'})){
+	    $results->{'final'}{$host}{$var}{'time'} = $data->{$host}{$oid}{'time'};
+	}
+	my $fctns = $xc->find("./fctn",$xref);
+	foreach my $fctn ($fctns->get_nodelist){
+	    my $name      = $fctn->getAttribute("name");
+	    my $operand     = $fctn->getAttribute("value");
+
+	    if($name eq "sum"){
+		if(!defined($results->{'final'}{$host}{$var})){
+		    $results->{'final'}{$host}{$var}{$id} = $val;
+		}else{
+		    $results->{'final'}{$host}{$var}{$id} += $val;
+		}
+	    }
+	    
+            if($name eq "max"){
+                if(!defined($results->{'final'}{$host}{$var})){
+                    $results->{'final'}{$host}{$var}{$id} = $val;
+                }elsif($results->{'final'}{$host}{$var}{$id} < $val){
+                    $results->{'final'}{$host}{$var}{$id} = $val;
+                }
+            }	    
+
+	    if($name eq "min"){
+                if(!defined($results->{'final'}{$host}{$var}{$id})){
+                    $results->{'final'}{$host}{$var} = $val;
+                }elsif($results->{'final'}{$host}{$var} > $val){
+                    $results->{'final'}{$host}{$var} = $val;
+                }
+            }
+
+	    if($name eq "/"){
+                #not supported in ARRAY FORM
+		if(!defined($results->{'final'}{$host}{$var}{$id})){
+		    #--- unary divide operator
+		    $val = $val / $operand;
+		    $results->{'final'}{$host}{$var}{$id} = $val;
+		}
+	    }
+	    if($name eq "*"){
+		#not supported in ARRAY FORM
+		if(!defined($results->{'final'}{$host}{$var}{$id})){
+		    #--- unary multiply operator
+		    $val = $val * $operand;
+		    $results->{'final'}{$host}{$var}{$id} = $val;
+		}
+	    }
+	    if($name eq "regexp"){
+		#not supported in ARRAY FORM
+		if(!defined($results->{'final'}{$host}{$var}{$id})){
+		    $val =~ /$operand/;
+		    $val = $1;
+		    $results->{'final'}{$host}{$var}{$id} = $val;
+		}
+	    }
+	}
     }
-  } 
-
-   return;
+  }
+  
+  return;
 }
 
 
