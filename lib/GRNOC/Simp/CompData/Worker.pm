@@ -224,26 +224,30 @@ sub _scan_cb{
   my $id          = shift;
   my $oid_pattern = shift;
   my $vals        = shift;
-  my $results     = shift; 
-
+  my $results     = shift;
+  
   $oid_pattern  =~s/\*//;
   $oid_pattern = quotemeta($oid_pattern);
-
+  
   foreach my $host (@$hosts){
       foreach my $oid (keys %{$data->{$host}}){
+	  
+	  my $base_value = $data->{$host}{$oid}{'value'};
+	  
+          # strip out the wildcard part of the oid
+	  $oid =~ s/$oid_pattern//;
+	  
+          #--- return only those entries matching specified values
 	  if(defined $vals){
-	      #--- return only those entries matching specified values
 	      foreach my $val (@$vals){
-		  if($data->{$host}{$oid}{'value'} eq $val){
-		      $oid =~ s/$oid_pattern//;
-		      $results->{$host}{$id}{$val} = $oid;
+		  if($base_value =~ /$val/){
+		      $results->{$host}{$id}{$base_value} = $oid;
 		  }
 	      }
-	  }else{
-	      #--- no val specified, return all
-	      my $val = $data->{$host}{$oid}{'value'};
-	      $oid =~ s/$oid_pattern//;
-	      $results->{$host}{$id}{$val} = $oid;
+	  }
+          #--- no val specified, return all
+	  else{
+	      $results->{$host}{$id}{$base_value} = $oid;
 	  }
       }
   }
