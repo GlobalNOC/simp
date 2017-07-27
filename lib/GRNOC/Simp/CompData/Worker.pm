@@ -224,26 +224,30 @@ sub _scan_cb{
   my $id          = shift;
   my $oid_pattern = shift;
   my $vals        = shift;
-  my $results     = shift; 
-
+  my $results     = shift;
+  
   $oid_pattern  =~s/\*//;
   $oid_pattern = quotemeta($oid_pattern);
-
+  
   foreach my $host (@$hosts){
       foreach my $oid (keys %{$data->{$host}}){
+	  
+	  my $base_value = $data->{$host}{$oid}{'value'};
+	  
+          # strip out the wildcard part of the oid
+	  $oid =~ s/$oid_pattern//;
+	  
+          #--- return only those entries matching specified values
 	  if(defined $vals){
-	      #--- return only those entries matching specified values
 	      foreach my $val (@$vals){
-		  if($data->{$host}{$oid}{'value'} eq $val){
-		      $oid =~ s/$oid_pattern//;
-		      $results->{$host}{$id}{$val} = $oid;
+		  if($base_value =~ /$val/){
+		      $results->{$host}{$id}{$base_value} = $oid;
 		  }
 	      }
-	  }else{
-	      #--- no val specified, return all
-	      my $val = $data->{$host}{$oid}{'value'};
-	      $oid =~ s/$oid_pattern//;
-	      $results->{$host}{$id}{$val} = $oid;
+	  }
+          #--- no val specified, return all
+	  else{
+	      $results->{$host}{$id}{$base_value} = $oid;
 	  }
       }
   }
@@ -285,12 +289,33 @@ sub _do_vals{
 	    
 	    if(!defined $var || !defined $id){
 		#--- required data missing
-		
+		$self->logger->error("NO VAR OR ID Specified");
 		next;
 	    }
 	    
 	    if(!defined $oid){
-		
+		$self->logger->error("NO OID Specified! Just appending vars!");
+		my %data;
+		foreach my $host(@$hosts){
+		    foreach my $key (keys %{$results->{$host}{$var}}){
+			$self->logger->error("Processing ID: " . $id . " with VAR: " . $var . " with key: " . $key . " and value: " . $results->{$host}{$var}{$key});
+
+			if(!defined($results->{'final'}{$host}{$key})){
+			    $results->{'final'}{$host}{$key} = {};
+			}
+			
+			
+
+			$self->_do_functions(values => [$results->{$host}{$var}{$key}],
+					     var => $var,
+					     xpath => $val,
+					     results => $results->{'final'}{$host}{$key},
+					     id => $id);
+			#$results->{'final'}{$host}{$key}{$id} = $self->_do_functions( value => $results->{$host}{$var}{$key},
+			#							      xpath => $xref, 
+			#							      results => $results->{'final'}{$host}{$key}{$id});
+		    }
+		}
 		next;
 	    }
 	    
@@ -401,62 +426,125 @@ sub _val_cb{
   my $doc = $self->config->{'doc'};
   my $xc  = XML::LibXML::XPathContext->new($doc);
 
-  foreach my $host (keys %$data){
-      
+  my %groups;
+  foreach my $host (keys %$data){    
     foreach my $oid (keys %{$data->{$host}}){
-      my $val = $data->{$host}{$oid}{'value'};
-      #--- use lookup table to map the OID back to a human readable value
-      my $var = $lut->{$oid};
-      if(!defined($results->{'final'}{$host}{$var}{'time'})){
-	  $results->{'final'}{$host}{$var}{'time'} = $data->{$host}{$oid}{'time'};
-      }
-      my $fctns = $xc->find("./fctn",$xref);
-      foreach my $fctn ($fctns->get_nodelist){
-        my $name      = $fctn->getAttribute("name");
-        my $operand     = $fctn->getAttribute("value");
-       
-        if($name eq "/"){
-	  #--- unary divide operator
-	  $val = $val / $operand
+	my $val = $data->{$host}{$oid}{'value'};
+		
+	my $var = $lut->{$oid};
+	if(!defined($var)){
+	    #well shoot its not a direct match... so there is the possiblity we have additional datas!
+	    foreach my $key (keys (%{$lut})){
+		if($oid =~ /$key\./){
+		    #we found it!
+		    $var = $lut->{$key};
+		}
+	    }
 	}
-        if($name eq "*"){
-          #--- unary multiply operator
-          $val = $val * $operand
-        }
-        if($name eq "regexp"){
-	    $val =~ /$operand/;
-	    $val = $1;
-        }
-####TODO
-#### Make this work
-#	if($name eq "replace"){
-#	    $self->logger->error("HERE!!!!");
-#	    my $regex = $fctn->getAttribute("regexp");
-#	    my $variable = $fctn->getAttribute("var");
-#	    my @replaces = ($val =~ /$regex/);
-#	    my $val = $operand;
-#	    $self->logger->error("Variable: " . Dumper($variable));
-#	    $self->logger->error("All res: " . Dumper($results->{'final'}{$host}));
-#	    my $var_replace = $results->{'final'}{$host}{$var}{$variable};
-#	    $self->logger->error("Variable Replace: " . Dumper($var_replace));
-#	    $val =~ s/$variable/$var_replace/;
-#	    $self->logger->error("VAL: " . $val);
-#	    
-#	    
-#	    for(my $i=0;$i<=scalar(@replaces);$i++){
-#		my $replace_var = "\$" . $i;
-#		my $replace_val = $replaces[$i];
-#		$val =~ s/$replace_var/$replace_val/;
-#	    }
-#	    $self->logger->error("FINAL VAL: " . $val);
-#	}
 
-      }
-      $results->{'final'}{$host}{$var}{$id} =  $val; #sprintf("%.4f", $val);
+	if(!defined($var)){
+	    next;
+	}
+
+	if(!defined($results->{'final'}{$host}{$var}{'time'})){
+	    $results->{'final'}{$host}{$var}{'time'} = $data->{$host}{$oid}{'time'};
+	}
+
+	if(!defined($groups{$var})){
+	    $groups{$var} = ();
+	}
+
+	push(@{$groups{$var}}, $val);
+
     }
-  } 
 
-   return;
+    foreach my $group (keys (%groups)){
+	$self->_do_functions(values => $groups{$group},
+			     xpath => $xref,
+			     results => $results->{'final'}{$host}{$group},
+			     id => $id);
+    }
+    
+  }
+  return;
+}
+
+sub _do_functions{
+    my $self = shift;
+    my %params = @_;
+
+    my $vals = $params{'values'};
+    my $var = $params{'var'};
+    my $xref = $params{'xpath'};
+    my $results = $params{'results'};
+    my $id = $params{'id'};
+
+    my $doc = $self->config->{'doc'};
+    my $xc  = XML::LibXML::XPathContext->new($doc);
+    
+    my $fctns = $xc->find("./fctn",$xref);
+    foreach my $fctn ($fctns->get_nodelist){
+	my $name      = $fctn->getAttribute("name");
+	my $operand     = $fctn->getAttribute("value");
+	
+	if($name eq "max" || $name eq "min" || $name eq "sum"){
+
+	    my $new_val;
+	    if($name eq 'sum'){
+		$new_val = 0;
+		foreach my $val (@$vals){
+		    $new_val += $val;
+		}
+	    }elsif($name eq 'min'){
+		foreach my $val (@$vals){
+		    if(!defined($new_val)){
+			$new_val = $val;
+		    }
+		    if($new_val > $val){
+			$new_val = $val;
+		    }
+		}
+	    }elsif($name eq 'max'){
+		foreach my $val (@$vals){
+		    if(!defined($new_val)){
+                        $new_val = $val;
+                    }
+                    if($new_val > $val){
+                        $new_val = $val;
+                    }
+		}
+	    }else{
+		$self->logger->error("Unknown consolidation function: $name");
+	    }
+	    $vals = [$new_val];
+	}else{
+
+	    foreach my $val (@$vals){
+		
+		if($name eq "/"){
+		    #not supported in ARRAY FORM
+		    #--- unary divide operator
+		    $val = $val / $operand;
+		}elsif($name eq "*"){
+		    #--- unary multiply operator
+		    $val = $val * $operand;
+		}elsif($name eq "regexp"){
+		    $val =~ /$operand/;
+		    $val = $1;
+		}elsif($name eq "replace"){
+		    my $replace_with = $fctn->getAttribute("with");
+		    $operand =~ s/$var/$val/;
+		    $replace_with =~ s/$var/$val/;
+		    $val =~ s/$operand/$replace_with/;
+		}else{
+		    $self->logger->error("Unknown function: $name");
+		}
+	    }
+	}
+    }
+
+    $results->{$id} = $vals->[0];
+
 }
 
 
