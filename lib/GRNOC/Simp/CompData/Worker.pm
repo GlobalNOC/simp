@@ -520,6 +520,8 @@ sub _do_functions{
 	}else{
 
 	    foreach my $val (@$vals){
+
+                next if !defined($val); # assume we should have that `undef <op> anything == undef`
 		
 		if($name eq "/"){
 		    #not supported in ARRAY FORM
@@ -528,6 +530,22 @@ sub _do_functions{
 		}elsif($name eq "*"){
 		    #--- unary multiply operator
 		    $val = $val * $operand;
+		}elsif($name eq "+"){
+		    #--- unary addition operator
+		    $val = $val + $operand;
+		}elsif($name eq "-"){
+		    #--- unary subtraction operator
+		    $val = $val - $operand;
+		}elsif($name eq "%"){
+		    #--- unary modulo operator
+		    $val = $val % $operand;
+		}elsif($name eq "ln"){
+		    #--- base-e logarithm
+                    $val = eval { log(val); }; # if val==0, we want the result to be undef, so this works just fine
+		}elsif($name eq "log10"){
+		    #--- base-10 logarithm
+                    $val = eval { log(val); }; # see ln
+                    $val /= log(10) if defined($val);
 		}elsif($name eq "regexp"){
 		    $val =~ /$operand/;
 		    $val = $1;
