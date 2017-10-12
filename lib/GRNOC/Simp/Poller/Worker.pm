@@ -197,7 +197,7 @@ sub _poll_cb{
 	    if(defined($host->{'group'}{$self->group_name}{'additional_value'})){
 		my %add_values = %{$host->{'group'}{$self->group_name}{'additional_value'}};
 		foreach my $name (keys %add_values){
-		    my $str = $name . "," . $add_values{$name}->{'value'};
+		    my $str = 'vars.' . $name . "," . $add_values{$name}->{'value'};
 		    $redis->select(0);
 		    $redis->sadd($key, $str);
 		    
