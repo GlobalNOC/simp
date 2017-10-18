@@ -194,10 +194,12 @@ sub _poll_cb{
             $redis->select(0);
 	    #$self->logger->error(Dumper($host->{'group'}{$self->group_name}));
 
-	    if(defined($host->{'group'}{$self->group_name}{'additional_value'})){
-		my %add_values = %{$host->{'group'}{$self->group_name}{'additional_value'}};
+	    if(defined($host->{'group'}{$self->group_name}{'host_variable'})){
+		my %add_values = %{$host->{'group'}{$self->group_name}{'host_variable'}};
 		foreach my $name (keys %add_values){
-		    my $str = 'vars.' . $name . "," . $add_values{$name}->{'value'};
+		    my $sanitzed_name = $name;
+		    $sanitized_name =~ s/,//g; # we don't allow commas in variable names
+		    my $str = 'vars.' . $sanitized_name . "," . $add_values{$name}->{'value'};
 		    $redis->select(0);
 		    $redis->sadd($key, $str);
 		    
