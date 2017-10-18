@@ -202,11 +202,11 @@ sub _poll_cb{
 		    my $str = 'vars.' . $sanitized_name . "," . $add_values{$name}->{'value'};
 		    $redis->select(0);
 		    $redis->sadd($key, $str);
-		    
-		    $redis->select(3);
-		    $redis->sadd($host->{'node_name'}, $name . "," . $self->group_name . "," . $self->poll_interval);
-		    $redis->sadd($ip, $name . "," . $self->group_name . "," . $self->poll_interval);
 		}
+
+		$redis->select(3);
+		$redis->sadd($host->{'node_name'}, "vars," . $self->group_name . "," . $self->poll_interval);
+		$redis->sadd($ip, "vars," . $self->group_name . "," . $self->poll_interval);
 	    }
 
 	    #and the current poll_id lookup
