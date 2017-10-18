@@ -197,7 +197,7 @@ sub _poll_cb{
 	    if(defined($host->{'group'}{$self->group_name}{'host_variable'})){
 		my %add_values = %{$host->{'group'}{$self->group_name}{'host_variable'}};
 		foreach my $name (keys %add_values){
-		    my $sanitzed_name = $name;
+		    my $sanitized_name = $name;
 		    $sanitized_name =~ s/,//g; # we don't allow commas in variable names
 		    my $str = 'vars.' . $sanitized_name . "," . $add_values{$name}->{'value'};
 		    $redis->select(0);
