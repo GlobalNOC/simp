@@ -208,8 +208,8 @@ sub _poll_cb{
 		}
 
 		$redis->select(3);
-		$redis->sadd($host->{'node_name'}, "vars," . $self->group_name . "," . $self->poll_interval);
-		$redis->sadd($ip, "vars," . $self->group_name . "," . $self->poll_interval);
+		$redis->hset($host->{'node_name'}, "vars", $self->group_name . "," . $self->poll_interval);
+		$redis->hset($ip, "vars", $self->group_name . "," . $self->poll_interval);
 	    }
 
 	    #and the current poll_id lookup
@@ -225,8 +225,8 @@ sub _poll_cb{
 
 	
 	$redis->select(3);
-	$redis->sadd($host->{'node_name'}, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
-	$redis->sadd($ip, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
+	$redis->hset($host->{'node_name'}, $main_oid, $self->group_name . "," . $self->poll_interval);
+	$redis->hset($ip, $main_oid, $self->group_name . "," . $self->poll_interval);
 
 	#change back to the primary db...
 	$redis->select(0);

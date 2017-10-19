@@ -215,11 +215,11 @@ sub _find_group{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    my @host_groups;
+    my %host_groups;
 
     try{
 	$self->redis->select(3);
-	@host_groups = $self->redis->smembers($host);
+	%host_groups = $self->redis->hgetall($host);
 	$self->redis->select(0);
     }catch{
 	$self->redis->select(0);
@@ -228,8 +228,8 @@ sub _find_group{
     };	
 
     my @new_host_groups;
-    foreach my $hg (@host_groups){
-	my ($base_oid, $group, $interval) = split(',', $hg);
+    foreach my $base_oid (keys %host_groups){
+	my ($group, $interval) = split(',', $host_groups{$base_oid});
 	if($oid =~ /$base_oid/){
 	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
 	}
