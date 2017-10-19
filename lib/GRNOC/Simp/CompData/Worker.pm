@@ -7,6 +7,7 @@ use Data::Dumper;
 use Try::Tiny;
 use Moo;
 use Redis;
+use AnyEvent;
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::RabbitMQ::Client;
@@ -578,10 +579,10 @@ sub _do_functions{
 		    $val = $val % $operand;
 		}elsif($name eq "ln"){
 		    #--- base-e logarithm
-                    $val = eval { log(val); }; # if val==0, we want the result to be undef, so this works just fine
+                    $val = eval { log($val); }; # if val==0, we want the result to be undef, so this works just fine
 		}elsif($name eq "log10"){
 		    #--- base-10 logarithm
-                    $val = eval { log(val); }; # see ln
+                    $val = eval { log($val); }; # see ln
                     $val /= log(10) if defined($val);
 		}elsif($name eq "regexp"){
 		    $val =~ /$operand/;
