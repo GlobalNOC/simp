@@ -34,6 +34,9 @@ has oids => ( is => 'ro',
 has poll_interval => ( is => 'ro',
 		       required => 1 );
 
+has var_hosts => ( is => 'ro',
+                   required => 1 );
+
 
 ### internal attributes ###
 
@@ -194,8 +197,8 @@ sub _poll_cb{
             $redis->select(0);
 	    #$self->logger->error(Dumper($host->{'group'}{$self->group_name}));
 
-	    if(defined($host->{'group'}{$self->group_name}{'host_variable'})){
-		my %add_values = %{$host->{'group'}{$self->group_name}{'host_variable'}};
+	    if($self->host_vars()->{$host->{'node_name'}} && defined($host->{'host_variable'})){
+		my %add_values = %{$host->{'host_variable'}};
 		foreach my $name (keys %add_values){
 		    my $sanitized_name = $name;
 		    $sanitized_name =~ s/,//g; # we don't allow commas in variable names

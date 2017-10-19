@@ -150,6 +150,10 @@ sub _create_workers {
    #--- get the set of active groups 
     my $groups  = $self->config->get( "/config/group" );
 
+    # For each host, one worker handles the host variables.
+    # This hash keeps track of whether a host has had a worker assigned for that.
+    my %var_worker;
+
     my $total_workers = 0;
     foreach my $group (@$groups){
 	#--- ignore the group if it isnt active
@@ -179,6 +183,7 @@ sub _create_workers {
       }
 
       my %hostsByWorker;
+      my %varsByWorker;
       my $idx=0;
       #--- get the set of hosts that belong to this group 
       my $id= $group->{'name'};
@@ -202,6 +207,10 @@ sub _create_workers {
       #--- split hosts between workers
       foreach my $host (@$hosts){
         push(@{$hostsByWorker{$idx}},$host);
+        if(!$var_worker{$host->{'node_name'}}){
+            $var_worker{$host->{'node_name'}} = 1;
+            $varsByWorker{$idx}{$host->{'node_name'}} = 1;
+        }
         $idx++;
         if($idx>=$workers) { $idx = 0; }
       }
@@ -243,7 +252,8 @@ sub _create_workers {
 							 retention     => $retention,
 							 logger        => $self->logger,
 							 max_reps      => $max_reps,
-							 snmp_timeout  => $snmp_timeout
+							 snmp_timeout  => $snmp_timeout,
+							 var_hosts     => $varsByWorker{$worker_id} || {}
 	      );
 	
         # this should only return if we tell it to stop via TERM signal etc.
