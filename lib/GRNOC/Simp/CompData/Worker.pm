@@ -191,7 +191,7 @@ sub _get{
 
 
   #--- because we have to do things asyncronously, execution from here follows a series
-  #--- of callbacks, tied together using the $cv* condition variables:
+  #--- of callbacks, tied together using the $cv[*] condition variables:
   #--- _do_scans       -> _do_vals       -> success
   #---     \->_scan_cb        \->_val_cb 
   #--- results are accumulated in $results{'final'}
@@ -199,14 +199,14 @@ sub _get{
   my $success_callback = $rpc_ref->{'success_callback'};
 
 
-  my ($cv0, $cv1, $cv2) = (AnyEvent->condvar, AnyEvent->condvar, AnyEvent->condvar);
+  my @cv = map { AnyEvent->condvar; } (0..2);
 
-  $cv0->begin(sub { $self->_do_scans($ref, $params, \%results, $cv1); });
-  $cv1->begin(sub { $self->_do_vals($ref, $params, \%results, $cv2); });
-  $cv2->begin(sub { \&$success_callback($results{'final'}); });
+  $cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });
+  $cv[1]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[2]); });
+  $cv[2]->begin(sub { \&$success_callback($results{'final'}); });
 
   # Start off the pipeline:
-  $cv0->end;
+  $cv[0]->end;
 }
 
 sub _do_scans{
