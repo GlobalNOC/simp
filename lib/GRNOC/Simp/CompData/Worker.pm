@@ -190,25 +190,23 @@ sub _get{
   my $ref = $xc->find($path);
 
 
-  #--- because we have to do things asyncronously, execution from here follows a nested set of callbacks basically
-  #--- _do_scans -> _do_vals -> success
-  #---   \->_scan_cb    \->_val_cb 
-  #--- results are accumulated in $results{'final'} 
+  #--- because we have to do things asyncronously, execution from here follows a series
+  #--- of callbacks, tied together using the $cv* condition variables:
+  #--- _do_scans       -> _do_vals       -> success
+  #---     \->_scan_cb        \->_val_cb 
+  #--- results are accumulated in $results{'final'}
+
   my $success_callback = $rpc_ref->{'success_callback'};
 
 
-  my $onSuccess = sub { my $cv = shift;
+  my ($cv0, $cv1, $cv2) = (AnyEvent->condvar, AnyEvent->condvar, AnyEvent->condvar);
 
-			\&$success_callback($results{'final'});
-  };
-  $self->_do_scans(
-      $ref,
-      $params,
-      \%results,
-      sub {
-	  $self->_do_vals($ref,$params,\%results,$onSuccess);
-      });
-  
+  $cv0->begin(sub { $self->_do_scans($ref, $params, \%results, $cv1); });
+  $cv1->begin(sub { $self->_do_vals($ref, $params, \%results, $cv2); });
+  $cv2->begin(sub { \&$success_callback($results{'final'}); });
+
+  # Start off the pipeline:
+  $cv0->end;
 }
 
 sub _do_scans{
@@ -216,18 +214,15 @@ sub _do_scans{
   my $xrefs        = shift;
   my $params       = shift;
   my $results      = shift;
-  my $onComplete   = shift;
+  my $cv           = shift; # assumes that it's been begin()'ed with a callback
 
 
   #--- find the set of required variables
   #-- for now hack host as its sorta special
   my $hosts = $params->{'node'}{'value'};
   
-
   #--- this function will execute multiple scans in "parallel" using the begin / end apprach
-  #--- this first call to begin will call the $onComplete function when the number of end calls == number of begin
-  my $cv = AnyEvent->condvar;
-  $cv->begin($onComplete);
+  #--- we use $cv to signal when all those scans are done
   
   #--- give up on config object and go direct to xmllib to get proper xpath support
   #--- these should be moved to the constructor
@@ -304,7 +299,7 @@ sub _do_vals{
     my $xrefs        = shift;
     my $params       = shift;
     my $results      = shift;
-    my $onComplete   = shift;
+    my $cv           = shift; # assumes that it's been begin()'ed with a callback
     
     #--- find the set of required variables
     #-- for now hack host as its sorta special
@@ -312,9 +307,7 @@ sub _do_vals{
     
     
     #--- this function will execute multiple gets in "parallel" using the begin / end apprach
-    #--- this first call to begin will call the $onComplete function when the number of end calls == number of begin
-    my $cv = AnyEvent->condvar;
-    $cv->begin($onComplete);
+    #--- we use $cv to signal when all those gets are done
     
     #--- give up on config object and go direct to xmllib to get proper xpath support
     #--- these should be moved to the constructor
