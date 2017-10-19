@@ -166,6 +166,51 @@ sub _ping{
   return gettimeofday();
 }
 
+sub _get{
+  my $self      = shift;
+  my $composite = shift;
+  my $rpc_ref   = shift;
+  my $params    = shift;
+
+  if(!defined($params->{'period'}{'value'})){
+      $params->{'period'}{'value'} = 60;
+  }
+
+  my %results;  
+
+  #--- figure out hostType
+  my $hostType = "default";
+
+  #--- give up on config object and go direct to xmllib to get proper xpath support
+  my $doc = $self->config->{'doc'};
+  my $xc  = XML::LibXML::XPathContext->new($doc);
+
+  #--- get the instance
+  my $path = "/config/composite[\@id=\"$composite\"]/instance[\@hostType=\"$hostType\"]";
+  my $ref = $xc->find($path);
+
+
+  #--- because we have to do things asyncronously, execution from here follows a nested set of callbacks basically
+  #--- _do_scans -> _do_vals -> success
+  #---   \->_scan_cb    \->_val_cb 
+  #--- results are accumulated in $results{'final'} 
+  my $success_callback = $rpc_ref->{'success_callback'};
+
+
+  my $onSuccess = sub { my $cv = shift;
+
+			\&$success_callback($results{'final'});
+  };
+  $self->_do_scans(
+      $ref,
+      $params,
+      \%results,
+      sub {
+	  $self->_do_vals($ref,$params,\%results,$onSuccess);
+      });
+  
+}
+
 sub _do_scans{
   my $self         = shift;
   my $xrefs        = shift;
@@ -213,10 +258,9 @@ sub _do_scans{
 	      } );
       }
   }
-  $cv->end; 
-  
-  
+  $cv->end;
 }
+
 sub _scan_cb{
   my $self        = shift;
   my $data        = shift;
@@ -563,52 +607,6 @@ sub _do_functions{
 
     $results->{$id} = $vals->[0];
 
-}
-
-
-sub _get{
-  my $self      = shift;
-  my $composite = shift;
-  my $rpc_ref   = shift;
-  my $params    = shift;
-
-  if(!defined($params->{'period'}{'value'})){
-      $params->{'period'}{'value'} = 60;
-  }
-
-  my %results;  
-
-  #--- figure out hostType
-  my $hostType = "default";
-
-  #--- give up on config object and go direct to xmllib to get proper xpath support
-  my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
-
-  #--- get the instance
-  my $path = "/config/composite[\@id=\"$composite\"]/instance[\@hostType=\"$hostType\"]";
-  my $ref = $xc->find($path);
-
-
-  #--- because we have to do things asyncronously, execution from here follows a nested set of callbacks basically
-  #--- _do_scans -> _do_vals -> success
-  #---   \->_scan_cb    \->_val_cb 
-  #--- results are accumulated in $results{'final'} 
-  my $success_callback = $rpc_ref->{'success_callback'};
-
-
-  my $onSuccess = sub { my $cv = shift;
-
-			\&$success_callback($results{'final'});
-  };
-  $self->_do_scans(
-      $ref,
-      $params,
-      \%results,
-      sub {
-	  $self->_do_vals($ref,$params,\%results,$onSuccess);
-      });
-  
 }
 
 1;
