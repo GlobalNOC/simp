@@ -206,11 +206,12 @@ sub _get{
   my $success_callback = $rpc_ref->{'success_callback'};
 
 
-  my @cv = map { AnyEvent->condvar; } (0..2);
+  my @cv = map { AnyEvent->condvar; } (0..3);
 
   $cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });
   $cv[1]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[2]); });
-  $cv[2]->begin(sub { \&$success_callback($results{'final'}); });
+  $cv[2]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[3]); });
+  $cv[3]->begin(sub { \&$success_callback($results{'final'}); });
 
   # Start off the pipeline:
   $cv[0]->end;
@@ -350,12 +351,12 @@ sub _do_vals{
 			
 			
 
-			$self->_do_functions(values => [$results->{$host}{$var}{$key}],
+			$self->_do_functions_old(values => [$results->{$host}{$var}{$key}],
 					     var => $var,
 					     xpath => $val,
 					     results => $results->{'final'}{$host}{$key},
 					     id => $id);
-			#$results->{'final'}{$host}{$key}{$id} = $self->_do_functions( value => $results->{$host}{$var}{$key},
+			#$results->{'final'}{$host}{$key}{$id} = $self->_do_functions_old( value => $results->{$host}{$var}{$key},
 			#							      xpath => $xref, 
 			#							      results => $results->{'final'}{$host}{$key}{$id});
 		    }
@@ -503,7 +504,7 @@ sub _val_cb{
     }
 
     foreach my $group (keys (%groups)){
-	$self->_do_functions(values => $groups{$group},
+	$self->_do_functions_old(values => $groups{$group},
 			     xpath => $xref,
 			     results => $results->{'final'}{$host}{$group},
 			     id => $id);
@@ -513,7 +514,18 @@ sub _val_cb{
   return;
 }
 
+
 sub _do_functions{
+  my $self         = shift;
+  my $xrefs        = shift;
+  my $params       = shift;
+  my $results      = shift;
+  my $cv           = shift; # assumes that it's been begin()'ed with a callback
+
+  $cv->end;
+}
+
+sub _do_functions_old{
     my $self = shift;
     my %params = @_;
 
