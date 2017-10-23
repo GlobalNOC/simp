@@ -115,6 +115,11 @@ sub _start {
                                                   callback =>  sub {$self->_get($method_id,@_) },
                                                   description => "retrieve composite simp data of type $method_id, we should add a descr to the config");
 
+      $method->add_input_parameter( name => 'node',
+				    description => 'nodes to retrieve data for',
+				    required => 1,
+				    multiple => 1,
+				    pattern => $GRNOC::WebService::Regex::TEXT);
 
       $method->add_input_parameter( name => 'period',
 				    description => "period of time to request for the data!",
@@ -127,10 +132,11 @@ sub _start {
       my $inputs = $self->config->get($path);
       foreach my $input (@$inputs){
         my $input_id = $input->{'id'};
+        next if ($input_id eq 'node') || ($input_id eq 'period');
         my $required = 0;
         if(defined $input->{'required'}){$required = 1;}
 
-        $method->add_input_parameter( name => "$input_id",
+        $method->add_input_parameter( name => $input_id,
 				      description => "we will add description to the config file later",
 				      required => $required,
 				      multiple => 1,
