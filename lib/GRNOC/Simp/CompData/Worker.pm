@@ -207,6 +207,8 @@ sub _get{
   #
   # $results{'scan'}{$node}{$var_name} = [ list of OID suffixes ]
   #    * The results from the scan phase (_do_scans and _scan_cb)
+  # $results{'param-match'}{$node}{$var_name}{$oid_suffix} = $val
+  #    * Mapping from (scan-variable name, OID suffix) to value at OID
   # $results{'val'}{$host}{$oid_suffix}{$var_name} = $val
   #    * The results from the get-values phase (_do_vals and _val_cb)
   # $results{'hostvar'}{$host}{$hostvar_name} = $val
@@ -303,13 +305,13 @@ sub _scan_cb{
 
       foreach my $oid (keys %{$data->{$host}}){
 	  my $base_value = $data->{$host}{$oid}{'value'};
-	  
+
           # strip out the wildcard part of the oid
 	  $oid =~ s/^$oid_pattern//;
-	  
-          #--- return only those entries matching specified values
-          if($use_val_matches){
-              push @oid_suffixes, $oid if $val_matches($base_value);
+
+          if((!$use_val_matches) || $val_matches{$base_value}){
+              push @oid_suffixes, $oid;
+              $results->{'param-match'}{$host}{$var_name}{$oid} = $base_value;
           }
       }
 
@@ -328,7 +330,6 @@ sub _do_vals{
     
     #--- find the set of required variables
     my $hosts = $params->{'node'}{'value'};
-    
     
     #--- this function will execute multiple gets in "parallel" using the begin / end apprach
     #--- we use $cv to signal when all those gets are done
