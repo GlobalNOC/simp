@@ -183,7 +183,7 @@ sub _get{
       $params->{'period'}{'value'} = 60;
   }
 
-  my %results;  
+  my %results;
 
   #--- figure out hostType
   my $hostType = "default";
@@ -207,7 +207,7 @@ sub _get{
   #
   # $results{'scan'}{$node}{$var_name} = [ list of OID suffixes ]
   #    * The results from the scan phase (_do_scans and _scan_cb)
-  # $results{'param-match'}{$node}{$var_name}{$oid_suffix} = $val
+  # $results{'scan-match'}{$node}{$var_name}{$oid_suffix} = $val
   #    * Mapping from (scan-variable name, OID suffix) to value at OID
   # $results{'val'}{$host}{$oid_suffix}{$var_name} = $val
   #    * The results from the get-values phase (_do_vals and _val_cb)
@@ -249,6 +249,14 @@ sub _do_scans{
   #--- these should be moved to the constructor
   my $doc = $self->config->{'doc'};
   my $xc  = XML::LibXML::XPathContext->new($doc);
+
+  # Make sure several root hashes exist
+  foreach my $host (@$hosts){
+      $results->{'scan'}{$host} = {};
+      $results->{'scan-match'}{$host} = {};
+      $results{'val'}{$host} = {};
+      $results{'hostvar'}{$host} = {};
+  }
  
   foreach my $instance ($xrefs->get_nodelist){
       my $instance_id = $instance->getAttribute("id");
@@ -311,7 +319,7 @@ sub _scan_cb{
 
           if((!$use_val_matches) || $val_matches{$base_value}){
               push @oid_suffixes, $oid;
-              $results->{'param-match'}{$host}{$var_name}{$oid} = $base_value;
+              $results->{'scan-match'}{$host}{$var_name}{$oid} = $base_value;
           }
       }
 
@@ -335,9 +343,6 @@ sub _do_vals{
     #--- we use $cv to signal when all those gets are done
 
     # Get host variables
-    foreach my $host (@$hosts){
-        $results{'hostvar'}{$host} = {}; # ensure hash exists for host (even if it's empty)
-    }
     $cv->begin;
     $self->client->get(
         node           => $hosts,
@@ -358,134 +363,113 @@ sub _do_vals{
 	#--- get the list of scans to perform
 	my $valres = $xc->find("./result/val",$instance);
 	foreach my $val ($valres->get_nodelist){
+            # The <val> tag can have a couple of different forms:
+            #
+            # <val id="var_name" var="scan_var_name">
+            #     - use a value from the scan phase
+            # <val id="var_name" type="rate" oid="1.2.3.4.scan_var_name">
+            #     - use OID suffixes from the scan phase, and lookup other OIDs,
+            #       optionally doing a rate calculation
 	    my $id      = $val->getAttribute("id");
 	    my $var     = $val->getAttribute("var");
 	    my $oid     = $val->getAttribute("oid");
 	    my $type    = $val->getAttribute("type");
 	    
-	    
-	    if(!defined $var || !defined $id){
+	    if(!defined $id){
 		#--- required data missing
-		$self->logger->error("NO VAR OR ID Specified");
+		$self->logger->error("no ID specified");
 		next;
 	    }
-	    
-	    if(!defined $oid){
-		$self->logger->error("NO OID Specified! Just appending vars!");
-		my %data;
-		foreach my $host(@$hosts){
-		    foreach my $key (keys %{$results->{$host}{$var}}){
-			$self->logger->error("Processing ID: " . $id . " with VAR: " . $var . " with key: " . $key . " and value: " . $results->{$host}{$var}{$key});
 
-			if(!defined($results->{'final'}{$host}{$key})){
-			    $results->{'final'}{$host}{$key} = {};
-			}
-			
-			
+            if(!defined $oid){ # Use the results of a scan
+                if(!defined $var){
+                    $self->logger->error("no 'var' param specified for ID '$id'");
+                    next;
+                }
 
-			$self->_do_functions_old(values => [$results->{$host}{$var}{$key}],
-					     var => $var,
-					     xpath => $val,
-					     results => $results->{'final'}{$host}{$key},
-					     id => $id);
-			#$results->{'final'}{$host}{$key}{$id} = $self->_do_functions_old( value => $results->{$host}{$var}{$key},
-			#							      xpath => $xref, 
-			#							      results => $results->{'final'}{$host}{$key}{$id});
-		    }
-		}
-		next;
-	    }
-	    
-	    #--- we need pull data from simp 
-	    foreach my $host(@$hosts){
-		my @matches;
-		my @hostarray;
-		my %lut;
-		
-		#--- each host gets its own array of match patterns
-		#--- as thse are very specific
+                $val_host = $results->{'val'}{$host};
 
-		my $ref = $results->{$host}{$var};
-		push(@hostarray,$host);
-		if(scalar(keys %{$ref}) == 1){
-		    
-		    foreach my $key (keys %{$ref}){
-			my $val = $ref->{$key};
-			my $match = $oid;
-			$match =~ s/$var/$val/;
-			$lut{$match} = $key;
-			push(@matches,$match);
-		    }
-		    
-		    #if there are no matches for this host
-		    #just go on to the next one!
-		    next if(scalar(@matches) <= 0);
-		    
-		    #--- send the array of matches to simp
-		    $cv->begin;
-		    
-		    if(defined $type && $type eq "rate"){
-			$self->client->get_rate(
-			    node => \@hostarray,
-			    period => $params->{'period'}{'value'},
-			    oidmatch => \@matches,
-			    async_callback =>  sub {
-				my $data= shift;
-				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
-				$cv->end;
-			    } );
-			
-			
-		    }else{
-			$self->client->get(
-			    node => \@hostarray, 
-			    oidmatch => \@matches,
-			    async_callback =>  sub {
-				my $data= shift; 
-				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val); 
-				$cv->end;
-			    } );      
-			
-		    }
-		}else{
-		    #do an optimized search!
-		    my $match = $oid;
-		    $match =~ s/$var/\*/;
-		    #--- send the array of matches to simp
-                    $cv->begin;
+                if($var eq 'node'){
+                    # special case: use the node name instead
+                    foreach my $host (@$hosts){
+                        my $scan = $results->{'scan'}{$host};
+                        foreach my $scan_var (keys %{$scan}){
+                            foreach my $oid_suffix (@($scan->{$scan_var})){
+                                $val_host->{$oid_suffix}{$id} = $host;
+                            }
+                        }
+                    }
+                    next;
+                }
 
-		    foreach my $key (keys %{$ref}){
-                        my $val = $ref->{$key};
-                        my $new_match = $oid;
-                        $new_match =~ s/$var/$val/;
-                        $lut{$new_match} = $key;
+                foreach my $host (@$hosts){
+                    $scan_var = $results->{'scan-match'}{$host}{$var};
+
+                    next if !defined($scan_var);
+
+                    foreach my $oid_suffix (keys %$scan_var){
+                        $val_host->{$oid_suffix}{$id} = $scan_var->{$oid_suffix};
+                    }
+                }
+            }else{ # pull data from Simp
+                # fetch the scan-variable name to use:
+                my @oid_parts = split /\./, $oid;
+                my $scan_var_idx = 0;
+
+                while ($scan_var_idx < length @oid_parts){
+                    last if !($oid_parts[$scan_var_idx] =~ /^[0-9]*$/);
+                    $scan_var_idx += 1;
+                }
+                if ($scan_var_idx >= length @oid_parts){
+                    $self->logger->error("no scan-variable name found for ID '$id'");
+                    next;
+                }
+
+                my $scan_var_name = $oid_parts[$scan_var_idx];
+
+                foreach my $host (@$hosts) {
+                    my $oid_suffixes = $results->{'scan'}{$host}{$scan_var_name};
+                    next if !defined($oid_suffixes); # Make sure there's stuff to iterate over
+
+                    my %lut; # look-up table from (full OID) to list of (OID suffix, variable name) pairs
+                    my @oid_list;
+
+                    foreach my $oid_suffix (@$oid_suffixes){
+                        # re-use @oid_parts to construct the full OID to look for
+                        $oid_parts[$scan_var_idx] = $oid_suffix;
+                        my $full_oid = join '.', @oid_parts;
+
+                        push @oid_list, $full_oid;
+                        push @{$lut{$full_oid}}, [$oid_suffix, $id];
                     }
 
-                    if(defined $type && $type eq "rate"){
-			$self->logger->error("Asking SIMP for rate: " . Dumper(\@hostarray) . " for Match: " . $match);
-			$self->client->get_rate(
-                            node => \@hostarray,
-			    period => $params->{'period'}{'value'},
-                            oidmatch => $match,
-			    async_callback =>  sub {
-				my $data= shift;
-				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
-				$cv->end;
-			    } );
+                    # Now get the data for these OIDs from Simp
+                    $cv->begin;
 
-		    }else{
-			$self->logger->error("Asking SIMP for: " . Dumper(\@hostarray) . " for Match: " . $match);
-			$self->client->get(
-                            node => \@hostarray,
-                            oidmatch => $match,
-			    async_callback =>  sub {
-				my $data= shift;
-				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
+                    if(defined($type) && $type eq 'rate'){
+                        $self->client->get_rate(
+                            node     => [$host],
+                            period   => $params->{'period'}{'value'},
+                            oidmatch => \@oid_list,
+                            async_callback => sub {
+                                my $data = shift;
+				$self->_val_cb($data->{'results'},$results,$host,\%lut);
 				$cv->end;
-			    } );
-		    }
-		}
-	    } 
+                            }
+                        );
+                    }else{
+                        $self->client->get(
+                            node     => [$host],
+                            oidmatch => \@oid_list,
+                            async_callback => sub {
+                                my $data = shift;
+				$self->_val_cb($data->{'results'},$results,$host,\%lut);
+				$cv->end;
+                            }
+                        );
+                    }
+                }
+            }
 	}
     }
     $cv->end; 
@@ -509,54 +493,26 @@ sub _val_cb{
   my $self        = shift;
   my $data        = shift;
   my $results     = shift;
-  my $hosts       = shift;
-  my $id          = shift;
+  my $host        = shift;
   my $lut         = shift;
-  my $xref        = shift;
 
-  my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
+  return if !defined($data->{$host});
 
-  my %groups;
-  foreach my $host (keys %$data){    
-    foreach my $oid (keys %{$data->{$host}}){
-	my $val = $data->{$host}{$oid}{'value'};
-		
-	my $var = $lut->{$oid};
-	if(!defined($var)){
-	    #well shoot its not a direct match... so there is the possiblity we have additional datas!
-	    foreach my $key (keys (%{$lut})){
-		if($oid =~ /$key\./){
-		    #we found it!
-		    $var = $lut->{$key};
-		}
-	    }
-	}
+  foreach my $oid (keys %{$data->{$host}}){
+      my $val      = $data->{$host}{$oid}{'value'};
+      my $val_time = $data->{$host}{$oid}{'time'};
 
-	if(!defined($var)){
-	    next;
-	}
+      my $indices = $lut->{$oid};
+      next if !defined($indices);
 
-	if(!defined($results->{'final'}{$host}{$var}{'time'})){
-	    $results->{'final'}{$host}{$var}{'time'} = $data->{$host}{$oid}{'time'};
-	}
-
-	if(!defined($groups{$var})){
-	    $groups{$var} = ();
-	}
-
-	push(@{$groups{$var}}, $val);
-
-    }
-
-    foreach my $group (keys (%groups)){
-	$self->_do_functions_old(values => $groups{$group},
-			     xpath => $xref,
-			     results => $results->{'final'}{$host}{$group},
-			     id => $id);
-    }
-    
+      foreach my $index (@$indices){
+          $results->{'val'}{$host}{$index->[0]}{$index->[1]} = $val;
+          if(!defined($results->{'val'}{$host}{$index->[0]}{'time'})){
+              $results->{'val'}{$host}{$index->[0]}{'time'} = $val_time;
+          }
+      }
   }
+
   return;
 }
 
