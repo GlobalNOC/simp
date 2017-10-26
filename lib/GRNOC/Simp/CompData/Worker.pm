@@ -197,11 +197,23 @@ sub _get{
   my $ref = $xc->find($path);
 
 
-  #--- because we have to do things asyncronously, execution from here follows a series
-  #--- of callbacks, tied together using the $cv[*] condition variables:
-  #--- _do_scans       -> _do_vals       -> success
-  #---     \->_scan_cb        \->_val_cb 
-  #--- results are accumulated in $results{'final'}
+  #--- because we have to do things asynchronously, execution from here follows
+  #--- a series of callbacks, tied together using the $cv[*] condition variables:
+  #--- _do_scans       -> _do_vals       -> _do_functions -> success
+  #---     \->_scan_cb      | \->_val_cb
+  #---                      \->_hostvar_cb
+
+  # Data is accumulated in the %results hash, which has the following structure:
+  #
+  # $results{'scan'}{$node}{$var_name} = [ list of OID suffixes ]
+  #    * The results from the scan phase (_do_scans and _scan_cb)
+  # $results{'val'}{$host}{$oid_suffix}{$var_name} = $val
+  #    * The results from the get-values phase (_do_vals and _val_cb)
+  # $results{'hostvar'}{$host}{$hostvar_name} = $val
+  #    * The host variables (_hostvar_cb)
+  # $results{'final'}{$host}{$oid_suffix}{$var_name} = $val
+  #    * The results from the compute-functions phase (_do_functions);
+  #      $results{'final'} is passed back to the caller
 
   my $success_callback = $rpc_ref->{'success_callback'};
 
@@ -226,7 +238,6 @@ sub _do_scans{
 
 
   #--- find the set of required variables
-  #-- for now hack host as its sorta special
   my $hosts = $params->{'node'}{'value'};
   
   #--- this function will execute multiple scans in "parallel" using the begin / end apprach
@@ -273,30 +284,34 @@ sub _scan_cb{
   my $vals        = shift;
   my $results     = shift;
   
-  $oid_pattern  =~s/\*//;
-  $oid_pattern = quotemeta($oid_pattern);
+  $oid_pattern =~ s/\*.*$//;
+  $oid_pattern =  quotemeta($oid_pattern);
   
   foreach my $host (@$hosts){
+
+      my @oid_suffixes;
+
+      # return only those entries matching specified values, if values are specified
+      my %val_matches;
+      my $use_val_matches = 0;
+      if(defined($vals) && scalar(@$vals) > 0){
+          $use_val_matches = 1;
+          %val_matches = map { $_ => 1 } @$vals;
+      }
+
       foreach my $oid (keys %{$data->{$host}}){
-	  
 	  my $base_value = $data->{$host}{$oid}{'value'};
 	  
           # strip out the wildcard part of the oid
-	  $oid =~ s/$oid_pattern//;
+	  $oid =~ s/^$oid_pattern//;
 	  
           #--- return only those entries matching specified values
-	  if(defined $vals){
-	      foreach my $val (@$vals){
-		  if($base_value =~ /$val/){
-		      $results->{$host}{$id}{$base_value} = $oid;
-		  }
-	      }
-	  }
-          #--- no val specified, return all
-	  else{
-	      $results->{$host}{$id}{$base_value} = $oid;
-	  }
+          if($use_val_matches){
+              push @oid_suffixes, $oid if $val_matches($base_value);
+          }
       }
+
+      $results->{'scan'}{$host}{$id} = \@oid_suffixes;
   }
   
   return ;
@@ -310,7 +325,6 @@ sub _do_vals{
     my $cv           = shift; # assumes that it's been begin()'ed with a callback
     
     #--- find the set of required variables
-    #-- for now hack host as its sorta special
     my $hosts = $params->{'node'}{'value'};
     
     
@@ -457,6 +471,9 @@ sub _do_vals{
 	}
     }
     $cv->end; 
+}
+
+sub _hostvar_cb{
 }
 
 sub _val_cb{
