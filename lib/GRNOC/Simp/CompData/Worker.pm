@@ -210,7 +210,7 @@ sub _get{
   # $results{'val'}{$host}{$oid_suffix}{$var_name} = $val
   #    * The results from the get-values phase (_do_vals and _val_cb)
   # $results{'hostvar'}{$host}{$hostvar_name} = $val
-  #    * The host variables (_hostvar_cb)
+  #    * The host variables (_do_vals and _hostvar_cb)
   # $results{'final'}{$host}{$oid_suffix}{$var_name} = $val
   #    * The results from the compute-functions phase (_do_functions);
   #      $results{'final'} is passed back to the caller
@@ -332,7 +332,22 @@ sub _do_vals{
     
     #--- this function will execute multiple gets in "parallel" using the begin / end apprach
     #--- we use $cv to signal when all those gets are done
-    
+
+    # Get host variables
+    foreach my $host (@$hosts){
+        $results{'hostvar'}{$host} = {}; # ensure hash exists for host (even if it's empty)
+    }
+    $cv->begin;
+    $self->client->get(
+        node           => $hosts,
+        oidmatch       => 'vars.*',
+        async_callback => sub {
+            my $data = shift;
+            $self->_hostvar_cb($data->{'results'}, $results);
+            $cv->end;
+        },
+    );
+
     #--- give up on config object and go direct to xmllib to get proper xpath support
     #--- these should be moved to the constructor
     my $doc = $self->config->{'doc'};
@@ -476,6 +491,17 @@ sub _do_vals{
 }
 
 sub _hostvar_cb{
+  my $self    = shift;
+  my $data    = shift;
+  my $results = shift;
+
+  foreach my $host (keys %$data){
+      foreach my $oid (keys %{$data->{$host}}){
+          my $val = $data->{$host}{$oid}{'value'};
+          $oid =~ s/^vars\.//;
+          $results->{'hostvar'}{$host}{$oid} = $val;
+      }
+  }
 }
 
 sub _val_cb{
