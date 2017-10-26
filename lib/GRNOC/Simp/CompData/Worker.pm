@@ -253,12 +253,14 @@ sub _do_scans{
       #--- get the list of scans to perform
       my $scanres = $xc->find("./scan",$instance);
       foreach my $scan ($scanres->get_nodelist){
-	  my $id      = $scan->getAttribute("id");
-	  my $oid     = $scan->getAttribute("oid");
-	  my $var     = $scan->getAttribute("var");
+          # example scan:
+          # <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.18.*" var="ifAlias" />
+	  my $var_name = $scan->getAttribute("id");
+	  my $oid      = $scan->getAttribute("oid");
+	  my $param_nm = $scan->getAttribute("var");
 	  my $targets;
-	  if(defined $var){
-	      $targets = $params->{$var}{"value"};
+	  if(defined $param_nm){
+	      $targets = $params->{$param_nm}{"value"};
 	  }
 	  $cv->begin;
 
@@ -266,8 +268,8 @@ sub _do_scans{
 	      node => $hosts, 
 	      oidmatch => $oid,
 	      async_callback => sub {
-		  my $data= shift;
-		  $self->_scan_cb($data->{'results'},$hosts,$id,$oid,$targets,$results); 
+		  my $data = shift;
+		  $self->_scan_cb($data->{'results'},$hosts,$var_name,$oid,$targets,$results); 
 		  $cv->end;
 	      } );
       }
@@ -279,7 +281,7 @@ sub _scan_cb{
   my $self        = shift;
   my $data        = shift;
   my $hosts       = shift;
-  my $id          = shift;
+  my $var_name    = shift;
   my $oid_pattern = shift;
   my $vals        = shift;
   my $results     = shift;
@@ -294,7 +296,7 @@ sub _scan_cb{
       # return only those entries matching specified values, if values are specified
       my %val_matches;
       my $use_val_matches = 0;
-      if(defined($vals) && scalar(@$vals) > 0){
+      if(defined($vals) && (scalar(@$vals) > 0)){
           $use_val_matches = 1;
           %val_matches = map { $_ => 1 } @$vals;
       }
@@ -311,7 +313,7 @@ sub _scan_cb{
           }
       }
 
-      $results->{'scan'}{$host}{$id} = \@oid_suffixes;
+      $results->{'scan'}{$host}{$var_name} = \@oid_suffixes;
   }
   
   return ;
