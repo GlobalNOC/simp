@@ -4,6 +4,7 @@ use strict;
 use Carp;
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
+use Data::Munge qw();
 use Try::Tiny;
 use Moo;
 use Redis;
@@ -518,109 +519,123 @@ sub _val_cb{
 
 
 sub _do_functions{
-  my $self         = shift;
-  my $xrefs        = shift;
-  my $params       = shift;
-  my $results      = shift;
-  my $cv           = shift; # assumes that it's been begin()'ed with a callback
+    my $self         = shift;
+    my $xrefs        = shift;
+    my $params       = shift;
+    my $results      = shift;
+    my $cv           = shift; # assumes that it's been begin()'ed with a callback
 
-  $cv->end;
-}
+    my $xpc = XML::LibXML::XPathContext->new($self->config->{'doc'});
 
-sub _do_functions_old{
-    my $self = shift;
-    my %params = @_;
+    my $vals = $xpc->find("./result/val", $xref);
+    foreach my $val ($vals->get_nodelist){
+        my $val_name = $val->getAttribute("id");
+        my @fctns    = $xpc->find("./fctn", $val)->get_nodelist;
 
-    my $vals = $params{'values'};
-    my $var = $params{'var'};
-    my $xref = $params{'xpath'};
-    my $results = $params{'results'};
-    my $id = $params{'id'};
-
-    my $doc = $self->config->{'doc'};
-    my $xc  = XML::LibXML::XPathContext->new($doc);
-    
-    my $fctns = $xc->find("./fctn",$xref);
-    foreach my $fctn ($fctns->get_nodelist){
-	my $name      = $fctn->getAttribute("name");
-	my $operand     = $fctn->getAttribute("value");
-	
-	if($name eq "max" || $name eq "min" || $name eq "sum"){
-
-	    my $new_val;
-	    if($name eq 'sum'){
-		$new_val = 0;
-		foreach my $val (@$vals){
-		    $new_val += $val;
-		}
-	    }elsif($name eq 'min'){
-		foreach my $val (@$vals){
-		    if(!defined($new_val)){
-			$new_val = $val;
-		    }
-		    if($new_val > $val){
-			$new_val = $val;
-		    }
-		}
-	    }elsif($name eq 'max'){
-		foreach my $val (@$vals){
-		    if(!defined($new_val)){
-                        $new_val = $val;
-                    }
-                    if($new_val > $val){
-                        $new_val = $val;
-                    }
-		}
-	    }else{
-		$self->logger->error("Unknown consolidation function: $name");
-	    }
-	    $vals = [$new_val];
-	}else{
-
-	    foreach my $val (@$vals){
-
-                next if !defined($val); # assume we should have that `undef <op> anything == undef`
-		
-		if($name eq "/"){
-		    #not supported in ARRAY FORM
-		    #--- unary divide operator
-		    $val = $val / $operand;
-		}elsif($name eq "*"){
-		    #--- unary multiply operator
-		    $val = $val * $operand;
-		}elsif($name eq "+"){
-		    #--- unary addition operator
-		    $val = $val + $operand;
-		}elsif($name eq "-"){
-		    #--- unary subtraction operator
-		    $val = $val - $operand;
-		}elsif($name eq "%"){
-		    #--- unary modulo operator
-		    $val = $val % $operand;
-		}elsif($name eq "ln"){
-		    #--- base-e logarithm
-                    $val = eval { log($val); }; # if val==0, we want the result to be undef, so this works just fine
-		}elsif($name eq "log10"){
-		    #--- base-10 logarithm
-                    $val = eval { log($val); }; # see ln
-                    $val /= log(10) if defined($val);
-		}elsif($name eq "regexp"){
-		    $val =~ /$operand/;
-		    $val = $1;
-		}elsif($name eq "replace"){
-		    my $replace_with = $fctn->getAttribute("with");
-		    $operand =~ s/$var/$val/;
-		    $replace_with =~ s/$var/$val/;
-		    $val =~ s/$operand/$replace_with/;
-		}else{
-		    $self->logger->error("Unknown function: $name");
-		}
-	    }
-	}
+        $self->_function_one_val($val_name, \@fctns, $params, $results);
     }
 
-    $results->{$id} = $vals->[0];
-
+    $cv->end;
 }
+
+sub _function_one_val{
+    my $self     = shift;
+    my $val_name = shift;
+    my $fctns    = shift;
+    my $params   = shift;
+    my $results  = shift;
+
+    my $have_run_warning = 0;
+
+    # Iterate over all (host, OID suffix) pairs in the retrieved values
+    foreach my $host (keys %($results->{'val'})){
+        foreach my $oid_suffix (keys %($results->{'val'}{$host})){
+            my $val_set = $results->{'val'}{$host}{$oid_suffix};
+            my $val = $val_set{$val_name};
+
+            # Apply all functions defined for the value to it, in order:
+            foreach my $fctn (@$fctns){
+                my $func_id = $fctn->getAttribute("id");
+                if (!defined($_FUNCTIONS{$func_id})) {
+                    $self->logger->error("Unknown function name \"$func_id\" for val \"$val_name\"!") if !$have_run_warning;
+                    $have_run_warning = 1;
+                    $val = undef;
+                    last;
+                }
+
+                # Fetch a commonly-used attribute
+                my $operand = $fctn->getAttribute("value");
+                $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
+            }
+
+            $results->{'final'}{$host}{$oid_suffix}{$val_name} = $val;
+        }
+    }
+}
+
+# These functions are called from _function_one_val with several arguments:
+#
+# value, as computed to this point
+# default operand attribute for function
+# XML <fctn> element associated with this invocation of the function
+# hash of values for this (host, OID suffix) pair
+# full $results hash, as passed around in this module
+# host name for current value
+#
+my %_FUNCTIONS = (
+    # For many of these operations, we take the view that
+    # (undef op [anything]) should equal undef, hence line 2
+    '+' => sub { # addition
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val + $operand;
+    },
+    '-' => sub { # subtraction
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val - $operand;
+    },
+    '*' => sub { # multiplication
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val * $operand;
+    },
+    '/' => sub { # division
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val / $operand;
+    },
+    '%' => sub { # modulus
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val % $operand;
+    },
+    'ln' => sub { # base-e logarithm
+        my $val = shift;
+        return $val if !defined($val);
+        eval { log($val); }; # if val==0, we want the result to be undef, so this works just fine
+    },
+    'log10' => sub { # base-10 logarithm
+        my $val = shift;
+        return $val if !defined($val);
+        $val = eval { log($val); }; # see ln
+        $val /= log(10) if defined($val);
+        $val;
+    },
+    'regexp' => sub { # regular-expression match and extract first group
+        my ($val, $operand) = @_;
+        if($val =~ /$operand/){
+            return $1;
+        }
+        $val; # TODO: is (unchanged $val) or (undef) a better return value in this case?
+    },
+    'replace' => sub { # regular-expression replace
+        my ($val, $operand, $elem) = @_;
+        my $replace_with = $fctn->getAttribute("with");
+        $val = Data::Munge::replace($val, $operand, $replace_with);
+        $val;
+    },
+);
+
 
 1;

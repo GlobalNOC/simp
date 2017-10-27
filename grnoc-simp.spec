@@ -10,6 +10,7 @@ Source0: simp-%{version}.tar.gz
 BuildRequires: perl
 
 Requires: redis
+Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 Requires: perl-GRNOC-RabbitMQ
