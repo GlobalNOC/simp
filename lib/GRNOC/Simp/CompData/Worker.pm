@@ -635,7 +635,56 @@ my %_FUNCTIONS = (
         $val = Data::Munge::replace($val, $operand, $replace_with);
         $val;
     },
+    'rpn' => _rpn_calc,
 );
+
+sub _rpn_calc{
+    my ($val, $operand, $fctn, $val_set, $results, $host) = @_;
+
+    # As a convenience, we initialize the stack with a copy of $val on it already
+    my @stack = ($val);
+
+    # Split the RPN program's text into tokens (quoted strings,
+    # or sequences of non-space chars beginning with a non-quote):
+    my @prog;
+    my $progtext = $operand;
+    while (length($progtext > 0)){
+        $progtext =~ /^(\s+|[^\'\"][^\s]*|\'([^\\]|\\.)*(\'|\\?$)|\"([^\\]|\\.)*(\"|\\?$))/;
+        my $x = $1;
+        push @prog, $x if $x !~ /^\s*$/;
+        $progtext = substr $progtext, length($x);
+    }
+
+    my %func_lookup_errors;
+
+    # Now, go through the program, one token at a time:
+    foreach my $token (@prog){
+        # Handle some special cases of tokens:
+        if($token =~ /^[\'\"]/){ # quoted strings
+            $token =~ s/^[\'\"](([^\\]|\\.)*)[\'\"\\]?$/$1/; # Take off the start and end quotes, handling unterminated strings
+            $token =~ s/\\(.)/$1/g; # unescape escapes
+            push @stack, $token;
+        }elsif($token =~ /^([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
+            push @stack, ($token + 0);
+        }elsif($token =~ /^\$/){ # name of a value associated with the current (host, OID suffix)
+            push @stack, $val_set->{substr $token, 1};
+        }elsif($token =~ /^\#/){ # host variable
+            push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
+        }elsif($token == '@') { # push hostname
+            push @stack, $host;
+        }else{ # treat as a function
+            if (!defined($_RPN_FUNCS{$token})){
+                $self->logger->error("RPN function $token not defined!") if !$func_lookup_errors{$token};
+                $func_lookup_errors{$token} = 1;
+                next;
+            }
+            $_RPN_FUNCS{$token}(\@stack);
+        }
+    }
+
+    # Return the top of the stack
+    return pop @stack;
+}
 
 my %_RPN_FUNCS = (
     # addend1 addend2 => sum
@@ -683,6 +732,19 @@ my %_RPN_FUNCS = (
         $x = eval { log($x); }; # make ln(0) yield undef
         $x /= log(10) if defined($x);
         push @$stack, $x;
+    },
+    'exp' = sub {
+        my $stack = shift;
+        my $x = pop @$stack;
+        $x = eval { exp($x); } if defined($x);
+        push @$stack, $x;
+    },
+    'pow' = sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $x = eval { $a ** $b; };
+        push @$stack, (defined($a) && defined($b)) ? $x : undef;
     },
 
     # stealing some names from PostScript...
