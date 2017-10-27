@@ -637,5 +637,82 @@ my %_FUNCTIONS = (
     },
 );
 
+my %_RPN_FUNCS = (
+    # addend1 addend2 => sum
+    '+' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, (defined($a) && defined($b)) ? $a+$b : undef;
+    },
+    '-' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, (defined($a) && defined($b)) ? $a-$b : undef;
+    },
+    '*' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, (defined($a) && defined($b)) ? $a*$b : undef;
+    },
+    '/' = sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $x = eval { $a / $b; }; # make divide by zero yield undef
+        push @$stack, (defined($a) && defined($b)) ? $x : undef;
+    },
+    '%' = sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $x = eval { $a % $b; }; # make divide by zero yield undef
+        push @$stack, (defined($a) && defined($b)) ? $x : undef;
+    },
+    'ln' = sub {
+        my $stack = shift;
+        my $x = pop @$stack;
+        $x = eval { log($x); }; # make ln(0) yield undef
+        push @$stack, $x;
+    },
+    'log10' = sub {
+        my $stack = shift;
+        my $x = pop @$stack;
+        $x = eval { log($x); }; # make ln(0) yield undef
+        $x /= log(10) if defined($x);
+        push @$stack, $x;
+    },
+
+    # stealing some names from PostScript...
+    #
+    # a b => b a
+    'exch' = sub {
+        my $stack = shift;
+        return if scalar(@$stack) < 2;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, $b, $a;
+    },
+    # a => a a
+    'dup' = sub {
+        my $stack = shift;
+        return if scalar(@$stack) < 1;
+        my $a = pop @$stack;
+        push @$stack, $a, $a;
+    },
+    # obj_n ... obj_2 obj_1 n => obj_n ... obj_2 obj_1 obj_n
+    'index' = sub {
+        my $stack = shift;
+        my $a = pop @$stack;
+        if(!defined($a) || ($a+0) < 1){
+            push @$stack, undef;
+            return;
+        }
+        push @$stack, $stack->[-($a+0)]; # This pushes undef if $a is greater than the stack size, which is OK
+    },
+);
+
 
 1;
