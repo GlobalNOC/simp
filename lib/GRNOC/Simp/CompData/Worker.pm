@@ -700,18 +700,21 @@ sub _rpn_calc{
         my $a = pop @$stack;
         push @$stack, (defined($a) && defined($b)) ? $a+$b : undef;
     },
+    # minuend subtrahend => difference
     '-' => sub {
         my $stack = shift;
         my $b = pop @$stack;
         my $a = pop @$stack;
         push @$stack, (defined($a) && defined($b)) ? $a-$b : undef;
     },
+    # multiplicand1 multiplicand2 => product
     '*' => sub {
         my $stack = shift;
         my $b = pop @$stack;
         my $a = pop @$stack;
         push @$stack, (defined($a) && defined($b)) ? $a*$b : undef;
     },
+    # dividend divisor => quotient
     '/' => sub {
         my $stack = shift;
         my $b = pop @$stack;
@@ -719,6 +722,7 @@ sub _rpn_calc{
         my $x = eval { $a / $b; }; # make divide by zero yield undef
         push @$stack, (defined($a) && defined($b)) ? $x : undef;
     },
+    # dividend divisor => remainder
     '%' => sub {
         my $stack = shift;
         my $b = pop @$stack;
@@ -726,12 +730,14 @@ sub _rpn_calc{
         my $x = eval { $a % $b; }; # make divide by zero yield undef
         push @$stack, (defined($a) && defined($b)) ? $x : undef;
     },
+    # number => logarithm_base_e
     'ln' => sub {
         my $stack = shift;
         my $x = pop @$stack;
         $x = eval { log($x); }; # make ln(0) yield undef
         push @$stack, $x;
     },
+    # number => logarithm_base_10
     'log10' => sub {
         my $stack = shift;
         my $x = pop @$stack;
@@ -739,12 +745,14 @@ sub _rpn_calc{
         $x /= log(10) if defined($x);
         push @$stack, $x;
     },
+    # number => power
     'exp' => sub {
         my $stack = shift;
         my $x = pop @$stack;
         $x = eval { exp($x); } if defined($x);
         push @$stack, $x;
     },
+    # base exponent => power
     'pow' => sub {
         my $stack = shift;
         my $b = pop @$stack;
@@ -753,8 +761,47 @@ sub _rpn_calc{
         push @$stack, (defined($a) && defined($b)) ? $x : undef;
     },
 
+    # string pattern => match_group_1
+    'match' => sub {
+        my $stack = shift;
+        my $pattern = pop @$stack;
+        my $string = pop @$stack;
+        if($string =~ /$pattern/){
+            push @$stack, $1;
+        }else{
+            push @$stack, undef;
+        }
+    },
+    # string match_pattern replacement_pattern => transformed_string
+    'replace' => sub {
+        my $stack = shift;
+        my $replacement = pop @$stack;
+        my $pattern     = pop @$stack;
+        my $string      = pop @$stack;
+
+        if(!defined($string) || !defined($pattern) || !defined($replacement)){
+            push @$stack, undef;
+            return;
+        }
+
+        $string = Data::Munge::replace($string, $pattern, $replacement);
+        push @$stack, $string;
+    },
+    # string1 string2 => string1string2
+    'concat' => sub {
+        my $stack = shift;
+        my $string2 = pop @$stack;
+        my $string1 = pop @$stack;
+        push @$stack, ($string1 . $string2);
+    },
+
     # stealing some names from PostScript...
     #
+    # a => --
+    'pop' => sub {
+        my $stack = shift;
+        pop @$stack;
+    },
     # a b => b a
     'exch' => sub {
         my $stack = shift;
