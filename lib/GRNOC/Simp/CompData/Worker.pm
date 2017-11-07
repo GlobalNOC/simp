@@ -193,11 +193,11 @@ sub _get{
 
   #--- give up on config object and go direct to xmllib to get proper xpath support
   my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
+  my $xpc = XML::LibXML::XPathContext->new($doc);
 
   #--- get the instance
   my $path = "/config/composite[\@id=\"$composite\"]/instance[\@hostType=\"$hostType\"]";
-  my $ref = $xc->find($path);
+  my $ref = $xpc->find($path);
 
 
   #--- because we have to do things asynchronously, execution from here follows
@@ -236,22 +236,22 @@ sub _get{
 
 sub _do_scans{
   my $self         = shift;
-  my $xrefs        = shift;
-  my $params       = shift;
-  my $results      = shift;
+  my $xrefs        = shift; # top-level XML element for CompData instance
+  my $params       = shift; # parameters to request
+  my $results      = shift; # request-global $results hash
   my $cv           = shift; # assumes that it's been begin()'ed with a callback
 
 
   #--- find the set of required variables
   my $hosts = $params->{'node'}{'value'};
   
-  #--- this function will execute multiple scans in "parallel" using the begin / end apprach
+  #--- this function will execute multiple scans in "parallel" using the begin / end approach
   #--- we use $cv to signal when all those scans are done
   
   #--- give up on config object and go direct to xmllib to get proper xpath support
   #--- these should be moved to the constructor
   my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
+  my $xpc = XML::LibXML::XPathContext->new($doc);
 
   # Make sure several root hashes exist
   foreach my $host (@$hosts){
@@ -264,7 +264,7 @@ sub _do_scans{
   foreach my $instance ($xrefs->get_nodelist){
       my $instance_id = $instance->getAttribute("id");
       #--- get the list of scans to perform
-      my $scanres = $xc->find("./scan",$instance);
+      my $scanres = $xpc->find("./scan",$instance);
       foreach my $scan ($scanres->get_nodelist){
           # example scan:
           # <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.18.*" var="ifAlias" />
@@ -272,7 +272,7 @@ sub _do_scans{
 	  my $oid      = $scan->getAttribute("oid");
 	  my $param_nm = $scan->getAttribute("var");
 	  my $targets;
-	  if(defined $param_nm){
+	  if(defined($param_nm) && defined($params->{$param_nm})){
 	      $targets = $params->{$param_nm}{"value"};
 	  }
 	  $cv->begin;
@@ -332,11 +332,12 @@ sub _scan_cb{
   return ;
 }
 
+# Fetches the host variables and SNMP values for <val> elements
 sub _do_vals{
     my $self         = shift;
-    my $xrefs        = shift;
-    my $params       = shift;
-    my $results      = shift;
+    my $xrefs        = shift; # top-level XML element for CompData instance
+    my $params       = shift; # parameters to request
+    my $results      = shift; # request-global $results hash
     my $cv           = shift; # assumes that it's been begin()'ed with a callback
     
     #--- find the set of required variables
@@ -360,11 +361,11 @@ sub _do_vals{
     #--- give up on config object and go direct to xmllib to get proper xpath support
     #--- these should be moved to the constructor
     my $doc = $self->config->{'doc'};
-    my $xc  = XML::LibXML::XPathContext->new($doc);
+    my $xpc = XML::LibXML::XPathContext->new($doc);
     
     foreach my $instance ($xrefs->get_nodelist){
 	#--- get the list of scans to perform
-	my $valres = $xc->find("./result/val",$instance);
+	my $valres = $xpc->find("./result/val",$instance);
 	foreach my $val ($valres->get_nodelist){
             # The <val> tag can have a couple of different forms:
             #
@@ -520,12 +521,12 @@ sub _val_cb{
   return;
 }
 
-
+# Applies functions to values gathered by _do_vals
 sub _do_functions{
     my $self         = shift;
-    my $xrefs        = shift;
-    my $params       = shift;
-    my $results      = shift;
+    my $xrefs        = shift; # top-level XML element for CompData instance
+    my $params       = shift; # parameters to request
+    my $results      = shift; # request-global $results hash
     my $cv           = shift; # assumes that it's been begin()'ed with a callback
 
     my $xpc = XML::LibXML::XPathContext->new($self->config->{'doc'});
@@ -541,10 +542,11 @@ sub _do_functions{
     $cv->end;
 }
 
+# Run functions for one of the <val>s defined for this instance
 sub _function_one_val{
     my $self     = shift;
-    my $val_name = shift;
-    my $fctns    = shift;
+    my $val_name = shift; # name of the value to apply functions to
+    my $fctns    = shift; # list of <fctn> elements
     my $params   = shift;
     my $results  = shift;
 
