@@ -417,7 +417,6 @@ sub _do_vals{
                 }
             }else{ # pull data from Simp
                 # fetch the scan-variable name to use:
-$self->logger->error("oid = '$oid'");
                 my @oid_parts = split /\./, $oid;
                 my $scan_var_idx = 0;
 
