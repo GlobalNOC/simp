@@ -39,6 +39,8 @@ has client      => ( is => 'rwp' );
 has need_restart => (is => 'rwp',
                     default => 0 );
 
+### Used by _function_one_val
+my %_FUNCTIONS;
 
 ### public methods ###
 sub start {
@@ -191,11 +193,11 @@ sub _get{
 
   #--- give up on config object and go direct to xmllib to get proper xpath support
   my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
+  my $xpc = XML::LibXML::XPathContext->new($doc);
 
   #--- get the instance
   my $path = "/config/composite[\@id=\"$composite\"]/instance[\@hostType=\"$hostType\"]";
-  my $ref = $xc->find($path);
+  my $ref = $xpc->find($path);
 
 
   #--- because we have to do things asynchronously, execution from here follows
@@ -234,35 +236,35 @@ sub _get{
 
 sub _do_scans{
   my $self         = shift;
-  my $xrefs        = shift;
-  my $params       = shift;
-  my $results      = shift;
+  my $xrefs        = shift; # top-level XML element for CompData instance
+  my $params       = shift; # parameters to request
+  my $results      = shift; # request-global $results hash
   my $cv           = shift; # assumes that it's been begin()'ed with a callback
 
 
   #--- find the set of required variables
   my $hosts = $params->{'node'}{'value'};
   
-  #--- this function will execute multiple scans in "parallel" using the begin / end apprach
+  #--- this function will execute multiple scans in "parallel" using the begin / end approach
   #--- we use $cv to signal when all those scans are done
   
   #--- give up on config object and go direct to xmllib to get proper xpath support
   #--- these should be moved to the constructor
   my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
+  my $xpc = XML::LibXML::XPathContext->new($doc);
 
   # Make sure several root hashes exist
   foreach my $host (@$hosts){
       $results->{'scan'}{$host} = {};
       $results->{'scan-match'}{$host} = {};
-      $results{'val'}{$host} = {};
-      $results{'hostvar'}{$host} = {};
+      $results->{'val'}{$host} = {};
+      $results->{'hostvar'}{$host} = {};
   }
  
   foreach my $instance ($xrefs->get_nodelist){
       my $instance_id = $instance->getAttribute("id");
       #--- get the list of scans to perform
-      my $scanres = $xc->find("./scan",$instance);
+      my $scanres = $xpc->find("./scan",$instance);
       foreach my $scan ($scanres->get_nodelist){
           # example scan:
           # <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.18.*" var="ifAlias" />
@@ -270,7 +272,7 @@ sub _do_scans{
 	  my $oid      = $scan->getAttribute("oid");
 	  my $param_nm = $scan->getAttribute("var");
 	  my $targets;
-	  if(defined $param_nm){
+	  if(defined($param_nm) && defined($params->{$param_nm})){
 	      $targets = $params->{$param_nm}{"value"};
 	  }
 	  $cv->begin;
@@ -296,7 +298,7 @@ sub _scan_cb{
   my $oid_pattern = shift;
   my $vals        = shift;
   my $results     = shift;
-  
+
   $oid_pattern =~ s/\*.*$//;
   $oid_pattern =  quotemeta($oid_pattern);
   
@@ -330,11 +332,12 @@ sub _scan_cb{
   return ;
 }
 
+# Fetches the host variables and SNMP values for <val> elements
 sub _do_vals{
     my $self         = shift;
-    my $xrefs        = shift;
-    my $params       = shift;
-    my $results      = shift;
+    my $xrefs        = shift; # top-level XML element for CompData instance
+    my $params       = shift; # parameters to request
+    my $results      = shift; # request-global $results hash
     my $cv           = shift; # assumes that it's been begin()'ed with a callback
     
     #--- find the set of required variables
@@ -358,11 +361,11 @@ sub _do_vals{
     #--- give up on config object and go direct to xmllib to get proper xpath support
     #--- these should be moved to the constructor
     my $doc = $self->config->{'doc'};
-    my $xc  = XML::LibXML::XPathContext->new($doc);
+    my $xpc = XML::LibXML::XPathContext->new($doc);
     
     foreach my $instance ($xrefs->get_nodelist){
 	#--- get the list of scans to perform
-	my $valres = $xc->find("./result/val",$instance);
+	my $valres = $xpc->find("./result/val",$instance);
 	foreach my $val ($valres->get_nodelist){
             # The <val> tag can have a couple of different forms:
             #
@@ -388,14 +391,14 @@ sub _do_vals{
                     next;
                 }
 
-                $val_host = $results->{'val'}{$host};
 
                 if($var eq 'node'){
                     # special case: use the node name instead
                     foreach my $host (@$hosts){
+                        my $val_host = $results->{'val'}{$host};
                         my $scan = $results->{'scan'}{$host};
                         foreach my $scan_var (keys %{$scan}){
-                            foreach my $oid_suffix (@($scan->{$scan_var})){
+                            foreach my $oid_suffix (@{$scan->{$scan_var}}){
                                 $val_host->{$oid_suffix}{$id} = $host;
                             }
                         }
@@ -404,7 +407,8 @@ sub _do_vals{
                 }
 
                 foreach my $host (@$hosts){
-                    $scan_var = $results->{'scan-match'}{$host}{$var};
+                    my $val_host = $results->{'val'}{$host};
+                    my $scan_var = $results->{'scan-match'}{$host}{$var};
 
                     next if !defined($scan_var);
 
@@ -417,11 +421,11 @@ sub _do_vals{
                 my @oid_parts = split /\./, $oid;
                 my $scan_var_idx = 0;
 
-                while ($scan_var_idx < length @oid_parts){
+                while ($scan_var_idx < scalar @oid_parts){
                     last if !($oid_parts[$scan_var_idx] =~ /^[0-9]*$/);
                     $scan_var_idx += 1;
                 }
-                if ($scan_var_idx >= length @oid_parts){
+                if ($scan_var_idx >= scalar @oid_parts){
                     $self->logger->error("no scan-variable name found for ID '$id'");
                     next;
                 }
@@ -517,17 +521,17 @@ sub _val_cb{
   return;
 }
 
-
+# Applies functions to values gathered by _do_vals
 sub _do_functions{
     my $self         = shift;
-    my $xrefs        = shift;
-    my $params       = shift;
-    my $results      = shift;
+    my $xrefs        = shift; # top-level XML element for CompData instance
+    my $params       = shift; # parameters to request
+    my $results      = shift; # request-global $results hash
     my $cv           = shift; # assumes that it's been begin()'ed with a callback
 
     my $xpc = XML::LibXML::XPathContext->new($self->config->{'doc'});
 
-    my $vals = $xpc->find("./result/val", $xref);
+    my $vals = $xpc->find("./result/val", $xrefs->get_nodelist);
     foreach my $val ($vals->get_nodelist){
         my $val_name = $val->getAttribute("id");
         my @fctns    = $xpc->find("./fctn", $val)->get_nodelist;
@@ -538,24 +542,25 @@ sub _do_functions{
     $cv->end;
 }
 
+# Run functions for one of the <val>s defined for this instance
 sub _function_one_val{
     my $self     = shift;
-    my $val_name = shift;
-    my $fctns    = shift;
+    my $val_name = shift; # name of the value to apply functions to
+    my $fctns    = shift; # list of <fctn> elements
     my $params   = shift;
     my $results  = shift;
 
     my $have_run_warning = 0;
 
     # Iterate over all (host, OID suffix) pairs in the retrieved values
-    foreach my $host (keys %($results->{'val'})){
-        foreach my $oid_suffix (keys %($results->{'val'}{$host})){
+    foreach my $host (keys %{$results->{'val'}}){
+        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
             my $val_set = $results->{'val'}{$host}{$oid_suffix};
-            my $val = $val_set{$val_name};
+            my $val = $val_set->{$val_name};
 
             # Apply all functions defined for the value to it, in order:
             foreach my $fctn (@$fctns){
-                my $func_id = $fctn->getAttribute("id");
+                my $func_id = $fctn->getAttribute('name');
                 if (!defined($_FUNCTIONS{$func_id})) {
                     $self->logger->error("Unknown function name \"$func_id\" for val \"$val_name\"!") if !$have_run_warning;
                     $have_run_warning = 1;
@@ -565,7 +570,7 @@ sub _function_one_val{
 
                 # Fetch a commonly-used attribute
                 my $operand = $fctn->getAttribute("value");
-                $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
+                $val = $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
             }
 
             $results->{'final'}{$host}{$oid_suffix}{$val_name} = $val;
@@ -582,7 +587,7 @@ sub _function_one_val{
 # full $results hash, as passed around in this module
 # host name for current value
 #
-my %_FUNCTIONS = (
+%_FUNCTIONS = (
     # For many of these operations, we take the view that
     # (undef op [anything]) should equal undef, hence line 2
     '+' => sub { # addition
@@ -631,7 +636,7 @@ my %_FUNCTIONS = (
     },
     'replace' => sub { # regular-expression replace
         my ($val, $operand, $elem) = @_;
-        my $replace_with = $fctn->getAttribute("with");
+        my $replace_with = $elem->getAttribute("with");
         $val = Data::Munge::replace($val, $operand, $replace_with);
         $val;
     },
