@@ -39,6 +39,8 @@ has client      => ( is => 'rwp' );
 has need_restart => (is => 'rwp',
                     default => 0 );
 
+### Used by _function_one_val
+my %_FUNCTIONS;
 
 ### public methods ###
 sub start {
@@ -255,8 +257,8 @@ sub _do_scans{
   foreach my $host (@$hosts){
       $results->{'scan'}{$host} = {};
       $results->{'scan-match'}{$host} = {};
-      $results{'val'}{$host} = {};
-      $results{'hostvar'}{$host} = {};
+      $results->{'val'}{$host} = {};
+      $results->{'hostvar'}{$host} = {};
   }
  
   foreach my $instance ($xrefs->get_nodelist){
@@ -296,7 +298,7 @@ sub _scan_cb{
   my $oid_pattern = shift;
   my $vals        = shift;
   my $results     = shift;
-  
+
   $oid_pattern =~ s/\*.*$//;
   $oid_pattern =  quotemeta($oid_pattern);
   
@@ -388,14 +390,14 @@ sub _do_vals{
                     next;
                 }
 
-                $val_host = $results->{'val'}{$host};
 
                 if($var eq 'node'){
                     # special case: use the node name instead
                     foreach my $host (@$hosts){
+                        my $val_host = $results->{'val'}{$host};
                         my $scan = $results->{'scan'}{$host};
                         foreach my $scan_var (keys %{$scan}){
-                            foreach my $oid_suffix (@($scan->{$scan_var})){
+                            foreach my $oid_suffix (@{$scan->{$scan_var}}){
                                 $val_host->{$oid_suffix}{$id} = $host;
                             }
                         }
@@ -404,7 +406,8 @@ sub _do_vals{
                 }
 
                 foreach my $host (@$hosts){
-                    $scan_var = $results->{'scan-match'}{$host}{$var};
+                    my $val_host = $results->{'val'}{$host};
+                    my $scan_var = $results->{'scan-match'}{$host}{$var};
 
                     next if !defined($scan_var);
 
@@ -414,14 +417,15 @@ sub _do_vals{
                 }
             }else{ # pull data from Simp
                 # fetch the scan-variable name to use:
+$self->logger->error("oid = '$oid'");
                 my @oid_parts = split /\./, $oid;
                 my $scan_var_idx = 0;
 
-                while ($scan_var_idx < length @oid_parts){
+                while ($scan_var_idx < scalar @oid_parts){
                     last if !($oid_parts[$scan_var_idx] =~ /^[0-9]*$/);
                     $scan_var_idx += 1;
                 }
-                if ($scan_var_idx >= length @oid_parts){
+                if ($scan_var_idx >= scalar @oid_parts){
                     $self->logger->error("no scan-variable name found for ID '$id'");
                     next;
                 }
@@ -527,7 +531,7 @@ sub _do_functions{
 
     my $xpc = XML::LibXML::XPathContext->new($self->config->{'doc'});
 
-    my $vals = $xpc->find("./result/val", $xref);
+    my $vals = $xpc->find("./result/val", $xrefs->get_nodelist);
     foreach my $val ($vals->get_nodelist){
         my $val_name = $val->getAttribute("id");
         my @fctns    = $xpc->find("./fctn", $val)->get_nodelist;
@@ -548,14 +552,14 @@ sub _function_one_val{
     my $have_run_warning = 0;
 
     # Iterate over all (host, OID suffix) pairs in the retrieved values
-    foreach my $host (keys %($results->{'val'})){
-        foreach my $oid_suffix (keys %($results->{'val'}{$host})){
+    foreach my $host (keys %{$results->{'val'}}){
+        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
             my $val_set = $results->{'val'}{$host}{$oid_suffix};
-            my $val = $val_set{$val_name};
+            my $val = $val_set->{$val_name};
 
             # Apply all functions defined for the value to it, in order:
             foreach my $fctn (@$fctns){
-                my $func_id = $fctn->getAttribute("id");
+                my $func_id = $fctn->getAttribute('name');
                 if (!defined($_FUNCTIONS{$func_id})) {
                     $self->logger->error("Unknown function name \"$func_id\" for val \"$val_name\"!") if !$have_run_warning;
                     $have_run_warning = 1;
@@ -565,7 +569,7 @@ sub _function_one_val{
 
                 # Fetch a commonly-used attribute
                 my $operand = $fctn->getAttribute("value");
-                $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
+                $val = $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
             }
 
             $results->{'final'}{$host}{$oid_suffix}{$val_name} = $val;
@@ -582,7 +586,7 @@ sub _function_one_val{
 # full $results hash, as passed around in this module
 # host name for current value
 #
-my %_FUNCTIONS = (
+%_FUNCTIONS = (
     # For many of these operations, we take the view that
     # (undef op [anything]) should equal undef, hence line 2
     '+' => sub { # addition
@@ -631,7 +635,7 @@ my %_FUNCTIONS = (
     },
     'replace' => sub { # regular-expression replace
         my ($val, $operand, $elem) = @_;
-        my $replace_with = $fctn->getAttribute("with");
+        my $replace_with = $elem->getAttribute("with");
         $val = Data::Munge::replace($val, $operand, $replace_with);
         $val;
     },
