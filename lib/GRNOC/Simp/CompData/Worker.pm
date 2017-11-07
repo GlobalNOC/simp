@@ -39,8 +39,8 @@ has client      => ( is => 'rwp' );
 has need_restart => (is => 'rwp',
                     default => 0 );
 
-### Used by _function_one_val
-my %_FUNCTIONS;
+my %_FUNCTIONS; # Used by _function_one_val
+my %_RPN_FUNCS; # Used by _rpn_calc
 
 ### public methods ###
 sub start {
@@ -691,7 +691,8 @@ sub _rpn_calc{
     return pop @stack;
 }
 
-my %_RPN_FUNCS = (
+# Given a stack of arguments, mutate the stack
+%_RPN_FUNCS = (
     # addend1 addend2 => sum
     '+' => sub {
         my $stack = shift;
@@ -711,40 +712,40 @@ my %_RPN_FUNCS = (
         my $a = pop @$stack;
         push @$stack, (defined($a) && defined($b)) ? $a*$b : undef;
     },
-    '/' = sub {
+    '/' => sub {
         my $stack = shift;
         my $b = pop @$stack;
         my $a = pop @$stack;
         my $x = eval { $a / $b; }; # make divide by zero yield undef
         push @$stack, (defined($a) && defined($b)) ? $x : undef;
     },
-    '%' = sub {
+    '%' => sub {
         my $stack = shift;
         my $b = pop @$stack;
         my $a = pop @$stack;
         my $x = eval { $a % $b; }; # make divide by zero yield undef
         push @$stack, (defined($a) && defined($b)) ? $x : undef;
     },
-    'ln' = sub {
+    'ln' => sub {
         my $stack = shift;
         my $x = pop @$stack;
         $x = eval { log($x); }; # make ln(0) yield undef
         push @$stack, $x;
     },
-    'log10' = sub {
+    'log10' => sub {
         my $stack = shift;
         my $x = pop @$stack;
         $x = eval { log($x); }; # make ln(0) yield undef
         $x /= log(10) if defined($x);
         push @$stack, $x;
     },
-    'exp' = sub {
+    'exp' => sub {
         my $stack = shift;
         my $x = pop @$stack;
         $x = eval { exp($x); } if defined($x);
         push @$stack, $x;
     },
-    'pow' = sub {
+    'pow' => sub {
         my $stack = shift;
         my $b = pop @$stack;
         my $a = pop @$stack;
@@ -755,7 +756,7 @@ my %_RPN_FUNCS = (
     # stealing some names from PostScript...
     #
     # a b => b a
-    'exch' = sub {
+    'exch' => sub {
         my $stack = shift;
         return if scalar(@$stack) < 2;
         my $b = pop @$stack;
@@ -763,14 +764,14 @@ my %_RPN_FUNCS = (
         push @$stack, $b, $a;
     },
     # a => a a
-    'dup' = sub {
+    'dup' => sub {
         my $stack = shift;
         return if scalar(@$stack) < 1;
         my $a = pop @$stack;
         push @$stack, $a, $a;
     },
     # obj_n ... obj_2 obj_1 n => obj_n ... obj_2 obj_1 obj_n
-    'index' = sub {
+    'index' => sub {
         my $stack = shift;
         my $a = pop @$stack;
         if(!defined($a) || ($a+0) < 1){
