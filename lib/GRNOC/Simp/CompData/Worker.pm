@@ -9,6 +9,7 @@ use Try::Tiny;
 use Moo;
 use Redis;
 use AnyEvent;
+use GRNOC::Log;
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::RabbitMQ::Client;
@@ -640,7 +641,7 @@ sub _function_one_val{
         $val = Data::Munge::replace($val, $operand, $replace_with);
         $val;
     },
-    'rpn' => _rpn_calc,
+    'rpn' => \&_rpn_calc,
 );
 
 sub _rpn_calc{
@@ -675,11 +676,11 @@ sub _rpn_calc{
             push @stack, $val_set->{substr $token, 1};
         }elsif($token =~ /^\#/){ # host variable
             push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
-        }elsif($token == '@') { # push hostname
+        }elsif($token eq '@'){ # push hostname
             push @stack, $host;
         }else{ # treat as a function
             if (!defined($_RPN_FUNCS{$token})){
-                $self->logger->error("RPN function $token not defined!") if !$func_lookup_errors{$token};
+                GRNOC::Log::log_error("RPN function $token not defined!") if !$func_lookup_errors{$token};
                 $func_lookup_errors{$token} = 1;
                 next;
             }
