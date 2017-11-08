@@ -382,13 +382,13 @@ sub _do_vals{
 	    
 	    if(!defined $id){
 		#--- required data missing
-		$self->logger->error("no ID specified");
+                $self->logger->error('no ID specified in a <val> element');
 		next;
 	    }
 
             if(!defined $oid){ # Use the results of a scan
                 if(!defined $var){
-                    $self->logger->error("no 'var' param specified for ID '$id'");
+                    $self->logger->error("no 'var' param specified for <val id='$id'>");
                     next;
                 }
 
@@ -427,7 +427,7 @@ sub _do_vals{
                     $scan_var_idx += 1;
                 }
                 if ($scan_var_idx >= scalar @oid_parts){
-                    $self->logger->error("no scan-variable name found for ID '$id'");
+                    $self->logger->error("no scan-variable name found for <val id='$id'>");
                     next;
                 }
 
@@ -633,7 +633,7 @@ sub _function_one_val{
         if($val =~ /$operand/){
             return $1;
         }
-        $val; # TODO: is (unchanged $val) or (undef) a better return value in this case?
+        $val;
     },
     'replace' => sub { # regular-expression replace
         my ($val, $operand, $elem) = @_;
@@ -645,7 +645,7 @@ sub _function_one_val{
 );
 
 sub _rpn_calc{
-    my ($val, $operand, $fctn, $val_set, $results, $host) = @_;
+    my ($val, $operand, $fctn_elem, $val_set, $results, $host) = @_;
 
     # As a convenience, we initialize the stack with a copy of $val on it already
     my @stack = ($val);
@@ -662,6 +662,8 @@ sub _rpn_calc{
     }
 
     my %func_lookup_errors;
+    my @prog_copy = @prog;
+    GRNOC::Log::log_debug('RPN Program: ' . Dumper(\@prog_copy));
 
     # Now, go through the program, one token at a time:
     foreach my $token (@prog){
@@ -692,6 +694,10 @@ sub _rpn_calc{
             }
             $_RPN_FUNCS{$token}(\@stack);
         }
+
+        # We copy, as in certain cases Dumper() can affect the elements of values passed to it
+        my @stack_copy = @stack;
+        GRNOC::Log::log_debug("Stack, post token '$token': " . Dumper(\@stack_copy));
     }
 
     # Return the top of the stack
