@@ -654,8 +654,8 @@ sub _rpn_calc{
     # or sequences of non-space chars beginning with a non-quote):
     my @prog;
     my $progtext = $operand;
-    while (length($progtext > 0)){
-        $progtext =~ /^(\s+|[^\'\"][^\s]*|\'([^\\]|\\.)*(\'|\\?$)|\"([^\\]|\\.)*(\"|\\?$))/;
+    while (length($progtext) > 0){
+        $progtext =~ /^(\s+|[^\'\"][^\s]*|\'([^\'\\]|\\.)*(\'|\\?$)|\"([^\"\\]|\\.)*(\"|\\?$))/;
         my $x = $1;
         push @prog, $x if $x !~ /^\s*$/;
         $progtext = substr $progtext, length($x);
@@ -667,7 +667,13 @@ sub _rpn_calc{
     foreach my $token (@prog){
         # Handle some special cases of tokens:
         if($token =~ /^[\'\"]/){ # quoted strings
-            $token =~ s/^[\'\"](([^\\]|\\.)*)[\'\"\\]?$/$1/; # Take off the start and end quotes, handling unterminated strings
+            # Take off the start and end quotes, including
+            # the handling of unterminated strings:
+            if($token =~ /^\"/) {
+                $token =~ s/^\"(([^\"\\]|\\.)*)[\"\\]?$/$1/;
+            }else{
+                $token =~ s/^\'(([^\'\\]|\\.)*)[\'\\]?$/$1/;
+            }
             $token =~ s/\\(.)/$1/g; # unescape escapes
             push @stack, $token;
         }elsif($token =~ /^([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
