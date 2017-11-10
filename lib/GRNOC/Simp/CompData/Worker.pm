@@ -448,6 +448,9 @@ sub _do_vals{
                         push @{$lut{$full_oid}}, [$oid_suffix, $id];
                     }
 
+                    # SimpData does not like it when you call it with an empty oidmatch, so:
+                    next if scalar(@oid_list) <= 0;
+
                     # Now get the data for these OIDs from Simp
                     $cv->begin;
 
