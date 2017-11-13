@@ -535,11 +535,8 @@ sub _do_functions{
     # First off, by default, we pass through the 'time' value, as it has special
     # significance for clients:
     foreach my $host (keys %{$results->{'val'}}){
-        my $val = $results->{'val'}{$host};
-        my $final = $results->{'final'}{$host};
-
-        foreach my $oid_suffix (keys %$val){
-            $final->{$oid_suffix}{'time'} = $val->{$oid_suffix}{'time'};
+        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
+            $results->{'final'}{$host}{$oid_suffix}{'time'} = $results->{'val'}{$host}{$oid_suffix}{'time'};
         }
     }
 
