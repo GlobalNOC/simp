@@ -123,7 +123,7 @@ sub start {
     
     $self->_connect_to_snmp();
 
-    $self->logger->debug($self->worker_name . ' var_hosts: "' . (join '", "', (keys $self->var_hosts)) . '"');
+    $self->logger->debug($self->worker_name . ' var_hosts: "' . (join '", "', (keys %{$self->var_hosts})) . '"');
 
     $self->{'collector_timer'} = AnyEvent->timer( after => 10,
 						  interval => $self->poll_interval,
