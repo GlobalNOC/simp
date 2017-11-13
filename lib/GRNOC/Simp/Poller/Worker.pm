@@ -158,7 +158,7 @@ sub _poll_cb{
 
     if(!defined $data){
 	my $error = $session->error();
-	$self->logger->error("Context ID: " . $context_id);
+	$self->logger->error("Host/Context ID: $host->{'node_name'} " . (defined($context_id) ? $context_id : '[no context ID]'));
 	$self->logger->error("$id failed     $reqstr");
 	$self->logger->error("Error: $error");
 
