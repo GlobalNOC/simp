@@ -123,6 +123,8 @@ sub start {
     
     $self->_connect_to_snmp();
 
+    $self->logger->debug($self->worker_name . ' var_hosts: "' . (join '", "', (keys $self->var_hosts)) . '"');
+
     $self->{'collector_timer'} = AnyEvent->timer( after => 10,
 						  interval => $self->poll_interval,
 						  cb => sub {
@@ -198,6 +200,9 @@ sub _poll_cb{
 	    #$self->logger->error(Dumper($host->{'group'}{$self->group_name}));
 
 	    if($self->var_hosts()->{$host->{'node_name'}} && defined($host->{'host_variable'})){
+
+                $self->logger->debug("Adding host variables for $host->{'node_name'}");
+
 		my %add_values = %{$host->{'host_variable'}};
 		foreach my $name (keys %add_values){
 		    my $sanitized_name = $name;
