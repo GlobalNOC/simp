@@ -6,16 +6,20 @@ License: GRNOC
 Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
 Source0: simp-%{version}.tar.gz
+
 BuildRequires: perl
-Requires: perl-GRNOC-RabbitMQ
-Requires: perl-Moo
+
 Requires: redis
+Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
-Requires: perl-Redis >= 1.991
-Requires: perl-Parallel-ForkManager
-Requires: perl-Try-Tiny
+Requires: perl-GRNOC-RabbitMQ
+Requires: perl-Moo
 Requires: perl-Net-SNMP
+Requires: perl-Parallel-ForkManager
+Requires: perl-Redis >= 1.991
+Requires: perl-Try-Tiny
+
 Provides: perl(GRNOC::Simp::Data)
 Provides: perl(GRNOC::Simp::CompData)
 Provides: perl(GRNOC::Simp::Poller)
