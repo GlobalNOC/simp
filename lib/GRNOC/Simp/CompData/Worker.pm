@@ -4,9 +4,11 @@ use strict;
 use Carp;
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
+use Data::Munge qw();
 use Try::Tiny;
 use Moo;
 use Redis;
+use AnyEvent;
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::RabbitMQ::Client;
@@ -37,6 +39,8 @@ has client      => ( is => 'rwp' );
 has need_restart => (is => 'rwp',
                     default => 0 );
 
+### Used by _function_one_val
+my %_FUNCTIONS;
 
 ### public methods ###
 sub start {
@@ -114,6 +118,11 @@ sub _start {
                                                   callback =>  sub {$self->_get($method_id,@_) },
                                                   description => "retrieve composite simp data of type $method_id, we should add a descr to the config");
 
+      $method->add_input_parameter( name => 'node',
+				    description => 'nodes to retrieve data for',
+				    required => 1,
+				    multiple => 1,
+				    pattern => $GRNOC::WebService::Regex::TEXT);
 
       $method->add_input_parameter( name => 'period',
 				    description => "period of time to request for the data!",
@@ -126,10 +135,11 @@ sub _start {
       my $inputs = $self->config->get($path);
       foreach my $input (@$inputs){
         my $input_id = $input->{'id'};
+        next if ($input_id eq 'node') || ($input_id eq 'period');
         my $required = 0;
         if(defined $input->{'required'}){$required = 1;}
 
-        $method->add_input_parameter( name => "$input_id",
+        $method->add_input_parameter( name => $input_id,
 				      description => "we will add description to the config file later",
 				      required => $required,
 				      multiple => 1,
@@ -166,406 +176,6 @@ sub _ping{
   return gettimeofday();
 }
 
-sub _do_scans{
-  my $self         = shift;
-  my $xrefs        = shift;
-  my $params       = shift;
-  my $results      = shift;
-  my $onComplete   = shift;
-
-
-  #--- find the set of required variables
-  #-- for now hack host as its sorta special
-  my $hosts = $params->{'node'}{'value'};
-  
-
-  #--- this function will execute multiple scans in "parallel" using the begin / end apprach
-  #--- this first call to begin will call the $onComplete function when the number of end calls == number of begin
-  my $cv = AnyEvent->condvar;
-  $cv->begin($onComplete);
-  
-  #--- give up on config object and go direct to xmllib to get proper xpath support
-  #--- these should be moved to the constructor
-  my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
- 
-  foreach my $instance ($xrefs->get_nodelist){
-      my $instance_id = $instance->getAttribute("id");
-      #--- get the list of scans to perform
-      my $scanres = $xc->find("./scan",$instance);
-      foreach my $scan ($scanres->get_nodelist){
-	  my $id      = $scan->getAttribute("id");
-	  my $oid     = $scan->getAttribute("oid");
-	  my $var     = $scan->getAttribute("var");
-	  my $targets;
-	  if(defined $var){
-	      $targets = $params->{$var}{"value"};
-	  }
-	  $cv->begin;
-
-	  $self->client->get(
-	      node => $hosts, 
-	      oidmatch => $oid,
-	      async_callback => sub {
-		  my $data= shift;
-		  $self->_scan_cb($data->{'results'},$hosts,$id,$oid,$targets,$results); 
-		  $cv->end;
-	      } );
-      }
-  }
-  $cv->end; 
-  
-  
-}
-sub _scan_cb{
-  my $self        = shift;
-  my $data        = shift;
-  my $hosts       = shift;
-  my $id          = shift;
-  my $oid_pattern = shift;
-  my $vals        = shift;
-  my $results     = shift;
-  
-  $oid_pattern  =~s/\*//;
-  $oid_pattern = quotemeta($oid_pattern);
-  
-  foreach my $host (@$hosts){
-      foreach my $oid (keys %{$data->{$host}}){
-	  
-	  my $base_value = $data->{$host}{$oid}{'value'};
-	  
-          # strip out the wildcard part of the oid
-	  $oid =~ s/$oid_pattern//;
-	  
-          #--- return only those entries matching specified values
-	  if(defined $vals){
-	      foreach my $val (@$vals){
-		  if($base_value =~ /$val/){
-		      $results->{$host}{$id}{$base_value} = $oid;
-		  }
-	      }
-	  }
-          #--- no val specified, return all
-	  else{
-	      $results->{$host}{$id}{$base_value} = $oid;
-	  }
-      }
-  }
-  
-  return ;
-}
-
-sub _do_vals{
-    my $self         = shift;
-    my $xrefs        = shift;
-    my $params       = shift;
-    my $results      = shift;
-    my $onComplete   = shift;
-    
-    #--- find the set of required variables
-    #-- for now hack host as its sorta special
-    my $hosts = $params->{'node'}{'value'};
-    
-    
-    #--- this function will execute multiple gets in "parallel" using the begin / end apprach
-    #--- this first call to begin will call the $onComplete function when the number of end calls == number of begin
-    my $cv = AnyEvent->condvar;
-    $cv->begin($onComplete);
-    
-    #--- give up on config object and go direct to xmllib to get proper xpath support
-    #--- these should be moved to the constructor
-    my $doc = $self->config->{'doc'};
-    my $xc  = XML::LibXML::XPathContext->new($doc);
-    
-    foreach my $instance ($xrefs->get_nodelist){
-	#--- get the list of scans to perform
-	my $valres = $xc->find("./result/val",$instance);
-	foreach my $val ($valres->get_nodelist){
-	    my $id      = $val->getAttribute("id");
-	    my $var     = $val->getAttribute("var");
-	    my $oid     = $val->getAttribute("oid");
-	    my $type    = $val->getAttribute("type");
-	    
-	    
-	    if(!defined $var || !defined $id){
-		#--- required data missing
-		$self->logger->error("NO VAR OR ID Specified");
-		next;
-	    }
-	    
-	    if(!defined $oid){
-		$self->logger->error("NO OID Specified! Just appending vars!");
-		my %data;
-		foreach my $host(@$hosts){
-		    foreach my $key (keys %{$results->{$host}{$var}}){
-			$self->logger->error("Processing ID: " . $id . " with VAR: " . $var . " with key: " . $key . " and value: " . $results->{$host}{$var}{$key});
-
-			if(!defined($results->{'final'}{$host}{$key})){
-			    $results->{'final'}{$host}{$key} = {};
-			}
-			
-			
-
-			$self->_do_functions(values => [$results->{$host}{$var}{$key}],
-					     var => $var,
-					     xpath => $val,
-					     results => $results->{'final'}{$host}{$key},
-					     id => $id);
-			#$results->{'final'}{$host}{$key}{$id} = $self->_do_functions( value => $results->{$host}{$var}{$key},
-			#							      xpath => $xref, 
-			#							      results => $results->{'final'}{$host}{$key}{$id});
-		    }
-		}
-		next;
-	    }
-	    
-	    #--- we need pull data from simp 
-	    foreach my $host(@$hosts){
-		my @matches;
-		my @hostarray;
-		my %lut;
-		
-		#--- each host gets its own array of match patterns
-		#--- as thse are very specific
-
-		my $ref = $results->{$host}{$var};
-		push(@hostarray,$host);
-		if(scalar(keys %{$ref}) == 1){
-		    
-		    foreach my $key (keys %{$ref}){
-			my $val = $ref->{$key};
-			my $match = $oid;
-			$match =~ s/$var/$val/;
-			$lut{$match} = $key;
-			push(@matches,$match);
-		    }
-		    
-		    #if there are no matches for this host
-		    #just go on to the next one!
-		    next if(scalar(@matches) <= 0);
-		    
-		    #--- send the array of matches to simp
-		    $cv->begin;
-		    
-		    if(defined $type && $type eq "rate"){
-			$self->client->get_rate(
-			    node => \@hostarray,
-			    period => $params->{'period'}{'value'},
-			    oidmatch => \@matches,
-			    async_callback =>  sub {
-				my $data= shift;
-				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
-				$cv->end;
-			    } );
-			
-			
-		    }else{
-			$self->client->get(
-			    node => \@hostarray, 
-			    oidmatch => \@matches,
-			    async_callback =>  sub {
-				my $data= shift; 
-				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val); 
-				$cv->end;
-			    } );      
-			
-		    }
-		}else{
-		    #do an optimized search!
-		    my $match = $oid;
-		    $match =~ s/$var/\*/;
-		    #--- send the array of matches to simp
-                    $cv->begin;
-
-		    foreach my $key (keys %{$ref}){
-                        my $val = $ref->{$key};
-                        my $new_match = $oid;
-                        $new_match =~ s/$var/$val/;
-                        $lut{$new_match} = $key;
-                    }
-
-                    if(defined $type && $type eq "rate"){
-			$self->logger->error("Asking SIMP for rate: " . Dumper(\@hostarray) . " for Match: " . $match);
-			$self->client->get_rate(
-                            node => \@hostarray,
-			    period => $params->{'period'}{'value'},
-                            oidmatch => $match,
-			    async_callback =>  sub {
-				my $data= shift;
-				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
-				$cv->end;
-			    } );
-
-		    }else{
-			$self->logger->error("Asking SIMP for: " . Dumper(\@hostarray) . " for Match: " . $match);
-			$self->client->get(
-                            node => \@hostarray,
-                            oidmatch => $match,
-			    async_callback =>  sub {
-				my $data= shift;
-				$self->_val_cb($data->{'results'},$results,$host,$id,\%lut,$val);
-				$cv->end;
-			    } );
-		    }
-		}
-	    } 
-	}
-    }
-    $cv->end; 
-}
-
-sub _val_cb{
-  my $self        = shift;
-  my $data        = shift;
-  my $results     = shift;
-  my $hosts       = shift;
-  my $id          = shift;
-  my $lut         = shift;
-  my $xref        = shift;
-
-  my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
-
-  my %groups;
-  foreach my $host (keys %$data){    
-    foreach my $oid (keys %{$data->{$host}}){
-	my $val = $data->{$host}{$oid}{'value'};
-		
-	my $var = $lut->{$oid};
-	if(!defined($var)){
-	    #well shoot its not a direct match... so there is the possiblity we have additional datas!
-	    foreach my $key (keys (%{$lut})){
-		if($oid =~ /$key\./){
-		    #we found it!
-		    $var = $lut->{$key};
-		}
-	    }
-	}
-
-	if(!defined($var)){
-	    next;
-	}
-
-	if(!defined($results->{'final'}{$host}{$var}{'time'})){
-	    $results->{'final'}{$host}{$var}{'time'} = $data->{$host}{$oid}{'time'};
-	}
-
-	if(!defined($groups{$var})){
-	    $groups{$var} = ();
-	}
-
-	push(@{$groups{$var}}, $val);
-
-    }
-
-    foreach my $group (keys (%groups)){
-	$self->_do_functions(values => $groups{$group},
-			     xpath => $xref,
-			     results => $results->{'final'}{$host}{$group},
-			     id => $id);
-    }
-    
-  }
-  return;
-}
-
-sub _do_functions{
-    my $self = shift;
-    my %params = @_;
-
-    my $vals = $params{'values'};
-    my $var = $params{'var'};
-    my $xref = $params{'xpath'};
-    my $results = $params{'results'};
-    my $id = $params{'id'};
-
-    my $doc = $self->config->{'doc'};
-    my $xc  = XML::LibXML::XPathContext->new($doc);
-    
-    my $fctns = $xc->find("./fctn",$xref);
-    foreach my $fctn ($fctns->get_nodelist){
-	my $name      = $fctn->getAttribute("name");
-	my $operand     = $fctn->getAttribute("value");
-	
-	if($name eq "max" || $name eq "min" || $name eq "sum"){
-
-	    my $new_val;
-	    if($name eq 'sum'){
-		$new_val = 0;
-		foreach my $val (@$vals){
-		    $new_val += $val;
-		}
-	    }elsif($name eq 'min'){
-		foreach my $val (@$vals){
-		    if(!defined($new_val)){
-			$new_val = $val;
-		    }
-		    if($new_val > $val){
-			$new_val = $val;
-		    }
-		}
-	    }elsif($name eq 'max'){
-		foreach my $val (@$vals){
-		    if(!defined($new_val)){
-                        $new_val = $val;
-                    }
-                    if($new_val > $val){
-                        $new_val = $val;
-                    }
-		}
-	    }else{
-		$self->logger->error("Unknown consolidation function: $name");
-	    }
-	    $vals = [$new_val];
-	}else{
-
-	    foreach my $val (@$vals){
-
-                next if !defined($val); # assume we should have that `undef <op> anything == undef`
-		
-		if($name eq "/"){
-		    #not supported in ARRAY FORM
-		    #--- unary divide operator
-		    $val = $val / $operand;
-		}elsif($name eq "*"){
-		    #--- unary multiply operator
-		    $val = $val * $operand;
-		}elsif($name eq "+"){
-		    #--- unary addition operator
-		    $val = $val + $operand;
-		}elsif($name eq "-"){
-		    #--- unary subtraction operator
-		    $val = $val - $operand;
-		}elsif($name eq "%"){
-		    #--- unary modulo operator
-		    $val = $val % $operand;
-		}elsif($name eq "ln"){
-		    #--- base-e logarithm
-                    $val = eval { log(val); }; # if val==0, we want the result to be undef, so this works just fine
-		}elsif($name eq "log10"){
-		    #--- base-10 logarithm
-                    $val = eval { log(val); }; # see ln
-                    $val /= log(10) if defined($val);
-		}elsif($name eq "regexp"){
-		    $val =~ /$operand/;
-		    $val = $1;
-		}elsif($name eq "replace"){
-		    my $replace_with = $fctn->getAttribute("with");
-		    $operand =~ s/$var/$val/;
-		    $replace_with =~ s/$var/$val/;
-		    $val =~ s/$operand/$replace_with/;
-		}else{
-		    $self->logger->error("Unknown function: $name");
-		}
-	    }
-	}
-    }
-
-    $results->{$id} = $vals->[0];
-
-}
-
-
 sub _get{
   my $self      = shift;
   my $composite = shift;
@@ -576,39 +186,464 @@ sub _get{
       $params->{'period'}{'value'} = 60;
   }
 
-  my %results;  
+  my %results;
 
   #--- figure out hostType
   my $hostType = "default";
 
   #--- give up on config object and go direct to xmllib to get proper xpath support
   my $doc = $self->config->{'doc'};
-  my $xc  = XML::LibXML::XPathContext->new($doc);
+  my $xpc = XML::LibXML::XPathContext->new($doc);
 
   #--- get the instance
   my $path = "/config/composite[\@id=\"$composite\"]/instance[\@hostType=\"$hostType\"]";
-  my $ref = $xc->find($path);
+  my $ref = $xpc->find($path);
 
 
-  #--- because we have to do things asyncronously, execution from here follows a nested set of callbacks basically
-  #--- _do_scans -> _do_vals -> success
-  #---   \->_scan_cb    \->_val_cb 
-  #--- results are accumulated in $results{'final'} 
+  #--- because we have to do things asynchronously, execution from here follows
+  #--- a series of callbacks, tied together using the $cv[*] condition variables:
+  #--- _do_scans       -> _do_vals       -> _do_functions -> success
+  #---     \->_scan_cb      | \->_val_cb
+  #---                      \->_hostvar_cb
+
+  # Data is accumulated in the %results hash, which has the following structure:
+  #
+  # $results{'scan'}{$node}{$var_name} = [ list of OID suffixes ]
+  #    * The results from the scan phase (_do_scans and _scan_cb)
+  # $results{'scan-match'}{$node}{$var_name}{$oid_suffix} = $val
+  #    * Mapping from (scan-variable name, OID suffix) to value at OID
+  # $results{'val'}{$host}{$oid_suffix}{$var_name} = $val
+  #    * The results from the get-values phase (_do_vals and _val_cb)
+  # $results{'hostvar'}{$host}{$hostvar_name} = $val
+  #    * The host variables (_do_vals and _hostvar_cb)
+  # $results{'final'}{$host}{$oid_suffix}{$var_name} = $val
+  #    * The results from the compute-functions phase (_do_functions);
+  #      $results{'final'} is passed back to the caller
+
   my $success_callback = $rpc_ref->{'success_callback'};
 
 
-  my $onSuccess = sub { my $cv = shift;
+  my @cv = map { AnyEvent->condvar; } (0..3);
 
-			\&$success_callback($results{'final'});
-  };
-  $self->_do_scans(
-      $ref,
-      $params,
-      \%results,
-      sub {
-	  $self->_do_vals($ref,$params,\%results,$onSuccess);
-      });
-  
+  $cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });
+  $cv[1]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[2]); });
+  $cv[2]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[3]); });
+  $cv[3]->begin(sub { \&$success_callback($results{'final'}); });
+
+  # Start off the pipeline:
+  $cv[0]->end;
 }
+
+sub _do_scans{
+  my $self         = shift;
+  my $xrefs        = shift; # top-level XML element for CompData instance
+  my $params       = shift; # parameters to request
+  my $results      = shift; # request-global $results hash
+  my $cv           = shift; # assumes that it's been begin()'ed with a callback
+
+
+  #--- find the set of required variables
+  my $hosts = $params->{'node'}{'value'};
+  
+  #--- this function will execute multiple scans in "parallel" using the begin / end approach
+  #--- we use $cv to signal when all those scans are done
+  
+  #--- give up on config object and go direct to xmllib to get proper xpath support
+  #--- these should be moved to the constructor
+  my $doc = $self->config->{'doc'};
+  my $xpc = XML::LibXML::XPathContext->new($doc);
+
+  # Make sure several root hashes exist
+  foreach my $host (@$hosts){
+      $results->{'scan'}{$host} = {};
+      $results->{'scan-match'}{$host} = {};
+      $results->{'val'}{$host} = {};
+      $results->{'hostvar'}{$host} = {};
+  }
+ 
+  foreach my $instance ($xrefs->get_nodelist){
+      my $instance_id = $instance->getAttribute("id");
+      #--- get the list of scans to perform
+      my $scanres = $xpc->find("./scan",$instance);
+      foreach my $scan ($scanres->get_nodelist){
+          # example scan:
+          # <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.18.*" var="ifAlias" />
+	  my $var_name = $scan->getAttribute("id");
+	  my $oid      = $scan->getAttribute("oid");
+	  my $param_nm = $scan->getAttribute("var");
+	  my $targets;
+	  if(defined($param_nm) && defined($params->{$param_nm})){
+	      $targets = $params->{$param_nm}{"value"};
+	  }
+	  $cv->begin;
+
+	  $self->client->get(
+	      node => $hosts, 
+	      oidmatch => $oid,
+	      async_callback => sub {
+		  my $data = shift;
+		  $self->_scan_cb($data->{'results'},$hosts,$var_name,$oid,$targets,$results); 
+		  $cv->end;
+	      } );
+      }
+  }
+  $cv->end;
+}
+
+sub _scan_cb{
+  my $self        = shift;
+  my $data        = shift;
+  my $hosts       = shift;
+  my $var_name    = shift;
+  my $oid_pattern = shift;
+  my $vals        = shift;
+  my $results     = shift;
+
+  $oid_pattern =~ s/\*.*$//;
+  $oid_pattern =  quotemeta($oid_pattern);
+  
+  foreach my $host (@$hosts){
+
+      my @oid_suffixes;
+
+      # return only those entries matching specified values, if values are specified
+      my %val_matches;
+      my $use_val_matches = 0;
+      if(defined($vals) && (scalar(@$vals) > 0)){
+          $use_val_matches = 1;
+          %val_matches = map { $_ => 1 } @$vals;
+      }
+
+      foreach my $oid (keys %{$data->{$host}}){
+	  my $base_value = $data->{$host}{$oid}{'value'};
+
+          # strip out the wildcard part of the oid
+	  $oid =~ s/^$oid_pattern//;
+
+          if((!$use_val_matches) || $val_matches{$base_value}){
+              push @oid_suffixes, $oid;
+              $results->{'scan-match'}{$host}{$var_name}{$oid} = $base_value;
+          }
+      }
+
+      $results->{'scan'}{$host}{$var_name} = \@oid_suffixes;
+  }
+  
+  return ;
+}
+
+# Fetches the host variables and SNMP values for <val> elements
+sub _do_vals{
+    my $self         = shift;
+    my $xrefs        = shift; # top-level XML element for CompData instance
+    my $params       = shift; # parameters to request
+    my $results      = shift; # request-global $results hash
+    my $cv           = shift; # assumes that it's been begin()'ed with a callback
+    
+    #--- find the set of required variables
+    my $hosts = $params->{'node'}{'value'};
+    
+    #--- this function will execute multiple gets in "parallel" using the begin / end apprach
+    #--- we use $cv to signal when all those gets are done
+
+    # Get host variables
+    $cv->begin;
+    $self->client->get(
+        node           => $hosts,
+        oidmatch       => 'vars.*',
+        async_callback => sub {
+            my $data = shift;
+            $self->_hostvar_cb($data->{'results'}, $results);
+            $cv->end;
+        },
+    );
+
+    #--- give up on config object and go direct to xmllib to get proper xpath support
+    #--- these should be moved to the constructor
+    my $doc = $self->config->{'doc'};
+    my $xpc = XML::LibXML::XPathContext->new($doc);
+    
+    foreach my $instance ($xrefs->get_nodelist){
+	#--- get the list of scans to perform
+	my $valres = $xpc->find("./result/val",$instance);
+	foreach my $val ($valres->get_nodelist){
+            # The <val> tag can have a couple of different forms:
+            #
+            # <val id="var_name" var="scan_var_name">
+            #     - use a value from the scan phase
+            # <val id="var_name" type="rate" oid="1.2.3.4.scan_var_name">
+            #     - use OID suffixes from the scan phase, and lookup other OIDs,
+            #       optionally doing a rate calculation
+	    my $id      = $val->getAttribute("id");
+	    my $var     = $val->getAttribute("var");
+	    my $oid     = $val->getAttribute("oid");
+	    my $type    = $val->getAttribute("type");
+	    
+	    if(!defined $id){
+		#--- required data missing
+		$self->logger->error("no ID specified");
+		next;
+	    }
+
+            if(!defined $oid){ # Use the results of a scan
+                if(!defined $var){
+                    $self->logger->error("no 'var' param specified for ID '$id'");
+                    next;
+                }
+
+
+                if($var eq 'node'){
+                    # special case: use the node name instead
+                    foreach my $host (@$hosts){
+                        my $val_host = $results->{'val'}{$host};
+                        my $scan = $results->{'scan'}{$host};
+                        foreach my $scan_var (keys %{$scan}){
+                            foreach my $oid_suffix (@{$scan->{$scan_var}}){
+                                $val_host->{$oid_suffix}{$id} = $host;
+                            }
+                        }
+                    }
+                    next;
+                }
+
+                foreach my $host (@$hosts){
+                    my $val_host = $results->{'val'}{$host};
+                    my $scan_var = $results->{'scan-match'}{$host}{$var};
+
+                    next if !defined($scan_var);
+
+                    foreach my $oid_suffix (keys %$scan_var){
+                        $val_host->{$oid_suffix}{$id} = $scan_var->{$oid_suffix};
+                    }
+                }
+            }else{ # pull data from Simp
+                # fetch the scan-variable name to use:
+                my @oid_parts = split /\./, $oid;
+                my $scan_var_idx = 0;
+
+                while ($scan_var_idx < scalar @oid_parts){
+                    last if !($oid_parts[$scan_var_idx] =~ /^[0-9]*$/);
+                    $scan_var_idx += 1;
+                }
+                if ($scan_var_idx >= scalar @oid_parts){
+                    $self->logger->error("no scan-variable name found for ID '$id'");
+                    next;
+                }
+
+                my $scan_var_name = $oid_parts[$scan_var_idx];
+
+                foreach my $host (@$hosts) {
+                    my $oid_suffixes = $results->{'scan'}{$host}{$scan_var_name};
+                    next if !defined($oid_suffixes); # Make sure there's stuff to iterate over
+
+                    my %lut; # look-up table from (full OID) to list of (OID suffix, variable name) pairs
+                    my @oid_list;
+
+                    foreach my $oid_suffix (@$oid_suffixes){
+                        # re-use @oid_parts to construct the full OID to look for
+                        $oid_parts[$scan_var_idx] = $oid_suffix;
+                        my $full_oid = join '.', @oid_parts;
+
+                        push @oid_list, $full_oid;
+                        push @{$lut{$full_oid}}, [$oid_suffix, $id];
+                    }
+
+                    # SimpData does not like it when you call it with an empty oidmatch, so:
+                    next if scalar(@oid_list) <= 0;
+
+                    # Now get the data for these OIDs from Simp
+                    $cv->begin;
+
+                    if(defined($type) && $type eq 'rate'){
+                        $self->client->get_rate(
+                            node     => [$host],
+                            period   => $params->{'period'}{'value'},
+                            oidmatch => \@oid_list,
+                            async_callback => sub {
+                                my $data = shift;
+				$self->_val_cb($data->{'results'},$results,$host,\%lut);
+				$cv->end;
+                            }
+                        );
+                    }else{
+                        $self->client->get(
+                            node     => [$host],
+                            oidmatch => \@oid_list,
+                            async_callback => sub {
+                                my $data = shift;
+				$self->_val_cb($data->{'results'},$results,$host,\%lut);
+				$cv->end;
+                            }
+                        );
+                    }
+                }
+            }
+	}
+    }
+    $cv->end; 
+}
+
+sub _hostvar_cb{
+  my $self    = shift;
+  my $data    = shift;
+  my $results = shift;
+
+  foreach my $host (keys %$data){
+      foreach my $oid (keys %{$data->{$host}}){
+          my $val = $data->{$host}{$oid}{'value'};
+          $oid =~ s/^vars\.//;
+          $results->{'hostvar'}{$host}{$oid} = $val;
+      }
+  }
+}
+
+sub _val_cb{
+  my $self        = shift;
+  my $data        = shift;
+  my $results     = shift;
+  my $host        = shift;
+  my $lut         = shift;
+
+  return if !defined($data->{$host});
+
+  foreach my $oid (keys %{$data->{$host}}){
+      my $val      = $data->{$host}{$oid}{'value'};
+      my $val_time = $data->{$host}{$oid}{'time'};
+
+      my $indices = $lut->{$oid};
+      next if !defined($indices);
+
+      foreach my $index (@$indices){
+          $results->{'val'}{$host}{$index->[0]}{$index->[1]} = $val;
+          if(!defined($results->{'val'}{$host}{$index->[0]}{'time'})){
+              $results->{'val'}{$host}{$index->[0]}{'time'} = $val_time;
+          }
+      }
+  }
+
+  return;
+}
+
+# Applies functions to values gathered by _do_vals
+sub _do_functions{
+    my $self         = shift;
+    my $xrefs        = shift; # top-level XML element for CompData instance
+    my $params       = shift; # parameters to request
+    my $results      = shift; # request-global $results hash
+    my $cv           = shift; # assumes that it's been begin()'ed with a callback
+
+    my $xpc = XML::LibXML::XPathContext->new($self->config->{'doc'});
+
+    my $vals = $xpc->find("./result/val", $xrefs->get_nodelist);
+    foreach my $val ($vals->get_nodelist){
+        my $val_name = $val->getAttribute("id");
+        my @fctns    = $xpc->find("./fctn", $val)->get_nodelist;
+
+        $self->_function_one_val($val_name, \@fctns, $params, $results);
+    }
+
+    $cv->end;
+}
+
+# Run functions for one of the <val>s defined for this instance
+sub _function_one_val{
+    my $self     = shift;
+    my $val_name = shift; # name of the value to apply functions to
+    my $fctns    = shift; # list of <fctn> elements
+    my $params   = shift;
+    my $results  = shift;
+
+    my $have_run_warning = 0;
+
+    # Iterate over all (host, OID suffix) pairs in the retrieved values
+    foreach my $host (keys %{$results->{'val'}}){
+        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
+            my $val_set = $results->{'val'}{$host}{$oid_suffix};
+            my $val = $val_set->{$val_name};
+
+            # Apply all functions defined for the value to it, in order:
+            foreach my $fctn (@$fctns){
+                my $func_id = $fctn->getAttribute('name');
+                if (!defined($_FUNCTIONS{$func_id})) {
+                    $self->logger->error("Unknown function name \"$func_id\" for val \"$val_name\"!") if !$have_run_warning;
+                    $have_run_warning = 1;
+                    $val = undef;
+                    last;
+                }
+
+                # Fetch a commonly-used attribute
+                my $operand = $fctn->getAttribute("value");
+                $val = $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
+            }
+
+            $results->{'final'}{$host}{$oid_suffix}{$val_name} = $val;
+        }
+    }
+}
+
+# These functions are called from _function_one_val with several arguments:
+#
+# value, as computed to this point
+# default operand attribute for function
+# XML <fctn> element associated with this invocation of the function
+# hash of values for this (host, OID suffix) pair
+# full $results hash, as passed around in this module
+# host name for current value
+#
+%_FUNCTIONS = (
+    # For many of these operations, we take the view that
+    # (undef op [anything]) should equal undef, hence line 2
+    '+' => sub { # addition
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val + $operand;
+    },
+    '-' => sub { # subtraction
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val - $operand;
+    },
+    '*' => sub { # multiplication
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val * $operand;
+    },
+    '/' => sub { # division
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val / $operand;
+    },
+    '%' => sub { # modulus
+        my ($val, $operand) = @_;
+        return $val if !defined($val);
+        $val % $operand;
+    },
+    'ln' => sub { # base-e logarithm
+        my $val = shift;
+        return $val if !defined($val);
+        eval { log($val); }; # if val==0, we want the result to be undef, so this works just fine
+    },
+    'log10' => sub { # base-10 logarithm
+        my $val = shift;
+        return $val if !defined($val);
+        $val = eval { log($val); }; # see ln
+        $val /= log(10) if defined($val);
+        $val;
+    },
+    'regexp' => sub { # regular-expression match and extract first group
+        my ($val, $operand) = @_;
+        if($val =~ /$operand/){
+            return $1;
+        }
+        $val; # TODO: is (unchanged $val) or (undef) a better return value in this case?
+    },
+    'replace' => sub { # regular-expression replace
+        my ($val, $operand, $elem) = @_;
+        my $replace_with = $elem->getAttribute("with");
+        $val = Data::Munge::replace($val, $operand, $replace_with);
+        $val;
+    },
+);
+
 
 1;
