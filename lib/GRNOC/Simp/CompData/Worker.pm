@@ -9,6 +9,7 @@ use Try::Tiny;
 use Moo;
 use Redis;
 use AnyEvent;
+use GRNOC::Log;
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::RabbitMQ::Client;
@@ -39,8 +40,8 @@ has client      => ( is => 'rwp' );
 has need_restart => (is => 'rwp',
                     default => 0 );
 
-### Used by _function_one_val
-my %_FUNCTIONS;
+my %_FUNCTIONS; # Used by _function_one_val
+my %_RPN_FUNCS; # Used by _rpn_calc
 
 ### public methods ###
 sub start {
@@ -381,13 +382,13 @@ sub _do_vals{
 	    
 	    if(!defined $id){
 		#--- required data missing
-		$self->logger->error("no ID specified");
+                $self->logger->error('no ID specified in a <val> element');
 		next;
 	    }
 
             if(!defined $oid){ # Use the results of a scan
                 if(!defined $var){
-                    $self->logger->error("no 'var' param specified for ID '$id'");
+                    $self->logger->error("no 'var' param specified for <val id='$id'>");
                     next;
                 }
 
@@ -426,7 +427,7 @@ sub _do_vals{
                     $scan_var_idx += 1;
                 }
                 if ($scan_var_idx >= scalar @oid_parts){
-                    $self->logger->error("no scan-variable name found for ID '$id'");
+                    $self->logger->error("no scan-variable name found for <val id='$id'>");
                     next;
                 }
 
@@ -635,13 +636,212 @@ sub _function_one_val{
         if($val =~ /$operand/){
             return $1;
         }
-        $val; # TODO: is (unchanged $val) or (undef) a better return value in this case?
+        $val;
     },
     'replace' => sub { # regular-expression replace
         my ($val, $operand, $elem) = @_;
         my $replace_with = $elem->getAttribute("with");
         $val = Data::Munge::replace($val, $operand, $replace_with);
         $val;
+    },
+    'rpn' => \&_rpn_calc,
+);
+
+sub _rpn_calc{
+    my ($val, $operand, $fctn_elem, $val_set, $results, $host) = @_;
+
+    # As a convenience, we initialize the stack with a copy of $val on it already
+    my @stack = ($val);
+
+    # Split the RPN program's text into tokens (quoted strings,
+    # or sequences of non-space chars beginning with a non-quote):
+    my @prog;
+    my $progtext = $operand;
+    while (length($progtext) > 0){
+        $progtext =~ /^(\s+|[^\'\"][^\s]*|\'([^\'\\]|\\.)*(\'|\\?$)|\"([^\"\\]|\\.)*(\"|\\?$))/;
+        my $x = $1;
+        push @prog, $x if $x !~ /^\s*$/;
+        $progtext = substr $progtext, length($x);
+    }
+
+    my %func_lookup_errors;
+    my @prog_copy = @prog;
+    GRNOC::Log::log_debug('RPN Program: ' . Dumper(\@prog_copy));
+
+    # Now, go through the program, one token at a time:
+    foreach my $token (@prog){
+        # Handle some special cases of tokens:
+        if($token =~ /^[\'\"]/){ # quoted strings
+            # Take off the start and end quotes, including
+            # the handling of unterminated strings:
+            if($token =~ /^\"/) {
+                $token =~ s/^\"(([^\"\\]|\\.)*)[\"\\]?$/$1/;
+            }else{
+                $token =~ s/^\'(([^\'\\]|\\.)*)[\'\\]?$/$1/;
+            }
+            $token =~ s/\\(.)/$1/g; # unescape escapes
+            push @stack, $token;
+        }elsif($token =~ /^([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
+            push @stack, ($token + 0);
+        }elsif($token =~ /^\$/){ # name of a value associated with the current (host, OID suffix)
+            push @stack, $val_set->{substr $token, 1};
+        }elsif($token =~ /^\#/){ # host variable
+            push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
+        }elsif($token eq '@'){ # push hostname
+            push @stack, $host;
+        }else{ # treat as a function
+            if (!defined($_RPN_FUNCS{$token})){
+                GRNOC::Log::log_error("RPN function $token not defined!") if !$func_lookup_errors{$token};
+                $func_lookup_errors{$token} = 1;
+                next;
+            }
+            $_RPN_FUNCS{$token}(\@stack);
+        }
+
+        # We copy, as in certain cases Dumper() can affect the elements of values passed to it
+        my @stack_copy = @stack;
+        GRNOC::Log::log_debug("Stack, post token '$token': " . Dumper(\@stack_copy));
+    }
+
+    # Return the top of the stack
+    return pop @stack;
+}
+
+# Given a stack of arguments, mutate the stack
+%_RPN_FUNCS = (
+    # addend1 addend2 => sum
+    '+' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, (defined($a) && defined($b)) ? $a+$b : undef;
+    },
+    # minuend subtrahend => difference
+    '-' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, (defined($a) && defined($b)) ? $a-$b : undef;
+    },
+    # multiplicand1 multiplicand2 => product
+    '*' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, (defined($a) && defined($b)) ? $a*$b : undef;
+    },
+    # dividend divisor => quotient
+    '/' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $x = eval { $a / $b; }; # make divide by zero yield undef
+        push @$stack, (defined($a) && defined($b)) ? $x : undef;
+    },
+    # dividend divisor => remainder
+    '%' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $x = eval { $a % $b; }; # make divide by zero yield undef
+        push @$stack, (defined($a) && defined($b)) ? $x : undef;
+    },
+    # number => logarithm_base_e
+    'ln' => sub {
+        my $stack = shift;
+        my $x = pop @$stack;
+        $x = eval { log($x); }; # make ln(0) yield undef
+        push @$stack, $x;
+    },
+    # number => logarithm_base_10
+    'log10' => sub {
+        my $stack = shift;
+        my $x = pop @$stack;
+        $x = eval { log($x); }; # make ln(0) yield undef
+        $x /= log(10) if defined($x);
+        push @$stack, $x;
+    },
+    # number => power
+    'exp' => sub {
+        my $stack = shift;
+        my $x = pop @$stack;
+        $x = eval { exp($x); } if defined($x);
+        push @$stack, $x;
+    },
+    # base exponent => power
+    'pow' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $x = eval { $a ** $b; };
+        push @$stack, (defined($a) && defined($b)) ? $x : undef;
+    },
+
+    # string pattern => match_group_1
+    'match' => sub {
+        my $stack = shift;
+        my $pattern = pop @$stack;
+        my $string = pop @$stack;
+        if($string =~ /$pattern/){
+            push @$stack, $1;
+        }else{
+            push @$stack, undef;
+        }
+    },
+    # string match_pattern replacement_pattern => transformed_string
+    'replace' => sub {
+        my $stack = shift;
+        my $replacement = pop @$stack;
+        my $pattern     = pop @$stack;
+        my $string      = pop @$stack;
+
+        if(!defined($string) || !defined($pattern) || !defined($replacement)){
+            push @$stack, undef;
+            return;
+        }
+
+        $string = Data::Munge::replace($string, $pattern, $replacement);
+        push @$stack, $string;
+    },
+    # string1 string2 => string1string2
+    'concat' => sub {
+        my $stack = shift;
+        my $string2 = pop @$stack;
+        my $string1 = pop @$stack;
+        push @$stack, ($string1 . $string2);
+    },
+
+    # stealing some names from PostScript...
+    #
+    # a => --
+    'pop' => sub {
+        my $stack = shift;
+        pop @$stack;
+    },
+    # a b => b a
+    'exch' => sub {
+        my $stack = shift;
+        return if scalar(@$stack) < 2;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, $b, $a;
+    },
+    # a => a a
+    'dup' => sub {
+        my $stack = shift;
+        return if scalar(@$stack) < 1;
+        my $a = pop @$stack;
+        push @$stack, $a, $a;
+    },
+    # obj_n ... obj_2 obj_1 n => obj_n ... obj_2 obj_1 obj_n
+    'index' => sub {
+        my $stack = shift;
+        my $a = pop @$stack;
+        if(!defined($a) || ($a+0) < 1){
+            push @$stack, undef;
+            return;
+        }
+        push @$stack, $stack->[-($a+0)]; # This pushes undef if $a is greater than the stack size, which is OK
     },
 );
 
