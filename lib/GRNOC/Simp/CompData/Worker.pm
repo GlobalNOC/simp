@@ -533,6 +533,14 @@ sub _do_functions{
     my $results      = shift; # request-global $results hash
     my $cv           = shift; # assumes that it's been begin()'ed with a callback
 
+    # First off, by default, we pass through the 'time' value, as it has special
+    # significance for clients:
+    foreach my $host (keys %{$results->{'val'}}){
+        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
+            $results->{'final'}{$host}{$oid_suffix}{'time'} = $results->{'val'}{$host}{$oid_suffix}{'time'};
+        }
+    }
+
     my $xpc = XML::LibXML::XPathContext->new($self->config->{'doc'});
 
     my $vals = $xpc->find("./result/val", $xrefs->get_nodelist);
