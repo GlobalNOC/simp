@@ -61,6 +61,8 @@ has max_reps => (is => 'rwp',
 has snmp_timeout => (is => 'rwp',
 		     default => 5);
 
+has main_cv => (is => 'rwp');
+
 ### public methods ###
 
 sub start {
@@ -133,8 +135,16 @@ sub start {
     
 
     #let the magic happen
-    AnyEvent->condvar->recv;
+    my $cv = AnyEvent->condvar;
+    $self->_set_main_cv($cv);
+    $cv->recv;
+    $self->logger->error("Exiting");
+}
 
+sub stop{
+    my $self = shift;
+    $self->logger->error("Stop was called");
+    $self->main_cv->send();
 }
 
 sub _poll_cb{
