@@ -230,7 +230,9 @@ sub _find_group{
     my @new_host_groups;
     foreach my $base_oid (keys %host_groups){
 	my ($group, $interval) = split(',', $host_groups{$base_oid});
-	if($oid =~ /$base_oid/){
+
+        # group is a candidate if its base OID is a prefix of ours
+        if(substr($oid, 0, length($base_oid)) eq $base_oid){
 	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
 	}
     }
@@ -242,34 +244,19 @@ sub _find_group{
 	return;
     }
 
-    #if we have 1 return that group
+    # If we have 1 match, return that group
     if(scalar(@new_host_groups) == 1){
 	return $new_host_groups[0];
     }
 
-    #ok if we have multiple... sort by length of base_oid
-    my @sorted = sort { length($a->{'base_oid'}) <=> length($b->{'base_oid'}) } @new_host_groups;
+    # OK, if we have multiple matches, sort lexicographically by
+    # (length of base_oid descending, interval ascending)
+    my @sorted = sort {    -(length($a->{'base_oid'}) <=> length($b->{'base_oid'}))
+                        or ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
 
-    my @longest_base_oids;
-    push(@longest_base_oids, $sorted[0]);
-
-    for(my $i=1; $i<=$#sorted; $i++){
-	if(length($sorted[$i-1]->{'base_oid'}) == length($sorted[$i]->{'base_oid'})){
-	    push(@longest_base_oids, $sorted[$i]);
-	}else{
-	    last;
-	}
-    }
-
-    if(scalar(@sorted) == 1){
-	return $sorted[0];
-    }
-    
-    #damn ok so we have 2 that are the same length now check the intervals...
-    my @sorted_intervals = sort { $a->{'interval'} <=> $b->{'interval'} } @sorted;
-
+    # We now have in $sorted[0] the most specific match; if there are multiple
+    # most-specific matches, $sorted[0] is the one with the shortest interval.
     return $sorted[0];
-
 }
 
 sub _find_key{
