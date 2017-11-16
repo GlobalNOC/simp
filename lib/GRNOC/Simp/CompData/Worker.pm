@@ -689,7 +689,7 @@ sub _rpn_calc{
             }
             $token =~ s/\\(.)/$1/g; # unescape escapes
             push @stack, $token;
-        }elsif($token =~ /^([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
+        }elsif($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
             push @stack, ($token + 0);
         }elsif($token =~ /^\$/){ # name of a value associated with the current (host, OID suffix)
             push @stack, $val_set->{substr $token, 1};
