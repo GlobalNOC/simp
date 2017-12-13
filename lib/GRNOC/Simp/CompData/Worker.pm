@@ -689,7 +689,7 @@ sub _rpn_calc{
             }
             $token =~ s/\\(.)/$1/g; # unescape escapes
             push @stack, $token;
-        }elsif($token =~ /^([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
+        }elsif($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
             push @stack, ($token + 0);
         }elsif($token =~ /^\$/){ # name of a value associated with the current (host, OID suffix)
             push @stack, $val_set->{substr $token, 1};
@@ -713,6 +713,12 @@ sub _rpn_calc{
 
     # Return the top of the stack
     return pop @stack;
+}
+
+# Turns truthy values to 1, falsy values to 0. Like K&R *intended*.
+sub _bool_to_int {
+    my $val = shift;
+    return ($val) ? 1 : 0;
 }
 
 # Given a stack of arguments, mutate the stack
@@ -783,6 +789,97 @@ sub _rpn_calc{
         my $a = pop @$stack;
         my $x = eval { $a ** $b; };
         push @$stack, (defined($a) && defined($b)) ? $x : undef;
+    },
+
+    # => undef
+    '_' => sub {
+        my $stack = shift;
+        push @$stack, undef;
+    },
+    # a => (is a not undef?)
+    'defined?' => sub {
+        my $stack = shift;
+        my $a = pop @$stack;
+        push @$stack, _bool_to_int(defined($a));
+    },
+
+    # a b => (is a numerically equal to b? (or both undef))
+    '==' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $res = (!(defined($a) xor defined($b))) ? ($a == $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+    # a b => (is a numerically unequal to b?)
+    '!=' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $res = (!(defined($a) xor defined($b))) ? ($a != $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+    # a b => (is a numerically less than b?)
+    '<' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $res = (defined($a) && defined($b)) ? ($a < $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+    # a b => (is a numerically less than or equal to b?)
+    '<=' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $res = (defined($a) && defined($b)) ? ($a <= $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+    # a b => (is a numerically greater than b?)
+    '>' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $res = (defined($a) && defined($b)) ? ($a > $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+    # a b => (is a numerically greater than or equal to b?)
+    '>=' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        my $res = (defined($a) && defined($b)) ? ($a >= $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (a AND b)
+    'and' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, _bool_to_int($a && $b);
+    },
+    # a b => (a OR b)
+    'or' => sub {
+        my $stack = shift;
+        my $b = pop @$stack;
+        my $a = pop @$stack;
+        push @$stack, _bool_to_int($a || $b);
+    },
+    # a => (NOT a)
+    'not' => sub {
+        my $stack = shift;
+        my $a = pop @$stack;
+        push @$stack, _bool_to_int(!$a);
+    },
+
+    # pred a b => (a if pred is true, b if pred is false)
+    'ifelse' => sub {
+        my $stack = shift;
+        my $b    = pop @$stack;
+        my $a    = pop @$stack;
+        my $pred = pop @$stack;
+        push @$stack, (($pred) ? $a : $b);
     },
 
     # string pattern => match_group_1
