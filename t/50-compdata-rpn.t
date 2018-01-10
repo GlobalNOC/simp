@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 110;
+use Test::More tests => 130;
 
 # Unit tests of the following function:
 #
@@ -537,7 +537,69 @@ ok(!defined($res), 'replace returns undef if fewer than three items on the stack
 
 # at 110 tests
 
+# Stack-manipulation functions
 
+$res = rpn_calc(5, '6 7 8 pop', undef, {}, {}, 'example.org');
+ok($res == 7, 'pop removes top element from stack');
+
+$res = rpn_calc(5, '6 pop pop pop pop', undef, {}, {}, 'example.org');
+ok(!defined($res), 'pop is a no-op on an empty stack');
+
+$res = rpn_calc(3, '6 "a" exch', undef, {}, {}, 'example.org');
+ok($res == 6, 'exch swaps top two elements of stack (1)');
+
+$res = rpn_calc(3, '6 "a" exch pop', undef, {}, {}, 'example.org');
+ok($res eq 'a', 'exch swaps top two elements of stack (2)');
+
+$res = rpn_calc(3, '6 "a" exch pop pop', undef, {}, {}, 'example.org');
+ok($res == 3, 'exch swaps only top two elements of stack (3)');
+
+$res = rpn_calc(6, 'exch', undef, {}, {}, 'example.org');
+ok($res == 6, 'exch is a no-op when there are fewer than two elements on the stack');
+
+$res = rpn_calc('x', '"a" dup', undef, {}, {}, 'example.org');
+ok($res eq 'a', 'dup copies the top element (1)');
+
+$res = rpn_calc('x', '"a" dup pop', undef, {}, {}, 'example.org');
+ok($res eq 'a', 'dup copies the top element (2)');
+
+$res = rpn_calc('x', '"a" dup pop pop', undef, {}, {}, 'example.org');
+ok($res eq 'x', 'dup copies the top element (3)');
+
+$res = rpn_calc('x', 'pop dup', undef, {}, {}, 'example.org');
+ok(!defined($res), 'dup is a no-op on an empty stack');
+
+$res = rpn_calc('c', '"b" "a" 1 index', undef, {}, {}, 'example.org');
+ok($res eq 'a', 'index fetches elements, indexed from the top of the stack (1a)');
+
+$res = rpn_calc('c', '"b" "a" 1 index pop', undef, {}, {}, 'example.org');
+ok($res eq 'a', 'index fetches elements, indexed from the top of the stack (1b)');
+
+$res = rpn_calc('c', '"b" "a" 2 index', undef, {}, {}, 'example.org');
+ok($res eq 'b', 'index fetches elements, indexed from the top of the stack (2a)');
+
+$res = rpn_calc('c', '"b" "a" 2 index pop', undef, {}, {}, 'example.org');
+ok($res eq 'a', 'index fetches elements, indexed from the top of the stack (2b)');
+
+$res = rpn_calc('c', '"b" "a" 3 index', undef, {}, {}, 'example.org');
+ok($res eq 'c', 'index fetches elements, indexed from the top of the stack (3a)');
+
+$res = rpn_calc('c', '"b" "a" 3 index pop', undef, {}, {}, 'example.org');
+ok($res eq 'a', 'index fetches elements, indexed from the top of the stack (3b)');
+
+$res = rpn_calc('c', '"b" "a" 0 index', undef, {}, {}, 'example.org');
+ok(!defined($res), 'index-0 yields undef (a)');
+
+$res = rpn_calc('c', '"b" "a" 0 index pop', undef, {}, {}, 'example.org');
+ok($res eq 'a', 'index-0 yields undef (b)');
+
+$res = rpn_calc('c', '"b" "a" 7 index', undef, {}, {}, 'example.org');
+ok(!defined($res), 'indexes larger than stack size yield undef (a)');
+
+$res = rpn_calc('c', '"b" "a" 7 index pop', undef, {}, {}, 'example.org');
+ok($res eq 'a', 'indexes larger than stack size yield undef (b)');
+
+# at 130 tests
 
 
 my $xxx = "
