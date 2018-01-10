@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 73;
+use Test::More tests => 85;
 
 # Unit tests of the following function:
 #
@@ -383,6 +383,57 @@ ok($res, '!= returns true when one but not both of the top two elements are unde
 
 # at 73 tests
 
+
+
+# > compares the top two elements (1)
+$res = rpn_calc(5, '8 3 >', undef, {}, {}, 'example.org');
+ok($res, '> compares the top two elements (1)');
+
+# > compares the top two elements (2)
+$res = rpn_calc(5, '-8 3 >', undef, {}, {}, 'example.org');
+ok(!$res, '> compares the top two elements (2)');
+
+# > compares the top two elements (3)
+$res = rpn_calc(5, '3 3 >', undef, {}, {}, 'example.org');
+ok(!$res, '> compares the top two elements (3)');
+
+# >= compares the top two elements (1)
+$res = rpn_calc(5, '8 3 >=', undef, {}, {}, 'example.org');
+ok($res, '>= compares the top two elements (1)');
+
+# >= compares the top two elements (2)
+$res = rpn_calc(5, '-8 3 >=', undef, {}, {}, 'example.org');
+ok(!$res, '>= compares the top two elements (2)');
+
+# >= compares the top two elements (3)
+$res = rpn_calc(5, '3 3 >=', undef, {}, {}, 'example.org');
+ok($res, '>= compares the top two elements (3)');
+
+# <= compares the top two elements (1)
+$res = rpn_calc(5, '8 3 <=', undef, {}, {}, 'example.org');
+ok(!$res, '<= compares the top two elements (1)');
+
+# <= compares the top two elements (2)
+$res = rpn_calc(5, '-8 3 <=', undef, {}, {}, 'example.org');
+ok($res, '<= compares the top two elements (2)');
+
+# <= compares the top two elements (3)
+$res = rpn_calc(5, '3 3 <=', undef, {}, {}, 'example.org');
+ok($res, '<= compares the top two elements (3)');
+
+# < compares the top two elements (1)
+$res = rpn_calc(5, '8 3 <', undef, {}, {}, 'example.org');
+ok(!$res, '< compares the top two elements (1)');
+
+# < compares the top two elements (2)
+$res = rpn_calc(5, '-8 3 <', undef, {}, {}, 'example.org');
+ok($res, '< compares the top two elements (2)');
+
+# < compares the top two elements (3)
+$res = rpn_calc(5, '3 3 <', undef, {}, {}, 'example.org');
+ok(!$res, '< compares the top two elements (3)');
+
+# at 85 tests
 
 
 
