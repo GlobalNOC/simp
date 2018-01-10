@@ -3,9 +3,11 @@
 use strict;
 use warnings;
 
-use Test::More tests => 58;
+use Test::More tests => 73;
 
-# GRNOC::Simp::CompData::_rpn_calc($val, $progtext, $fctn_elem[unused], $val_set, $results, $host_name)
+# Unit tests of the following function:
+#
+# GRNOC::Simp::CompData::_rpn_calc($val, $progtext, $fctn_elem [unused], $val_set, $results, $host_name)
 use GRNOC::Simp::CompData::Worker;
 
 sub rpn_calc {
@@ -311,6 +313,78 @@ ok(abs($res - 0.3333333333) < 1e-6, 'pow yields exponentation (2)');
 # _ pushes undef
 $res = rpn_calc(5, '6 7 8 _', undef, {}, {}, 'example.org');
 ok(!defined($res), '_ pushes undef');
+
+
+
+
+# defined? returns true when given a non-zero number
+$res = rpn_calc(3, '4 5 _ 7 defined? ', undef, {}, {}, 'example.org');
+ok($res, 'defined? returns true when given a non-zero number');
+
+# defined? returns true when given zero
+$res = rpn_calc(3, '4 5 _ 0 defined?', undef, {}, {}, 'example.org');
+ok($res, 'defined? returns true when given zero');
+
+# defined? returns true when given a non-empty string
+$res = rpn_calc(3, '"a" "b" _ "c" defined?', undef, {}, {}, 'example.org');
+ok($res, 'defined? returns true when given a non-empty string');
+
+# defined? returns true when given an empty string
+$res = rpn_calc(3, '"a" "b" _ "" defined?', undef, {}, {}, 'example.org');
+ok($res, 'defined? returns true when given an empty string');
+
+# defined? returns false when given undef
+$res = rpn_calc(3, '"a" "b" _ defined?', undef, {}, {}, 'example.org');
+ok(!$res, 'undef? returns false when given undef');
+
+# at 63 tests
+
+
+
+# == returns true when top two elements are numerically equal (1)
+$res = rpn_calc(5, '8 8 ==', undef, {}, {}, 'example.org');
+ok($res, '== returns true when top two numbers are equal (1)');
+
+# == returns true when top two elements are numerically equal (2)
+$res = rpn_calc(5, '-8 "-8" ==', undef, {}, {}, 'example.org');
+ok($res, '== returns true when top two numbers are equal (2)');
+
+# == returns false when top two elements are numerically unequal
+$res = rpn_calc(5, '5 7 ==', undef, {}, {}, 'example.org');
+ok(!$res, '== returns false when top two elements are numerically unequal');
+
+# == returns true when top two elements are both undef
+$res = rpn_calc(5, '_ _ ==', undef, {}, {}, 'example.org');
+ok($res, '== returns true when top two elements are both undef');
+
+# == returns false when one but not both of the top two elements are undef
+$res = rpn_calc(0, '_ 0 ==', undef, {}, {}, 'example.org');
+ok(!$res, '== returns false when one but not both of the top two elements are undef');
+
+# != returns true when top two elements are numerically unequal (1)
+$res = rpn_calc(5, '8 9 !=', undef, {}, {}, 'example.org');
+ok($res, '!= returns true when top two numbers are unequal (1)');
+
+# != returns true when top two elements are numerically unequal (2)
+$res = rpn_calc(5, '-8 "-9" !=', undef, {}, {}, 'example.org');
+ok($res, '!= returns true when top two numbers are unequal (2)');
+
+# != returns false when top two elements are numerically equal
+$res = rpn_calc(5, '7 7 !=', undef, {}, {}, 'example.org');
+ok(!$res, '!= returns false when top two elements are numerically equal');
+
+# != returns false when top two elements are both undef
+$res = rpn_calc(5, '_ _ !=', undef, {}, {}, 'example.org');
+ok(!$res, '!= returns false when top two elements are both undef');
+
+# != returns true when one but not both of the top two elements are undef
+$res = rpn_calc(0, '_ 0 !=', undef, {}, {}, 'example.org');
+ok($res, '!= returns true when one but not both of the top two elements are undef');
+
+# at 73 tests
+
+
+
 
 my $xxx = "
 # 
