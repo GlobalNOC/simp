@@ -816,7 +816,7 @@ sub _bool_to_int {
         my $stack = shift;
         my $b = pop @$stack;
         my $a = pop @$stack;
-        my $res = (!(defined($a) xor defined($b))) ? ($a != $b) : 0;
+        my $res = (!(defined($a) xor defined($b))) ? ($a != $b) : 1;
         push @$stack, _bool_to_int($res);
     },
     # a b => (is a numerically less than b?)
