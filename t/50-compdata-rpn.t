@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 33;
+use Test::More tests => 58;
 
 # GRNOC::Simp::CompData::_rpn_calc($val, $progtext, $fctn_elem[unused], $val_set, $results, $host_name)
 use GRNOC::Simp::CompData::Worker;
@@ -199,6 +199,118 @@ ok(!defined($res), "host-variable tokens push undef when value doesn't exist");
 $res = rpn_calc(5, '@', undef, $val_set, $results_test, 'example.org');
 ok($res eq 'example.org', 'hostname token pushes hostname');
 
+
+
+
+# + adds two numbers
+$res = rpn_calc(5, ' 7  +', undef, {}, {}, 'example.org');
+ok($res == 12, '+ adds two numbers');
+
+# + *only* adds two numbers
+$res = rpn_calc(5, '7 100 +', undef, {}, {}, 'example.org');
+ok($res == 107, '+ *only* adds two numbers');
+
+# + returns undef if only one item on the stack
+$res = rpn_calc(5, '+', undef, {}, {}, 'example.org');
+ok(!defined($res), '+ returns undef if only one item on the stack');
+
+# + returns undef if zero items on the stack
+$res = rpn_calc(5, 'pop +', undef, {}, {}, 'example.org');
+ok(!defined($res), '+ returns undef if zero items on the stack');
+
+# at 37 tests
+
+# - subtracts top of stack from next element down
+$res = rpn_calc(10, '5 3 -', undef, {}, {}, 'example.org');
+ok($res == 2, '- subtracts top of stack from next element down');
+
+# * multiplies two numbers, and only two numbers
+$res = rpn_calc(5, '37 3 *', undef, {}, {}, 'example.org');
+ok($res == 111, '* multiplies two numbers, and only two numbers');
+
+# / divides top of stack from next element down
+$res = rpn_calc(19, '37 10 5 /', undef, {}, {}, 'example.org');
+ok($res == 2, '/ divides top of stack from next element down');
+
+# divide by zero yields undef
+$res = rpn_calc(5, '0 /', undef, {}, {}, 'example.org');
+ok(!defined($res), 'divide by zero yields undef');
+
+# dividing zero yields a result :)
+$res = rpn_calc(5, '0 5 /', undef, {}, {}, 'example.org');
+ok($res == 0, 'dividing zero yields a result :)');
+
+# at 42 tests
+
+# + works with decimals
+$res = rpn_calc(5.5, '-1.25 +', undef, {}, {}, 'example.org');
+ok($res == 4.25, '+ works with decimals');
+
+# / is not integer division
+$res = rpn_calc(6, '4 /', undef, {}, {}, 'example.org');
+ok($res == 1.5, '/ is not integer division');
+
+# % takes modulus of next-to-top element divided by top element
+$res = rpn_calc(35, '5 3 %', undef, {}, {}, 'example.org');
+ok($res == 2, '% takes modulus of next-to-top element divided by top element');
+
+# modulo zero yields undef
+$res = rpn_calc(8, '0 %', undef, {}, {}, 'example.org');
+ok(!defined($res), 'modulo zero yields undef');
+
+# ln takes natural logarithm of top of stack (1)
+$res = rpn_calc(5, '10 ln', undef, {}, {}, 'example.org');
+ok(($res - 2.3026) < 1e-3, 'ln takes natural logarithm of top of stack (1)');
+
+# ln takes natural logarithm of top of stack (2)
+$res = rpn_calc(5, '1 ln', undef, {}, {}, 'example.org');
+ok($res == 0, 'ln takes natural logarithm of top of stack (2)');
+
+# natural logarithm of zero yields undef
+$res = rpn_calc(5, '0 ln', undef, {}, {}, 'example.org');
+ok(!defined($res), 'natural logarithm of zero yields undef');
+
+# natural logarithm of negative number yields undef
+$res = rpn_calc(-5, 'ln', undef, {}, {}, 'example.org');
+ok(!defined($res), 'natural logarithm of negative number yields undef');
+
+# at 50 tests
+
+# log10 yields base-10 logarithm of top of stack
+$res = rpn_calc(7, '100 log10', undef, {}, {}, 'example.org');
+ok(($res - 2) < 1e-4, 'log10 yields base-10 logarithm of top of stack');
+
+# log10 of zero yields undef
+$res = rpn_calc(5, '0 log10', undef, {}, {}, 'example.org');
+ok(!defined($res), 'log10 of zero yields undef');
+
+# log10 of negative number yields undef
+$res = rpn_calc(-5, 'log10', undef, {}, {}, 'example.org');
+ok(!defined($res), 'log10 of negative number yields undef');
+
+# exp calculates base-e exponentation (1)
+$res = rpn_calc(3, '0 exp', undef, {}, {}, 'example.org');
+ok($res == 1, 'exp calculates base-e exponentation (1)');
+
+# exp calculates base-e exponentation (2)
+$res = rpn_calc(3, '1 exp', undef, {}, {}, 'example.org');
+ok(($res > 2.71828) && ($res < 2.71829), 'exp calculates base-e exponentation (2)');
+
+# pow yields exponentation (1)
+$res = rpn_calc(25, '2.5 3 pow', undef, {}, {}, 'example.org');
+ok(abs($res - 15.625) < 1e-6, 'pow yields exponentation (1)');
+
+# pow yields exponentation (2)
+$res = rpn_calc(25, '9 -0.5 pow', undef, {}, {}, 'example.org');
+ok(abs($res - 0.3333333333) < 1e-6, 'pow yields exponentation (2)');
+
+# at 57 tests
+
+
+
+# _ pushes undef
+$res = rpn_calc(5, '6 7 8 _', undef, {}, {}, 'example.org');
+ok(!defined($res), '_ pushes undef');
 
 my $xxx = "
 # 
