@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 97;
+use Test::More tests => 110;
 
 # Unit tests of the following function:
 #
@@ -480,6 +480,65 @@ ok($res eq 'a', '"true a b ifelse" returns a');
 # "false a b ifelse" returns b
 $res = rpn_calc(2, '1 < "a" "b" ifelse', undef, {}, {}, 'example.org');
 ok($res eq 'b', '"false a b ifelse" returns b');
+
+
+
+
+# concat string-concatenates the top two entries on the stack
+$res = rpn_calc('abc', '"def" "ghi" concat', undef, {}, {}, 'example.org');
+ok($res eq 'defghi', 'concat string-concatenates the top two entries on the stack');
+# concat treats undef as empty string (1)
+$res = rpn_calc('abc', '"def" _ concat', undef, {}, {}, 'example.org');
+ok(defined($res) && ($res eq 'def'), 'concat treats undef as empty string (1)');
+# concat treats undef as empty string (2)
+$res = rpn_calc('abc', '_ "def" concat', undef, {}, {}, 'example.org');
+ok(defined($res) && ($res eq 'def'), 'concat treats undef as empty string (2)');
+# concat treats undef as empty string (3)
+$res = rpn_calc('abc', '_ _ concat', undef, {}, {}, 'example.org');
+ok(defined($res) && ($res eq ''), 'concat treats undef as empty string (3)');
+# concat treats empty stack as empty string (1)
+$res = rpn_calc('abc', 'concat', undef, {}, {}, 'example.org');
+ok(defined($res) && ($res eq 'abc'), 'concat treats empty stack as empty string (1)');
+# concat treats empty stack as empty string (2)
+$res = rpn_calc('abc', 'pop concat', undef, {}, {}, 'example.org');
+ok(defined($res) && ($res eq ''), 'concat treats empty stack as empty string (2)');
+
+# at 103 tests
+
+
+
+# match runs regular expression match
+$res = rpn_calc('abbcccd', '"(b+c+)" match', undef, {}, {}, 'example.org');
+ok(defined($res) && $res, 'match runs regular expression match');
+
+# match returns first matched group
+$res = rpn_calc('testTESTabc', '"[a-z]([A-Z]+)([a-z]+)$" match', undef, {}, {}, 'example.org');
+ok($res eq 'TEST', 'match returns first matched group');
+
+# match returns undef if nothing matched
+$res = rpn_calc('testTESTabc', '"(z)" match', undef, {}, {}, 'example.org');
+ok(!defined($res), 'match returns undef if nothing matched');
+
+
+
+
+# replace does regexp match-and-replacement (1)
+$res = rpn_calc('a.example.org', '"^[-a-z0-9_]+\.([-a-z0-9_]+)\..*$"    "X$1Z"    replace', undef, {}, {}, 'example.org');
+ok($res eq 'XexampleZ', 'replace does regexp match-and-replacement (1)');
+# replace does regexp match-and-replacement (2)
+$res = rpn_calc('a.example.org', '"exam"    "test"    replace', undef, {}, {}, 'example.org');
+ok($res eq 'a.testple.org', 'replace does regexp match-and-replacement (2)');
+# replace returns undef if any argument is undef
+$res = rpn_calc('a.example.org', '_    "test"    replace', undef, {}, {}, 'example.org');
+ok(!defined($res), 'replace returns undef if any argument is undef');
+# replace returns undef if fewer than three items on the stack
+$res = rpn_calc('a.example.org', '"test"    replace', undef, {}, {}, 'example.org');
+ok(!defined($res), 'replace returns undef if fewer than three items on the stack');
+
+# at 110 tests
+
+
+
 
 my $xxx = "
 # 
