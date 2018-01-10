@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 85;
+use Test::More tests => 97;
 
 # Unit tests of the following function:
 #
@@ -436,6 +436,50 @@ ok(!$res, '< compares the top two elements (3)');
 # at 85 tests
 
 
+
+# AND truth table 0 0 -> 0
+$res = rpn_calc(8, '0 0 and ', undef, {}, {}, 'example.org');
+ok(!$res, 'AND truth table 0 0 -> 0');
+# AND truth table 0 1 -> 0
+$res = rpn_calc(8, '0 1 and', undef, {}, {}, 'example.org');
+ok(!$res, 'AND truth table 0 1 -> 0');
+# AND truth table 1 0 -> 0
+$res = rpn_calc(8, '1 0 and', undef, {}, {}, 'example.org');
+ok(!$res, 'AND truth table 1 0 -> 0');
+# AND truth table 1 1 -> 1
+$res = rpn_calc(8, '1 1 and', undef, {}, {}, 'example.org');
+ok($res, 'AND truth table 1 1 -> 1');
+
+# OR truth table 0 0 -> 0
+$res = rpn_calc(8, '0 0 or ', undef, {}, {}, 'example.org');
+ok(!$res, 'OR truth table 0 0 -> 0');
+# OR truth table 0 1 -> 1
+$res = rpn_calc(8, '0 1 or', undef, {}, {}, 'example.org');
+ok($res, 'OR truth table 0 1 -> 1');
+# OR truth table 1 0 -> 1
+$res = rpn_calc(8, '1 0 or', undef, {}, {}, 'example.org');
+ok($res, 'OR truth table 1 0 -> 1');
+# OR truth table 1 1 -> 1
+$res = rpn_calc(8, '1 1 or', undef, {}, {}, 'example.org');
+ok($res, 'OR truth table 1 1 -> 1');
+
+# NOT truth table 0 -> 1
+$res = rpn_calc(8, '1 0 not', undef, {}, {}, 'example.org');
+ok($res, 'NOT truth table 0 -> 1');
+# NOT truth table 1 -> 0
+$res = rpn_calc(8, '1 1 not', undef, {}, {}, 'example.org');
+ok(!$res, 'NOT truth table 1 -> 0');
+
+# at 95 tests
+
+
+
+# "true a b ifelse" returns a
+$res = rpn_calc(1, '2 < "a" "b" ifelse', undef, {}, {}, 'example.org');
+ok($res eq 'a', '"true a b ifelse" returns a');
+# "false a b ifelse" returns b
+$res = rpn_calc(2, '1 < "a" "b" ifelse', undef, {}, {}, 'example.org');
+ok($res eq 'b', '"false a b ifelse" returns b');
 
 my $xxx = "
 # 
