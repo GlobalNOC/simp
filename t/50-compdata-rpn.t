@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 130;
+use Test::More tests => 131;
 
 # Unit tests of the following function:
 #
@@ -247,6 +247,9 @@ ok(abs($res - 0.3333333333) < 1e-6, 'pow yields exponentation (2)');
 
 $res = rpn_calc(5, '6 7 8 _', undef, {}, {}, 'example.org');
 ok(!defined($res), '_ pushes undef');
+
+$res = rpn_calc(5, '6 7 8 _ pop', undef, {}, {}, 'example.org');
+ok($res == 8, '_ pushes only one undef');
 
 
 # defined? predicate
