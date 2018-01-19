@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/sh -e
+
+# Starts up RabbitMQ, Redis, SimpData, and CompData for integration tests
 
 TEST_DIR="$(dirname -- "$(readlink -f "$0")")"
 
@@ -64,3 +66,6 @@ SIMP_PERL_DIR="${TEST_DIR}/../blib/lib"
 /usr/bin/perl -I"$SIMP_PERL_DIR" "${TEST_DIR}/../bin/compData.pl" \
     --config "${TEST_DIR}/conf/compDataConfig.xml" \
     --logging "${TEST_DIR}/conf/compDataLogging.conf"
+
+# Give SimpData and CompData a few seconds to come up:
+sleep 5
