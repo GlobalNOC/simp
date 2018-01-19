@@ -88,13 +88,13 @@ sub _start {
  
     $self->logger->debug( 'Setup RabbitMQ' );
 
-    my $client = GRNOC::RabbitMQ::Client->new(   host => "127.0.0.1",
-                                             port => 5672,
-                                             user => "guest",
-                                             pass => "guest",
-                                             exchange => 'Simp',
-                                             timeout => 15,
-                                             topic => 'Simp.Data');
+    my $client = GRNOC::RabbitMQ::Client->new(  host => $rabbit_host,
+                                                port => $rabbit_port,
+                                                user => $rabbit_user,
+                                                pass => $rabbit_pass,
+                                                exchange => 'Simp',
+                                                timeout => 15,
+                                                topic => 'Simp.Data');
 
     $self->_set_client($client);
 
