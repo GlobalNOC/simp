@@ -46,7 +46,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller
-%{__install} -d -p %{buildroot}/etc/grnoc/simp
+%{__install} -d -p %{buildroot}/etc/grnoc/simp/hosts.d
 %{__install} -d -p %{buildroot}/etc/init.d
 
 %{__install} -d -p %{buildroot}/usr/bin/
@@ -63,6 +63,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} bin/compData.pl %{buildroot}/usr/bin/compData.pl
 %{__install} conf/*.xml %{buildroot}/etc/grnoc/simp/
 %{__install} conf/*.conf %{buildroot}/etc/grnoc/simp/
+%{__install} conf/hosts.d/*.xml %{buildroot}/etc/grnoc/simp/hosts.d/
 %{__install} conf/simp.init %{buildroot}/etc/init.d/simp
 %{__install} conf/simp_data.init %{buildroot}/etc/init.d/simpData
 %{__install} conf/comp_data.init %{buildroot}/etc/init.d/compData
@@ -71,7 +72,7 @@ rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_ROOT
 
 %files
-%defattr(-,root,root,-)
+%defattr(644,root,root,755)
 %{perl_vendorlib}/GRNOC/Simp.pm
 %{perl_vendorlib}/GRNOC/Simp/Data.pm
 %{perl_vendorlib}/GRNOC/Simp/CompData.pm
@@ -79,14 +80,16 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
 %{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
 %{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
+%defattr(755,root,root,755)
 /usr/bin/simp.pl
 /usr/bin/simpData.pl
 /usr/bin/compData.pl
 /etc/init.d/simp
 /etc/init.d/simpData
 /etc/init.d/compData
+%defattr(644,root,root,755)
 %config(noreplace) /etc/grnoc/simp/config.xml
-%config(noreplace) /etc/grnoc/simp/hosts.xml
+%config(noreplace) /etc/grnoc/simp/hosts.d/hosts.xml
 %config(noreplace) /etc/grnoc/simp/logging.conf
 %config(noreplace) /etc/grnoc/simp/simpDataConfig.xml
 %config(noreplace) /etc/grnoc/simp/compDataConfig.xml

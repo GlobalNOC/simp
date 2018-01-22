@@ -76,6 +76,8 @@ sub _process_hosts_config{
     my @hosts;
 
     foreach my $file (@files){
+
+        next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
         
         my $conf = GRNOC::Config->new( config_file => $self->hosts_file . "/" . $file,
                                        force_array => 1);
