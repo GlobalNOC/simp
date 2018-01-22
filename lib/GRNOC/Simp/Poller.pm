@@ -17,6 +17,22 @@ use GRNOC::Simp::Poller::Purger;
 
 ### required attributes ###
 
+=head2 public attributes
+
+=over 12
+
+=item config_file
+
+=item hosts_file
+
+=item logging_file
+
+=item daemonize
+
+=back
+
+=cut
+
 has config_file => ( is => 'ro',
                      isa => Str,
                      required => 1 );
@@ -37,6 +53,22 @@ has daemonize => ( is => 'ro',
 
 ### private attributes ###
 
+=head2 private_attributes
+
+=over 12
+
+=item config
+
+=item hosts
+
+=item logger
+
+=item children
+
+=back
+
+=cut
+
 has config => ( is => 'rwp' );
 
 has hosts  => ( is => 'rwp' );
@@ -45,6 +77,10 @@ has logger => ( is => 'rwp' );
 
 has children => ( is => 'rwp',
                   default => sub { [] } );
+
+=head2 BUILD 
+
+=cut
 
 sub BUILD {
 
@@ -65,6 +101,10 @@ sub BUILD {
 
     return $self;
 }
+
+=head2 _process_hosts_config
+
+=cut
 
 sub _process_hosts_config{
     my $self = shift;
@@ -94,6 +134,10 @@ sub _process_hosts_config{
     
    
 }
+
+=head2 start
+
+=cut
 
 
 sub start {
@@ -158,6 +202,10 @@ sub start {
 
     return 1;
 }
+
+=head2 stop
+
+=cut
 
 sub stop {
 
