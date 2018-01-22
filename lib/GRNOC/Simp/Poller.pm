@@ -277,7 +277,7 @@ sub _create_workers {
                   #-- match add the host to the host list
                   push(@hosts,$host);
                   # no double-pushing:
-                  break;
+                  last;
               }
           }
       }
