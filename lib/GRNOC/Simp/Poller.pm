@@ -123,7 +123,6 @@ sub _process_hosts_config{
 
         
         my $rawhosts = $conf->get("/config/host");
-        my $hosts = ();
         foreach my $raw (@$rawhosts){
             push(@hosts, $raw);
         }
@@ -277,12 +276,14 @@ sub _create_workers {
               if($group eq $id){
                   #-- match add the host to the host list
                   push(@hosts,$host);
+                  # no double-pushing:
+                  break;
               }
           }
       }
 
       #--- split hosts between workers
-      foreach my $host (@{$self->hosts}){
+      foreach my $host (@hosts){
         push(@{$hostsByWorker{$idx}},$host);
         if(!$var_worker{$host->{'node_name'}}){
             $var_worker{$host->{'node_name'}} = 1;
