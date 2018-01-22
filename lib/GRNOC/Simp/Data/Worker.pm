@@ -12,6 +12,19 @@ use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::WebService::Regex;
 use POSIX;
 ### required attributes ###
+=head2 public attribures
+
+=over 12
+
+=item config
+
+=item logger
+
+=item worker_id
+
+=back
+
+=cut
 
 has config => ( is => 'ro',
                 required => 1 );
@@ -24,7 +37,21 @@ has worker_id => ( is => 'ro',
 
 
 ### internal attributes ###
+=head2 private attributes
 
+=over 12
+
+=item is_running
+
+=item redis
+
+=item dispatcher
+
+=item need_restart
+
+=back
+
+=cut
 has is_running => ( is => 'rwp',
                     default => 0 );
 
@@ -34,6 +61,11 @@ has dispatcher  => ( is => 'rwp' );
 
 has need_restart => (is => 'rwp',
                     default => 0 );
+
+
+=head2 start
+
+=cut
 
 
 ### public methods ###
@@ -49,6 +81,10 @@ sub start {
   }
 
 }
+
+=head2 stop
+
+=cut
 
 sub stop{
   my ($self ) = @_;

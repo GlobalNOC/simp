@@ -19,7 +19,6 @@ lib/GRNOC/Simp/CompData/Worker.pm
 lib/GRNOC/Simp/Data.pm
 lib/GRNOC/Simp/Data/Worker.pm
 lib/GRNOC/Simp/Poller.pm
-lib/GRNOC/Simp/Poller/Purger.pm
 lib/GRNOC/Simp/Poller/Worker.pm
 LICENSE
 Makefile.PL
