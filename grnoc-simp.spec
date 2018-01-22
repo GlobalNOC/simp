@@ -21,11 +21,11 @@ Requires: perl-Net-SNMP
 Requires: perl-Parallel-ForkManager
 Requires: perl-Redis >= 1.991
 Requires: perl-Try-Tiny
+Requires: perl-Type-Tiny
 
 Provides: perl(GRNOC::Simp::Data)
 Provides: perl(GRNOC::Simp::CompData)
 Provides: perl(GRNOC::Simp::Poller)
-Provides: perl(GRNOC::Simp::Poller::Purger)
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description

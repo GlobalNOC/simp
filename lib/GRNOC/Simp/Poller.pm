@@ -13,7 +13,6 @@ use GRNOC::Config;
 use GRNOC::Log;
 
 use GRNOC::Simp::Poller::Worker;
-use GRNOC::Simp::Poller::Purger;
 
 ### required attributes ###
 
@@ -278,7 +277,7 @@ sub _create_workers {
                   #-- match add the host to the host list
                   push(@hosts,$host);
                   # no double-pushing:
-                  break;
+                  last;
               }
           }
       }
