@@ -72,7 +72,7 @@ rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_ROOT
 
 %files
-%defattr(-,root,root,-)
+%defattr(644,root,root,755)
 %{perl_vendorlib}/GRNOC/Simp.pm
 %{perl_vendorlib}/GRNOC/Simp/Data.pm
 %{perl_vendorlib}/GRNOC/Simp/CompData.pm
@@ -80,12 +80,14 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
 %{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
 %{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
+%defattr(755,root,root,755)
 /usr/bin/simp.pl
 /usr/bin/simpData.pl
 /usr/bin/compData.pl
 /etc/init.d/simp
 /etc/init.d/simpData
 /etc/init.d/compData
+%defattr(644,root,root,755)
 %config(noreplace) /etc/grnoc/simp/config.xml
 %config(noreplace) /etc/grnoc/simp/hosts.d/hosts.xml
 %config(noreplace) /etc/grnoc/simp/logging.conf
