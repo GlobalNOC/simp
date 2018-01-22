@@ -1,6 +1,6 @@
 Summary: A small system for gathering large amounts of SNMP data and providing a RabbitMQ mechanism to access them 
 Name: grnoc-simp
-Version: 1.0.4
+Version: 1.0.5
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
