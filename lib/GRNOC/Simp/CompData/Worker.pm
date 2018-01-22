@@ -808,7 +808,9 @@ sub _bool_to_int {
         my $stack = shift;
         my $b = pop @$stack;
         my $a = pop @$stack;
-        my $res = (!(defined($a) xor defined($b))) ? ($a == $b) : 0;
+        my $res = (defined($a) && defined($b)) ? ($a == $b) :
+                  (!defined($a) && !defined($b)) ? 1 :
+                  0;
         push @$stack, _bool_to_int($res);
     },
     # a b => (is a numerically unequal to b?)
@@ -816,7 +818,9 @@ sub _bool_to_int {
         my $stack = shift;
         my $b = pop @$stack;
         my $a = pop @$stack;
-        my $res = (!(defined($a) xor defined($b))) ? ($a != $b) : 1;
+        my $res = (defined($a) && defined($b)) ? ($a != $b) :
+                  (!defined($a) && !defined($b)) ? 0 :
+                  1;
         push @$stack, _bool_to_int($res);
     },
     # a b => (is a numerically less than b?)
@@ -913,6 +917,8 @@ sub _bool_to_int {
         my $stack = shift;
         my $string2 = pop @$stack;
         my $string1 = pop @$stack;
+        $string1 = '' if !defined($string1);
+        $string2 = '' if !defined($string2);
         push @$stack, ($string1 . $string2);
     },
 

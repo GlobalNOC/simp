@@ -16,7 +16,7 @@ sub usage {
 
 
 use constant DEFAULT_CONFIG_FILE  => '/etc/grnoc/simp/config.xml';
-use constant DEFAULT_HOSTS_FILE   => '/etc/grnoc/simp/hosts.xml';
+use constant DEFAULT_HOSTS_FILE   => '/etc/grnoc/simp/hosts.d';
 use constant DEFAULT_LOGGING_FILE => '/etc/grnoc/simp/logging.conf';
 
 my $config_file = DEFAULT_CONFIG_FILE;
