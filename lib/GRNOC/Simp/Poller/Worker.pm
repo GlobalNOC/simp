@@ -11,7 +11,29 @@ use Redis;
 
 
 ### required attributes ###
+=head1 public attributes
 
+=over 12
+
+=item group_name
+
+=item instance
+
+=item config
+
+=item logger
+
+=item hosts
+
+=item oids
+
+=item poll_interval
+
+=item var_hosts
+
+=back
+
+=cut
 has group_name => (is => 'ro',
 		   required => 1);
 
@@ -39,6 +61,29 @@ has var_hosts => ( is => 'ro',
 
 
 ### internal attributes ###
+=head1 private attributes
+
+=over 12
+
+=item worker_name
+
+=item is_running
+
+=item need_restart
+
+=item redis
+
+=item retention
+
+=item max_reps
+
+=item snmp_timeout
+
+=item main_cv
+
+=back
+
+=cut
 
 has worker_name => (is => 'rwp',
 		    required => 0,
@@ -64,6 +109,16 @@ has snmp_timeout => (is => 'rwp',
 has main_cv => (is => 'rwp');
 
 ### public methods ###
+
+=head1 methods
+
+=over 12
+
+=cut
+
+=item start
+
+=cut
 
 sub start {
     
@@ -140,6 +195,12 @@ sub start {
     $cv->recv;
     $self->logger->error("Exiting");
 }
+
+=item stop
+
+=back
+
+=cut
 
 sub stop{
     my $self = shift;
