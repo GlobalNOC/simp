@@ -10,6 +10,8 @@ Source0: simp-%{version}.tar.gz
 BuildRequires: perl
 
 Requires: redis
+Requires: perl(AnyEvent)
+Requires: perl(AnyEvent::SNMP)
 Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
