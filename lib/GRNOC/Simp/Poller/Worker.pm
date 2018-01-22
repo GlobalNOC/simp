@@ -11,7 +11,29 @@ use Redis;
 
 
 ### required attributes ###
+=head1 public attributes
 
+=over 12
+
+=item group_name
+
+=item instance
+
+=item config
+
+=item logger
+
+=item hosts
+
+=item oids
+
+=item poll_interval
+
+=item var_hosts
+
+=back
+
+=cut
 has group_name => (is => 'ro',
 		   required => 1);
 
@@ -34,8 +56,34 @@ has oids => ( is => 'ro',
 has poll_interval => ( is => 'ro',
 		       required => 1 );
 
+has var_hosts => ( is => 'ro',
+                   required => 1 );
+
 
 ### internal attributes ###
+=head1 private attributes
+
+=over 12
+
+=item worker_name
+
+=item is_running
+
+=item need_restart
+
+=item redis
+
+=item retention
+
+=item max_reps
+
+=item snmp_timeout
+
+=item main_cv
+
+=back
+
+=cut
 
 has worker_name => (is => 'rwp',
 		    required => 0,
@@ -58,7 +106,19 @@ has max_reps => (is => 'rwp',
 has snmp_timeout => (is => 'rwp',
 		     default => 5);
 
+has main_cv => (is => 'rwp');
+
 ### public methods ###
+
+=head1 methods
+
+=over 12
+
+=cut
+
+=item start
+
+=cut
 
 sub start {
     
@@ -120,6 +180,8 @@ sub start {
     
     $self->_connect_to_snmp();
 
+    $self->logger->debug($self->worker_name . ' var_hosts: "' . (join '", "', (keys %{$self->var_hosts})) . '"');
+
     $self->{'collector_timer'} = AnyEvent->timer( after => 10,
 						  interval => $self->poll_interval,
 						  cb => sub {
@@ -128,8 +190,22 @@ sub start {
     
 
     #let the magic happen
-    AnyEvent->condvar->recv;
+    my $cv = AnyEvent->condvar;
+    $self->_set_main_cv($cv);
+    $cv->recv;
+    $self->logger->error("Exiting");
+}
 
+=item stop
+
+=back
+
+=cut
+
+sub stop{
+    my $self = shift;
+    $self->logger->error("Stop was called");
+    $self->main_cv->send();
 }
 
 sub _poll_cb{
@@ -158,7 +234,7 @@ sub _poll_cb{
 
     if(!defined $data){
 	my $error = $session->error();
-	$self->logger->error("Context ID: " . $context_id);
+	$self->logger->error("Host/Context ID: $host->{'node_name'} " . (defined($context_id) ? $context_id : '[no context ID]'));
 	$self->logger->error("$id failed     $reqstr");
 	$self->logger->error("Error: $error");
 
@@ -194,17 +270,22 @@ sub _poll_cb{
             $redis->select(0);
 	    #$self->logger->error(Dumper($host->{'group'}{$self->group_name}));
 
-	    if(defined($host->{'group'}{$self->group_name}{'additional_value'})){
-		my %add_values = %{$host->{'group'}{$self->group_name}{'additional_value'}};
+	    if($self->var_hosts()->{$host->{'node_name'}} && defined($host->{'host_variable'})){
+
+                $self->logger->debug("Adding host variables for $host->{'node_name'}");
+
+		my %add_values = %{$host->{'host_variable'}};
 		foreach my $name (keys %add_values){
-		    my $str = $name . "," . $add_values{$name}->{'value'};
+		    my $sanitized_name = $name;
+		    $sanitized_name =~ s/,//g; # we don't allow commas in variable names
+		    my $str = 'vars.' . $sanitized_name . "," . $add_values{$name}->{'value'};
 		    $redis->select(0);
 		    $redis->sadd($key, $str);
-		    
-		    $redis->select(3);
-		    $redis->sadd($host->{'node_name'}, $name . "," . $self->group_name . "," . $self->poll_interval);
-		    $redis->sadd($ip, $name . "," . $self->group_name . "," . $self->poll_interval);
 		}
+
+		$redis->select(3);
+		$redis->hset($host->{'node_name'}, "vars", $self->group_name . "," . $self->poll_interval);
+		$redis->hset($ip, "vars", $self->group_name . "," . $self->poll_interval);
 	    }
 
 	    #and the current poll_id lookup
@@ -220,8 +301,8 @@ sub _poll_cb{
 
 	
 	$redis->select(3);
-	$redis->sadd($host->{'node_name'}, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
-	$redis->sadd($ip, $main_oid . "," . $self->group_name . "," . $self->poll_interval);
+	$redis->hset($host->{'node_name'}, $main_oid, $self->group_name . "," . $self->poll_interval);
+	$redis->hset($ip, $main_oid, $self->group_name . "," . $self->poll_interval);
 
 	#change back to the primary db...
 	$redis->select(0);
@@ -255,7 +336,7 @@ sub _connect_to_snmp{
 		$self->logger->error("Error creating SNMP Session: " . $error);
 	    }
 
-	    $self->{'snmp'}{$host->{'ip'}} = $snmp;
+	    $self->{'snmp'}{$host->{'node_name'}} = $snmp;
 
 	}elsif($host->{'snmp_version'} eq '3'){
 	    if(!defined($host->{'group'}{$self->group_name}{'context_id'})){
@@ -273,7 +354,7 @@ sub _connect_to_snmp{
 		    $self->logger->error("Error creating SNMP Session: " . $error);
 		}
 		
-		$self->{'snmp'}{$host->{'ip'}} = $snmp;
+		$self->{'snmp'}{$host->{'node_name'}} = $snmp;
 	    }else{
 		foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
 		    ($snmp, $error) = Net::SNMP->session(
@@ -290,7 +371,7 @@ sub _connect_to_snmp{
 			$self->logger->error("Error creating SNMP Session: " . $error);
 		    }
 		    
-		    $self->{'snmp'}{$host->{'ip'}}{$ctxEngine} = $snmp;
+		    $self->{'snmp'}{$host->{'node_name'}}{$ctxEngine} = $snmp;
 		}
 	    }
 	}else{
@@ -316,7 +397,7 @@ sub _connect_to_snmp{
 	$host->{'poll_id'} = $host_poll_id;
 	$host->{'pending_replies'} = {};
 	
-	$self->logger->debug($self->worker_name . " assigned host " . $host->{'ip'});
+	$self->logger->debug($self->worker_name . " assigned host " . $host->{'node_name'});
     }
 }
 
@@ -331,23 +412,23 @@ sub _collect_data{
     for my $host (@$hosts){
 
 	if(scalar(keys %{$host->{'pending_replies'}}) > 0){
-	    $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $host->{'name'} . " in poll cycle for group: " . $self->group_name);
+	    $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $host->{'node_name'} . " in poll cycle for group: " . $self->group_name);
 	    next;
 	}
 
 	for my $oid (@$oids){
-	    if(!defined($self->{'snmp'}{$host->{'ip'}})){
-		$self->logger->error("No SNMP session defined for " . $host->{'ip'});
+	    if(!defined($self->{'snmp'}{$host->{'node_name'}})){
+		$self->logger->error("No SNMP session defined for " . $host->{'node_name'});
 		next;
 	    }
-	    my $reqstr = " $oid -> ".$host->{'ip'};
+	    my $reqstr = " $oid -> $host->{'ip'} ($host->{'node_name'})";
 	    $self->logger->debug($self->worker_name ." requesting ". $reqstr);
 	    #--- iterate through the the provided set of base OIDs to collect
 	    my $res;
 
 	    if($host->{'snmp_version'} eq '2c'){
 		$host->{'pending_replies'}->{$oid} = 1;
-		$res = $self->{'snmp'}{$host->{'ip'}}->get_table(
+		$res = $self->{'snmp'}{$host->{'node_name'}}->get_table(
 		    -baseoid      => $oid,
 		    -maxrepetitions => $self->max_reps,
 		    -callback     => sub{ 
@@ -363,7 +444,7 @@ sub _collect_data{
 		#for each context engine specified for the group
 		if(!defined($host->{'group'}{$self->group_name}{'context_id'})){
 		    $host->{'pending_replies'}->{$oid} = 1;
-		    $res = $self->{'snmp'}{$host->{'ip'}}->get_table(
+		    $res = $self->{'snmp'}{$host->{'node_name'}}->get_table(
 			-baseoid      => $oid,
 			-maxrepetitions => $self->max_reps,
 			-callback     => sub{
@@ -379,7 +460,7 @@ sub _collect_data{
 		}else{
 		    foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
 			$host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
-			$res = $self->{'snmp'}{$host->{'ip'}}{$ctxEngine}->get_table(
+			$res = $self->{'snmp'}{$host->{'node_name'}}{$ctxEngine}->get_table(
 			    -baseoid      => $oid,
 			    -maxrepetitions => $self->max_reps,
 			    -contextengineid => $ctxEngine,

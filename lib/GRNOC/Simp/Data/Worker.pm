@@ -12,6 +12,19 @@ use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::WebService::Regex;
 use POSIX;
 ### required attributes ###
+=head2 public attribures
+
+=over 12
+
+=item config
+
+=item logger
+
+=item worker_id
+
+=back
+
+=cut
 
 has config => ( is => 'ro',
                 required => 1 );
@@ -24,7 +37,21 @@ has worker_id => ( is => 'ro',
 
 
 ### internal attributes ###
+=head2 private attributes
 
+=over 12
+
+=item is_running
+
+=item redis
+
+=item dispatcher
+
+=item need_restart
+
+=back
+
+=cut
 has is_running => ( is => 'rwp',
                     default => 0 );
 
@@ -34,6 +61,11 @@ has dispatcher  => ( is => 'rwp' );
 
 has need_restart => (is => 'rwp',
                     default => 0 );
+
+
+=head2 start
+
+=cut
 
 
 ### public methods ###
@@ -49,6 +81,10 @@ sub start {
   }
 
 }
+
+=head2 stop
+
+=cut
 
 sub stop{
   my ($self ) = @_;
@@ -215,11 +251,11 @@ sub _find_group{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    my @host_groups;
+    my %host_groups;
 
     try{
 	$self->redis->select(3);
-	@host_groups = $self->redis->smembers($host);
+	%host_groups = $self->redis->hgetall($host);
 	$self->redis->select(0);
     }catch{
 	$self->redis->select(0);
@@ -228,9 +264,11 @@ sub _find_group{
     };	
 
     my @new_host_groups;
-    foreach my $hg (@host_groups){
-	my ($base_oid, $group, $interval) = split(',', $hg);
-	if($oid =~ /$base_oid/){
+    foreach my $base_oid (keys %host_groups){
+	my ($group, $interval) = split(',', $host_groups{$base_oid});
+
+        # group is a candidate if its base OID is a prefix of ours
+        if(substr($oid, 0, length($base_oid)) eq $base_oid){
 	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
 	}
     }
@@ -242,34 +280,19 @@ sub _find_group{
 	return;
     }
 
-    #if we have 1 return that group
+    # If we have 1 match, return that group
     if(scalar(@new_host_groups) == 1){
 	return $new_host_groups[0];
     }
 
-    #ok if we have multiple... sort by length of base_oid
-    my @sorted = sort { length($a->{'base_oid'}) <=> length($b->{'base_oid'}) } @new_host_groups;
+    # OK, if we have multiple matches, sort lexicographically by
+    # (length of base_oid descending, interval ascending)
+    my @sorted = sort {    -(length($a->{'base_oid'}) <=> length($b->{'base_oid'}))
+                        or ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
 
-    my @longest_base_oids;
-    push(@longest_base_oids, $sorted[0]);
-
-    for(my $i=1; $i<=$#sorted; $i++){
-	if(length($sorted[$i-1]->{'base_oid'}) == length($sorted[$i]->{'base_oid'})){
-	    push(@longest_base_oids, $sorted[$i]);
-	}else{
-	    last;
-	}
-    }
-
-    if(scalar(@sorted) == 1){
-	return $sorted[0];
-    }
-    
-    #damn ok so we have 2 that are the same length now check the intervals...
-    my @sorted_intervals = sort { $a->{'interval'} <=> $b->{'interval'} } @sorted;
-
+    # We now have in $sorted[0] the most specific match; if there are multiple
+    # most-specific matches, $sorted[0] is the one with the shortest interval.
     return $sorted[0];
-
 }
 
 sub _find_key{
