@@ -14,7 +14,7 @@ package GRNOC::Simp;
 use strict;
 use warnings;
 
-our $VERSION = '1.0.4';
+our $VERSION = '1.0.5';
 
 sub new {
     my $caller = shift;
