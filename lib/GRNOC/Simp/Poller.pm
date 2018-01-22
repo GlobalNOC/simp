@@ -13,7 +13,6 @@ use GRNOC::Config;
 use GRNOC::Log;
 
 use GRNOC::Simp::Poller::Worker;
-use GRNOC::Simp::Poller::Purger;
 
 ### required attributes ###
 
