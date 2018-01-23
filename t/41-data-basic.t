@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 13;
+use Test::More tests => 19;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num);
@@ -87,3 +87,25 @@ cmp_deeply(
     },
     'request 3: we got the correct data in the response'
 );
+
+
+
+# A request that leaves out a required field, part 1:
+$results = $client->get(
+    node     => ['c.example.net_1'],
+);
+
+ok(defined($results), 'request 4: we got back a response');
+ok(defined($results->{'error'}), 'request 4: we got an error message');
+ok(!defined($results->{'results'}), 'request 4: we didn\'t get results');
+
+
+
+# A request that leaves out a required field, part 2:
+$results = $client->get(
+    oidmatch => ['1.3.6.1.2.1.2.2.1.11.*'],
+);
+
+ok(defined($results), 'request 5: we got back a response');
+ok(defined($results->{'error'}), 'request 5: we got an error message');
+ok(!defined($results->{'results'}), 'request 5: we didn\'t get results');
