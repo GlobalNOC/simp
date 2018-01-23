@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 9;
+use Test::More tests => 13;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num);
@@ -46,7 +46,6 @@ cmp_deeply(
 
 
 # A simple request involving rates:
-
 $results = $client->get_rate(
     node     => ['c.example.net_1'],
     oidmatch => ['1.3.6.1.2.1.2.2.1.11.*'],
@@ -68,3 +67,23 @@ cmp_deeply(
 
 
 
+# A simple request involving host variables:
+$results = $client->get(
+    node     => ['c.example.net_1'],
+    oidmatch => ['vars.*'],
+);
+
+ok(defined($results), 'request 3: we got back a response');
+ok(!defined($results->{'error'}), 'request 3: we didn\'t get an error message');
+ok(defined($results->{'results'}), 'request 3: we got results in the response');
+
+cmp_deeply(
+    $results->{'results'},
+    {
+      'c.example.net_1' => {
+        'vars.test'    => { 'value' => 'bye', 'time' => 100131 },
+        'vars.card_no' => { 'value' => '1',   'time' => 100131 },
+      },
+    },
+    'request 3: we got the correct data in the response'
+);
