@@ -15,6 +15,107 @@
     </instance>
   </composite>
 
+  <!-- simple test of counter values -->
+  <composite id="test2">
+    <input id="node" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="idx" oid="1.3.6.1.2.1.31.1.1.1.1.*" />
+      <result>
+        <val id="input" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.idx" />
+        <val id="output" type="rate" oid="1.3.6.1.2.1.31.1.1.1.10.idx" />
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of gauge and counter values together -->
+  <composite id="test3">
+    <input id="node" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="idx" oid="1.3.6.1.2.1.31.1.1.1.1.*" />
+      <result>
+        <val id="*name"                  oid="1.3.6.1.2.1.31.1.1.1.1.idx" />
+        <val id="status"                 oid="1.3.6.1.2.1.2.2.1.8.idx" />
+        <val id="inPackets"  type="rate" oid="1.3.6.1.2.1.2.2.1.11.idx" />
+        <val id="outPackets" type="rate" oid="1.3.6.1.2.1.2.2.1.17.idx" />
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of optional input, as well as of string-manipulation <fctn>s -->
+  <composite id="test4">
+    <input id="node" required="1" />
+    <input id="cpuName" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="cpuIdx" oid="2.10.9994.27.1.*" var="cpuName" />
+      <result>
+        <val id="name"     oid="2.10.9994.27.1.cpuIdx" />
+        <val id="nameMod1" oid="2.10.9994.27.1.cpuIdx">
+          <fctn name="regexp" value="^CP(U.*)$" />
+        </val>
+        <val id="nameMod2" oid="2.10.9994.27.1.cpuIdx">
+          <fctn name="replace" value="2$" with="TWO" />
+        </val>
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of a required, non-node input -->
+  <composite id="test5">
+    <input id="node" required="1" />
+    <input id="cpuName" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="cpuIdx" oid="2.10.9994.27.1.*" var="cpuName" />
+      <result>
+        <val id="name"     oid="2.10.9994.27.1.cpuIdx" />
+        <val id="usagePct" oid="2.10.9994.27.8.cpuIdx" />
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of numerical <fctn>s, as well as
+       chaining functions together and their order of execution -->
+  <composite id="test6">
+    <input id="node" required="1" />
+    <input id="ifName" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+
+      <result>
+        <val id="*name" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" />
+        <val id="status" oid="1.3.6.1.2.1.2.2.1.8.ifIdx" />
+        <val id="statusFunky" oid="1.3.6.1.2.1.2.2.1.8.ifIdx">
+          <fctn name="-" value="1" />
+        </val>
+        <val id="statusInverted" oid="1.3.6.1.2.1.2.2.1.8.ifIdx">
+          <fctn name="*" value="-1" />
+          <fctn name="+" value="1" />
+        </val>
+        <val id="input" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.ifIdx">
+          <fctn name="*" value="8" />
+        </val>
+        <val id="outputScaledWrong" type="rate" oid="1.3.6.1.2.1.31.1.1.1.10.ifIdx">
+          <fctn name="/" value="8" />
+        </val>
+        <val id="inPacketsTimes5Mod7"  type="rate" oid="1.3.6.1.2.1.2.2.1.11.ifIdx">
+          <fctn name="*" value="5" />
+          <fctn name="%" value="7" />
+        </val>
+        <val id="logOutPackets" type="rate" oid="1.3.6.1.2.1.2.2.1.17.ifIdx">
+          <fctn name="ln" />
+        </val>
+        <val id="testAddingUndef" type="rate" oid="1.3.6.1.2.1.2.2.1.17.ifIdx">
+          <fctn name="log10" />
+          <fctn name="+" value="1" />
+        </val>
+      </result>
+    </instance>
+  </composite>
+
   <composite id="interface">
     <input id="node" required="1" />
     <input id="ifName" />
