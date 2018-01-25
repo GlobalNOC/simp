@@ -10,6 +10,26 @@ use Test::Deep qw(cmp_deeply num);
 
 use constant THRESHOLD => 1e-9;
 
+sub check_response {
+    my ($request_num, $actual_response, $expected_results) = @_;
+
+    ok(defined($actual_response), "request $request_num: we got back a response");
+    ok(!defined($actual_response->{'error'}) && !defined($actual_response->{'error_text'}),
+       "request $request_num: didn't get an error message");
+    ok(defined($actual_response->{'results'}), "request $request_num: got results in the response");
+
+    cmp_deeply($actual_response->{'results'}, $expected_results,
+               "request $request_num: got the correct results");
+}
+
+sub error_expected {
+    my ($request_num, $response) = @_;
+
+    ok(defined($response), "request $request_num: we got back a response");
+    ok(defined($response->{'error'}), "request $request_num: got an error response");
+    ok(!defined($response->{'results'}), "request $request_num: didn't get results in the response");
+}
+
 my $client = GRNOC::RabbitMQ::Client->new(
     host     => '127.0.0.1',
     port     => 5673,
@@ -29,13 +49,7 @@ my $response = $client->test1(
     node => 'a.example.net'
 );
 
-ok(defined($response), 'request 1: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 1: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 1: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(1, $response,
     {
       'a.example.net' => {
         '1' => {
@@ -49,8 +63,7 @@ cmp_deeply(
           'time' => 100124,
         },
       },
-    },
-    'request 1: got the correct results'
+    }
 );
 
 
@@ -60,13 +73,7 @@ $response = $client->test1(
     node => ['b.example.net', 'c.example.net_1', 'c.example.net_2']
 );
 
-ok(defined($response), 'request 2: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 2: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 2: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(2, $response,
     {
       'b.example.net' => {
         '1' => {
@@ -94,8 +101,7 @@ cmp_deeply(
           'time' => 100135,
         },
       },
-    },
-    'request 2: got the correct results'
+    }
 );
 
 
@@ -105,9 +111,7 @@ $response = $client->test1(
     node   => []
 );
 
-ok(defined($response), 'request 3: we got back a response');
-ok(defined($response->{'error'}), 'request 3: got an error message');
-ok(!defined($response->{'results'}), 'request 3: didn\'t get results in the response');
+error_expected(3, $response);
 
 
 
@@ -116,13 +120,7 @@ $response = $client->test2(
     node => ['a.example.net']
 );
 
-ok(defined($response), 'request 4: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 4: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 4: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(4, $response,
     {
       'a.example.net' => {
         '1' => {
@@ -136,8 +134,7 @@ cmp_deeply(
           'time' => 100124,
         },
       },
-    },
-    'request 4: got the correct results'
+    }
 );
 
 
@@ -147,13 +144,7 @@ $response = $client->test2(
     node => ['a.example.net', 'c.example.net_1']
 );
 
-ok(defined($response), 'request 5: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 5: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 5: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(5, $response,
     {
       'a.example.net' => {
         '1' => {
@@ -174,8 +165,7 @@ cmp_deeply(
           'time' => 100131,
         },
       },
-    },
-    'request 5: got the correct results'
+    }
 );
 
 
@@ -185,13 +175,7 @@ $response = $client->test3(
     node => 'b.example.net'
 );
 
-ok(defined($response), 'request 6: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 6: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 6: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(6, $response,
     {
       'b.example.net' => {
         '1' => {
@@ -209,8 +193,7 @@ cmp_deeply(
           'time' => 100132,
         },
       },
-    },
-    'request 6: got the correct results'
+    }
 );
 
 
@@ -220,13 +203,7 @@ $response = $client->test4(
     node => ['a.example.net', 'c.example.net_1', 'c.example.net_2'] # we expect nothing for c.example.net_1
 );
 
-ok(defined($response), 'request 7: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 7: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 7: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(7, $response,
     {
       'a.example.net' => {
         '1.1' => {
@@ -262,8 +239,7 @@ cmp_deeply(
           'time' => 100100,
         },
       },
-    },
-    'request 7: got the correct results'
+    }
 );
 
 # Request 8: test of including an optional input parameter
@@ -272,13 +248,7 @@ $response = $client->test4(
     cpuName => ['CPU2'],
 );
 
-ok(defined($response), 'request 8: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 8: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 8: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(8, $response,
     {
       'b.example.net' => {
         '2' => {
@@ -296,8 +266,7 @@ cmp_deeply(
           'time' => 100100,
         },
       },
-    },
-    'request 8: got the correct results'
+    }
 );
 
 
@@ -308,15 +277,8 @@ $response = $client->test4(
     cpuName => ['CPU9001', 'CPU9002'],
 );
 
-ok(defined($response), 'request 9: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 9: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 9: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
-    { },
-    'request 9: got the correct results'
+check_response(9, $response,
+    { }
 );
 
 
@@ -327,13 +289,7 @@ $response = $client->test5(
     cpuName => ['CPU1/1', 'CPU1', 'CPU2', 'CPU9001'],
 );
 
-ok(defined($response), 'request 10: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 10: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 10: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(10, $response,
     {
       'a.example.net' => {
         '1.1' => {
@@ -361,8 +317,7 @@ cmp_deeply(
           'time' => 100100,
         },
       },
-    },
-    'request 10: got the correct results'
+    }
 );
 
 
@@ -372,9 +327,7 @@ $response = $client->test5(
     node    => ['a.example.net', 'b.example.net'],
 );
 
-ok(defined($response), 'request 11: we got back a response');
-ok(defined($response->{'error'}), 'request 11: got an error message');
-ok(!defined($response->{'results'}), 'request 11: didn\'t get results in the response');
+error_expected(11, $response);
 
 
 
@@ -384,9 +337,7 @@ $response = $client->test5(
     cpuName => [],
 );
 
-ok(defined($response), 'request 12: we got back a response');
-ok(defined($response->{'error'}), 'request 12: got an error message');
-ok(!defined($response->{'results'}), 'request 12: didn\'t get results in the response');
+error_expected(12, $response);
 
 
 
@@ -395,15 +346,9 @@ $response = $client->test6(
     node    => ['a.example.net', 'b.example.net', 'c.example.net_1'],
 );
 
-ok(defined($response), 'request 13: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 13: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 13: got results in the response');
-
 # "# ***" means "take particular note of these values
 # with regards to the <fctn>s being tested"
-cmp_deeply(
-    $response->{'results'},
+check_response(13, $response,
     {
       'a.example.net' => {
         '1' => {
@@ -471,8 +416,7 @@ cmp_deeply(
           'time' => 100131,
         },
       },
-    },
-    'request 13: got the correct results'
+    }
 );
 
 
@@ -484,13 +428,7 @@ $response = $client->test7(
     cpuName => ['CPU2'],
 );
 
-ok(defined($response), 'request 14: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 14: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 14: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(14, $response,
     {
       'a.example.net' => {
         '2' => {
@@ -533,8 +471,7 @@ cmp_deeply(
           'time' => 100100,
         },
       },
-    },
-    'request 14: got the correct results'
+    }
 );
 
 
@@ -545,13 +482,7 @@ $response = $client->test7(
     ifName  => ['eth2'],
 );
 
-ok(defined($response), 'request 15: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 15: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 15: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(15, $response,
     {
       'a.example.net' => {
         '1.1' => {
@@ -592,8 +523,7 @@ cmp_deeply(
           'time' => 100110,
         },
       },
-    },
-    'request 15: got the correct results'
+    }
 );
 
 
@@ -603,13 +533,7 @@ $response = $client->test7(
     node    => 'a.example.net',
 );
 
-ok(defined($response), 'request 16: we got back a response');
-ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
-   'request 16: didn\'t get an error message');
-ok(defined($response->{'results'}), 'request 16: got results in the response');
-
-cmp_deeply(
-    $response->{'results'},
+check_response(16, $response,
     {
       'a.example.net' => {
         '1.1' => {
@@ -648,6 +572,5 @@ cmp_deeply(
           'time' => 100124,
         },
       },
-    },
-    'request 16: got the correct results'
+    }
 );
