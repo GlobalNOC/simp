@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 58;
+use Test::More tests => 62;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num);
@@ -594,4 +594,60 @@ cmp_deeply(
       },
     },
     'request 15: got the correct results'
+);
+
+
+
+# Request 16: test of two <input>s, where neither is specified
+$response = $client->test7(
+    node    => 'a.example.net',
+);
+
+ok(defined($response), 'request 16: we got back a response');
+ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
+   'request 16: didn\'t get an error message');
+ok(defined($response->{'results'}), 'request 16: got results in the response');
+
+cmp_deeply(
+    $response->{'results'},
+    {
+      'a.example.net' => {
+        '1.1' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU1/1',
+          'usageAsFraction' => num(0.06, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100135,
+        },
+        '1.2' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU1/2',
+          'usageAsFraction' => num(0.02, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100135,
+        },
+        '2.3' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU2/3',
+          'usageAsFraction' => num(0.71, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100135,
+        },
+        '1' => {
+          '*ifName' => 'eth0',
+          '*cpuName' => undef,
+          'usageAsFraction' => undef,
+          'inputOctets' => num(100, THRESHOLD),
+          'time' => 100124,
+        },
+        '2' => {
+          '*ifName' => 'eth1',
+          '*cpuName' => undef,
+          'usageAsFraction' => undef,
+          'inputOctets' => num(50, THRESHOLD),
+          'time' => 100124,
+        },
+      },
+    },
+    'request 16: got the correct results'
 );
