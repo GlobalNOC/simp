@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 50;
+use Test::More tests => 58;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num);
@@ -473,4 +473,125 @@ cmp_deeply(
       },
     },
     'request 13: got the correct results'
+);
+
+
+
+# Request 14: test of using two <input>s, where we specify both of them
+$response = $client->test7(
+    node    => ['a.example.net', 'b.example.net', 'c.example.net_2'],
+    ifName  => ['eth1', 'eth2'],
+    cpuName => ['CPU2'],
+);
+
+ok(defined($response), 'request 14: we got back a response');
+ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
+   'request 14: didn\'t get an error message');
+ok(defined($response->{'results'}), 'request 14: got results in the response');
+
+cmp_deeply(
+    $response->{'results'},
+    {
+      'a.example.net' => {
+        '2' => {
+          '*ifName' => 'eth1',
+          '*cpuName' => undef,
+          'usageAsFraction' => undef,
+          'inputOctets' => num(50, THRESHOLD),
+          'time' => 100124,
+        },
+      },
+      'b.example.net' => {
+        '1' => {
+          '*ifName' => 'eth1',
+          '*cpuName' => undef,
+          'usageAsFraction' => undef,
+          'inputOctets' => num(10, THRESHOLD),
+          'time' => 100132,
+        },
+        '3' => {
+          '*ifName' => 'eth2',
+          '*cpuName' => undef,
+          'usageAsFraction' => undef,
+          'inputOctets' => num(20, THRESHOLD),
+          'time' => 100132,
+        },
+        '2' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU2',
+          'usageAsFraction' => num(0.15, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100110,
+        },
+      },
+      'c.example.net_2' => {
+        '2' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU2',
+          'usageAsFraction' => num(0.06, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100100,
+        },
+      },
+    },
+    'request 14: got the correct results'
+);
+
+
+
+# Request 15: test of two <input>s, where only one is specified
+$response = $client->test7(
+    node    => ['a.example.net', 'b.example.net', 'c.example.net_1'],
+    ifName  => ['eth2'],
+);
+
+ok(defined($response), 'request 15: we got back a response');
+ok(!defined($response->{'error'}) && !defined($response->{'error_text'}),
+   'request 15: didn\'t get an error message');
+ok(defined($response->{'results'}), 'request 15: got results in the response');
+
+cmp_deeply(
+    $response->{'results'},
+    {
+      'a.example.net' => {
+        '1.1' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU1/1',
+          'usageAsFraction' => num(0.06, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100135,
+        },
+        '1.2' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU1/2',
+          'usageAsFraction' => num(0.02, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100135,
+        },
+        '2.3' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU2/3',
+          'usageAsFraction' => num(0.71, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100135,
+        },
+      },
+      'b.example.net' => {
+        '3' => {
+          '*ifName' => 'eth2',
+          '*cpuName' => undef,
+          'usageAsFraction' => undef,
+          'inputOctets' => num(20, THRESHOLD),
+          'time' => 100132,
+        },
+        '2' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU2',
+          'usageAsFraction' => num(0.15, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100110,
+        },
+      },
+    },
+    'request 15: got the correct results'
 );

@@ -33,12 +33,12 @@
     <input id="node" required="1" />
 
     <instance id="genericX" hostType="default">
-      <scan id="idx" oid="1.3.6.1.2.1.31.1.1.1.1.*" />
+      <scan id="xyzzy" oid="1.3.6.1.2.1.31.1.1.1.1.*" />
       <result>
-        <val id="*name"                  oid="1.3.6.1.2.1.31.1.1.1.1.idx" />
-        <val id="status"                 oid="1.3.6.1.2.1.2.2.1.8.idx" />
-        <val id="inPackets"  type="rate" oid="1.3.6.1.2.1.2.2.1.11.idx" />
-        <val id="outPackets" type="rate" oid="1.3.6.1.2.1.2.2.1.17.idx" />
+        <val id="*name"                  oid="1.3.6.1.2.1.31.1.1.1.1.xyzzy" />
+        <val id="status"                 oid="1.3.6.1.2.1.2.2.1.8.xyzzy" />
+        <val id="inPackets"  type="rate" oid="1.3.6.1.2.1.2.2.1.11.xyzzy" />
+        <val id="outPackets" type="rate" oid="1.3.6.1.2.1.2.2.1.17.xyzzy" />
       </result>
     </instance>
   </composite>
@@ -76,7 +76,7 @@
     </instance>
   </composite>
 
-  <!-- test of numerical <fctn>s, as well as
+  <!-- test of numerical <fctn>s, as well as of
        chaining functions together and their order of execution -->
   <composite id="test6">
     <input id="node" required="1" />
@@ -112,6 +112,28 @@
           <fctn name="log10" />
           <fctn name="+" value="1" />
         </val>
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of multiple <input>s -->
+  <composite id="test7">
+    <input id="node" required="1" />
+    <input id="ifName" />
+    <input id="cpuName" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+      <scan id="cpuIdx" oid="2.10.9994.27.1.*"         var="cpuName" />
+
+      <result>
+        <val id="*ifName"  oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" />
+        <val id="*cpuName" oid="2.10.9994.27.1.cpuIdx" />
+
+        <val id="usageAsFraction" oid="2.10.9994.27.8.cpuIdx">
+          <fctn name="/" value="100" />
+        </val>
+        <val id="inputOctets" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.ifIdx" />
       </result>
     </instance>
   </composite>
