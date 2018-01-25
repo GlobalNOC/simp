@@ -221,6 +221,9 @@ sub _get{
   #    * The results from the compute-functions phase (_do_functions);
   #      $results{'final'} is passed back to the caller
 
+  # Make sure this exists, even if we get zero results
+  $results{'final'} = {};
+
   my $success_callback = $rpc_ref->{'success_callback'};
 
 
