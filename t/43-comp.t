@@ -108,7 +108,7 @@ check_response(2, $response,
 
 # Request 3: like request 1, but for no hosts
 $response = $client->test1(
-    node   => []
+    node => []
 );
 
 error_expected(3, $response);
@@ -324,7 +324,7 @@ check_response(10, $response,
 
 # Request 11: test of *not* including a required input parameter
 $response = $client->test5(
-    node    => ['a.example.net', 'b.example.net'],
+    node => ['a.example.net', 'b.example.net'],
 );
 
 error_expected(11, $response);
@@ -343,7 +343,7 @@ error_expected(12, $response);
 
 # Request 13: elaborate test of numerical <fctn>s, multiple <fctn>s per value
 $response = $client->test6(
-    node    => ['a.example.net', 'b.example.net', 'c.example.net_1'],
+    node => ['a.example.net', 'b.example.net', 'c.example.net_1'],
 );
 
 # "# ***" means "take particular note of these values
@@ -478,8 +478,8 @@ check_response(14, $response,
 
 # Request 15: test of two <input>s, where only one is specified
 $response = $client->test7(
-    node    => ['a.example.net', 'b.example.net', 'c.example.net_1'],
-    ifName  => ['eth2'],
+    node   => ['a.example.net', 'b.example.net', 'c.example.net_1'],
+    ifName => ['eth2'],
 );
 
 check_response(15, $response,
@@ -530,7 +530,7 @@ check_response(15, $response,
 
 # Request 16: test of two <input>s, where neither is specified
 $response = $client->test7(
-    node    => 'a.example.net',
+    node => 'a.example.net',
 );
 
 check_response(16, $response,
