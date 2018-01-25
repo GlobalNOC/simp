@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 62;
+use Test::More tests => 74;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num);
@@ -570,6 +570,64 @@ check_response(16, $response,
           'usageAsFraction' => undef,
           'inputOctets' => num(50, THRESHOLD),
           'time' => 100124,
+        },
+      },
+    }
+);
+
+
+
+# Request 17: test of basic RPN calculator operation
+$response = $client->test8(
+    node => 'b.example.net'
+);
+
+check_response(17, $response,
+    {
+      'b.example.net' => {
+        '1' => {
+          '*name' => 'eth1',
+          'modName' => 'Ethernet1',
+          'input' => undef,
+          'ioDiff' => num(9.5, THRESHOLD),
+          'time' => 100132,
+        },
+        '3' => {
+          '*name' => 'eth2',
+          'modName' => 'Ethernet2',
+          'input' => undef,
+          'ioDiff' => num(19, THRESHOLD),
+          'time' => 100132,
+        },
+      },
+    }
+);
+
+
+
+# Request 18: test of running against a host with none of the scan OIDs
+$response = $client->test4(
+    node => 'c.example.net_1'
+);
+
+check_response(18, $response, { });
+
+
+
+# Request 19: test of rate-based data on a host with only one epoch of collection
+$response = $client->test3(
+    node => 'c.example.net_2'
+);
+
+check_response(19, $response,
+    {
+      'c.example.net_2' => {
+        '8' => {
+          '*name' => 'eth7',
+          'status' => 1,
+          'inPackets' => undef,
+          'outPackets' => undef,
+          'time' => 100135,
         },
       },
     }

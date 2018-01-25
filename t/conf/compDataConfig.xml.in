@@ -138,6 +138,28 @@
     </instance>
   </composite>
 
+  <!-- test of 'rpn' function -->
+  <composite id="test8">
+    <input id="node" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="idx" oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+
+      <result>
+        <val id="*name" oid="1.3.6.1.2.1.31.1.1.1.1.idx" />
+        <val id="modName" oid="1.3.6.1.2.1.31.1.1.1.1.idx">
+          <fctn name="rpn" value="'^[a-zA-Z]*(([^a-zA-Z].*)?)$' match 'Ethernet' exch concat" />
+        </val>
+        <val id="input" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.idx">
+          <fctn name="rpn" value="pop _" />
+        </val>
+        <val id="ioDiff" type="rate" oid="1.3.6.1.2.1.31.1.1.1.10.idx">
+          <fctn name="rpn" value="$input exch -" />
+        </val>
+      </result>
+    </instance>
+  </composite>
+
   <composite id="interface">
     <input id="node" required="1" />
     <input id="ifName" />
