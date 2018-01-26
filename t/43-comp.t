@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 74;
+use Test::More tests => 82;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num);
@@ -628,6 +628,124 @@ check_response(19, $response,
           'inPackets' => undef,
           'outPackets' => undef,
           'time' => 100135,
+        },
+      },
+    }
+);
+
+
+
+# Request 20: Test of a <composite> resembling something you actually might
+# see in production
+$response = $client->interface(
+    node => ['a.example.net', 'b.example.net', 'c.example.net_1', 'c.example.net_2']
+);
+
+check_response(20, $response,
+    {
+      'a.example.net' => {
+        '1' => {
+          '*node' => 'a.example.net',
+          '*intf' => 'eth0',
+          'input' => num(800, THRESHOLD),
+          'output' => num(160, THRESHOLD),
+          'inUcast' => num(0.1, THRESHOLD),
+          'outUcast' => num(0.3, THRESHOLD),
+          'status' => 1,
+          'time' => 100124,
+        },
+        '2' => {
+          '*node' => 'a.example.net',
+          '*intf' => 'eth1',
+          'input' => num(400, THRESHOLD),
+          'output' => num(16, THRESHOLD),
+          'inUcast' => num(0.1, THRESHOLD),
+          'outUcast' => num(4, THRESHOLD),
+          'status' => 0,
+          'time' => 100124,
+        },
+      },
+      'b.example.net' => {
+        '1' => {
+          '*node' => 'b.example.net',
+          '*intf' => 'eth1',
+          'input' => num(80, THRESHOLD),
+          'output' => num(4, THRESHOLD),
+          'inUcast' => num(0.1, THRESHOLD),
+          'outUcast' => num(1, THRESHOLD),
+          'status' => 1,
+          'time' => 100132,
+        },
+        '3' => {
+          '*node' => 'b.example.net',
+          '*intf' => 'eth2',
+          'input' => num(160, THRESHOLD),
+          'output' => num(8, THRESHOLD),
+          'inUcast' => num(2, THRESHOLD),
+          'outUcast' => num(0.1, THRESHOLD),
+          'status' => 1,
+          'time' => 100132,
+        },
+      },
+      'c.example.net_1' => {
+        '1' => {
+          '*node' => 'c.example.net',
+          '*intf' => 'eth0',
+          'input' => num(800, THRESHOLD),
+          'output' => num(0, THRESHOLD),
+          'inUcast' => num(0.5, THRESHOLD),
+          'outUcast' => num(0, THRESHOLD),
+          'status' => 1,
+          'time' => 100131,
+        },
+      },
+      'c.example.net_2' => {
+        '8' => {
+          '*node' => 'c.example.net',
+          '*intf' => 'eth7',
+          'input' => undef,
+          'output' => undef,
+          'inUcast' => undef,
+          'outUcast' => undef,
+          'status' => 1,
+          'time' => 100135,
+        },
+      },
+    }
+);
+
+
+
+# Request 21: like request 20, but for a specific ifName
+$response = $client->interface(
+    node   => ['a.example.net', 'b.example.net', 'c.example.net_1'],
+    ifName => 'eth0'
+);
+
+check_response(21, $response,
+    {
+      'a.example.net' => {
+        '1' => {
+          '*node' => 'a.example.net',
+          '*intf' => 'eth0',
+          'input' => num(800, THRESHOLD),
+          'output' => num(160, THRESHOLD),
+          'inUcast' => num(0.1, THRESHOLD),
+          'outUcast' => num(0.3, THRESHOLD),
+          'status' => 1,
+          'time' => 100124,
+        },
+      },
+      'c.example.net_1' => {
+        '1' => {
+          '*node' => 'c.example.net',
+          '*intf' => 'eth0',
+          'input' => num(800, THRESHOLD),
+          'output' => num(0, THRESHOLD),
+          'inUcast' => num(0.5, THRESHOLD),
+          'outUcast' => num(0, THRESHOLD),
+          'status' => 1,
+          'time' => 100131,
         },
       },
     }
