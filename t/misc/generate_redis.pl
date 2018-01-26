@@ -47,6 +47,7 @@ my %workers = (
   'b.example.net'   => { 'intf' => 'intf2', 'cpu' => 'cpu1' },
   'c.example.net_1' => { 'intf' => 'intf2', 'cpu' => 'cpu1' },
   'c.example.net_2' => { 'intf' => 'intf1', 'cpu' => 'cpu1' },
+  'd.example.net'   => { 'intf' => 'intf2', 'cpu' => 'cpu1' },
 );
 
 my %vars = (
@@ -54,6 +55,7 @@ my %vars = (
   'b.example.net'   => {},
   'c.example.net_1' => { 'test' => 'bye', 'card_no' => '1' },
   'c.example.net_2' => { 'test' => 'lol', 'card_no' => '2' },
+  'd.example.net'   => { 'card_no' => '1' },
 );
 
 my %vars_type = (
@@ -61,12 +63,14 @@ my %vars_type = (
   'b.example.net'   => 'cpu',
   'c.example.net_1' => 'intf',
   'c.example.net_2' => 'intf',
+  'd.example.net'   => 'cpu',
 );
 
 my %ip_addrs = (
   'a.example.net'   => '10.0.0.1',
   'b.example.net'   => '10.0.0.2',
   'c.example.net_2' => '10.0.0.3',
+  'd.example.net'   => '10.0.1.1',
 );
 
 # $collection_data{$type}{$host}[$i] = [$collection_run, $epoch_time (diff from 100_000), $data]
@@ -98,6 +102,16 @@ my %collection_data = (
       [ 25,  100, {
                     '1' => [ 'CPU1', 4 ],
                     '2' => [ 'CPU2', 6 ],
+                  } ],
+    ],
+    'd.example.net' => [
+      [ 8, -187, {
+                    '100' => [ 'CPU1', 12 ],
+                    '101' => [ 'CPU2', 18 ],
+                  } ],
+      [ 9,  112, {
+                    '100' => [ 'CPU1', 14 ],
+                    '101' => [ 'CPU2', 19 ],
                   } ],
     ],
   },
@@ -144,6 +158,20 @@ my %collection_data = (
     'c.example.net_2' => [
       [ 803, 135, {
                      '8' => [ 'eth7', '8898987987', '6758799', '354', '75476', '1' ],
+                  } ],
+    ],
+    'd.example.net' => [
+      [ 997,   1, {
+                    '101' => [ 'eth1', '100050', '200001', '1000', '1100', '1' ],
+                    '104' => [ 'eth4', '300060',      '2', '1000', '1100', '1' ],
+                  } ],
+      [ 998,  61, {
+                    '101' => [ 'eth1', '100150', '200011', '1003', '1101', '1' ],
+                    '104' => [ 'eth4', '300080',     '32', '1001', '1101', '0' ],
+                  } ],
+      [ 999, 121, {
+                    '101' => [ 'eth1', '100750', '200041', '1009', '1161', '1' ],
+                    '104' => [ 'eth4', '301280',     '92', '1121', '1107', '1' ],
                   } ],
     ],
   },

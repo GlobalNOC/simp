@@ -3,10 +3,10 @@
 use strict;
 use warnings;
 
-use Test::More tests => 82;
+use Test::More tests => 86;
 
 use GRNOC::RabbitMQ::Client;
-use Test::Deep qw(cmp_deeply num);
+use Test::Deep qw(cmp_deeply num any);
 
 use constant THRESHOLD => 1e-9;
 
@@ -746,6 +746,42 @@ check_response(21, $response,
           'outUcast' => num(0, THRESHOLD),
           'status' => 1,
           'time' => 100131,
+        },
+      },
+    }
+);
+
+
+
+# Request 22: reprise of request 16, only with a host which has overlap
+# between CPU and interface OID suffixes
+$response = $client->test7(
+    node => 'd.example.net',
+);
+
+check_response(22, $response,
+    {
+      'd.example.net' => {
+        '100' => {
+          '*ifName' => undef,
+          '*cpuName' => 'CPU1',
+          'usageAsFraction' => num(0.14, THRESHOLD),
+          'inputOctets' => undef,
+          'time' => 100112,
+        },
+        '101' => {
+          '*ifName' => 'eth1',
+          '*cpuName' => 'CPU2',
+          'usageAsFraction' => num(0.19, THRESHOLD),
+          'inputOctets' => num(10, THRESHOLD),
+          'time' => any(100112, 100121),
+        },
+        '104' => {
+          '*ifName' => 'eth4',
+          '*cpuName' => undef,
+          'usageAsFraction' => undef,
+          'inputOctets' => num(20, THRESHOLD),
+          'time' => 100121,
         },
       },
     }
