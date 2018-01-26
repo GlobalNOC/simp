@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 86;
+use Test::More tests => 90;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num any);
@@ -782,6 +782,74 @@ check_response(22, $response,
           'usageAsFraction' => undef,
           'inputOctets' => num(20, THRESHOLD),
           'time' => 100121,
+        },
+      },
+    }
+);
+
+
+
+# Request 23: test out some host-variables stuff
+$response = $client->test9(
+    node => ['a.example.net', 'b.example.net', 'c.example.net_1', 'c.example.net_2', 'd.example.net']
+);
+
+check_response(23, $response,
+    {
+      'a.example.net' => {
+        '1.1' => {
+          'ts' => 'hi',
+          'cd' => undef,
+          'x' => 'a.example.net//hi',
+          'time' => 100135,
+        },
+        '1.2' => {
+          'ts' => 'hi',
+          'cd' => undef,
+          'x' => 'a.example.net//hi',
+          'time' => 100135,
+        },
+        '2.3' => {
+          'ts' => 'hi',
+          'cd' => undef,
+          'x' => 'a.example.net//hi',
+          'time' => 100135,
+        },
+      },
+      'b.example.net' => {
+        '2' => {
+          'ts' => undef,
+          'cd' => undef,
+          'x' => 'b.example.net//',
+          'time' => 100110,
+        },
+      },
+      'c.example.net_2' => {
+        '1' => {
+          'ts' => 'lol',
+          'cd' => '2',
+          'x' => 'c.example.net_2/2/lol',
+          'time' => 100100,
+        },
+        '2' => {
+          'ts' => 'lol',
+          'cd' => '2',
+          'x' => 'c.example.net_2/2/lol',
+          'time' => 100100,
+        },
+      },
+      'd.example.net' => {
+        '100' => {
+          'ts' => undef,
+          'cd' => '1',
+          'x' => 'd.example.net/1/',
+          'time' => 100112,
+        },
+        '101' => {
+          'ts' => undef,
+          'cd' => '1',
+          'x' => 'd.example.net/1/',
+          'time' => 100112,
         },
       },
     }
