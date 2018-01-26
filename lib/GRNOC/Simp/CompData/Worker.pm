@@ -17,7 +17,19 @@ use GRNOC::WebService::Regex;
 
 
 ### required attributes ###
+=head1 public attrbibutes
 
+=over 12
+
+=item config
+
+=item logger
+
+=item worker_id
+
+=back
+
+=cut
 has config => ( is => 'ro',
                 required => 1 );
 
@@ -29,6 +41,21 @@ has worker_id => ( is => 'ro',
 
 
 ### internal attributes ###
+=head2 private attributes
+
+=over 12
+
+=item is_running
+
+=item dispatcher
+
+=item client
+
+=item need_restart
+
+=back
+
+=cut
 
 has is_running => ( is => 'rwp',
                     default => 0 );
@@ -44,6 +71,16 @@ my %_FUNCTIONS; # Used by _function_one_val
 my %_RPN_FUNCS; # Used by _rpn_calc
 
 ### public methods ###
+=head2 public_methods
+
+=over 12
+
+=item start
+
+=back
+
+=cut
+
 sub start {
    my ( $self ) = @_;
 
