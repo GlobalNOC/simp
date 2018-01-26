@@ -6,7 +6,7 @@ use warnings;
 use Test::More tests => 90;
 
 use GRNOC::RabbitMQ::Client;
-use Test::Deep qw(cmp_deeply num any);
+use Test::Deep qw(cmp_deeply num any code);
 
 use constant THRESHOLD => 1e-9;
 
@@ -794,6 +794,13 @@ $response = $client->test9(
     node => ['a.example.net', 'b.example.net', 'c.example.net_1', 'c.example.net_2', 'd.example.net']
 );
 
+# This works unless you're running this test with a system time earlier than when
+# I wrote this -- sorry, time travelers.
+sub is_timestampy {
+   my $num = shift;
+   return ($num > 1.5e9);
+}
+
 check_response(23, $response,
     {
       'a.example.net' => {
@@ -801,19 +808,19 @@ check_response(23, $response,
           'ts' => 'hi',
           'cd' => undef,
           'x' => 'a.example.net//hi',
-          'time' => 100135,
+          'time' => any(100135, code(\&is_timestampy)),
         },
         '1.2' => {
           'ts' => 'hi',
           'cd' => undef,
           'x' => 'a.example.net//hi',
-          'time' => 100135,
+          'time' => any(100135, code(\&is_timestampy)),
         },
         '2.3' => {
           'ts' => 'hi',
           'cd' => undef,
           'x' => 'a.example.net//hi',
-          'time' => 100135,
+          'time' => any(100135, code(\&is_timestampy)),
         },
       },
       'b.example.net' => {
@@ -821,7 +828,7 @@ check_response(23, $response,
           'ts' => undef,
           'cd' => undef,
           'x' => 'b.example.net//',
-          'time' => 100110,
+          'time' => any(100110, code(\&is_timestampy)),
         },
       },
       'c.example.net_2' => {
@@ -829,13 +836,13 @@ check_response(23, $response,
           'ts' => 'lol',
           'cd' => '2',
           'x' => 'c.example.net_2/2/lol',
-          'time' => 100100,
+          'time' => any(100100, code(\&is_timestampy)),
         },
         '2' => {
           'ts' => 'lol',
           'cd' => '2',
           'x' => 'c.example.net_2/2/lol',
-          'time' => 100100,
+          'time' => any(100100, code(\&is_timestampy)),
         },
       },
       'd.example.net' => {
@@ -843,13 +850,13 @@ check_response(23, $response,
           'ts' => undef,
           'cd' => '1',
           'x' => 'd.example.net/1/',
-          'time' => 100112,
+          'time' => any(100112, code(\&is_timestampy)),
         },
         '101' => {
           'ts' => undef,
           'cd' => '1',
           'x' => 'd.example.net/1/',
-          'time' => 100112,
+          'time' => any(100112, code(\&is_timestampy)),
         },
       },
     }
