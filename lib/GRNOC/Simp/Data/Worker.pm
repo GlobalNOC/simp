@@ -2,6 +2,7 @@ package GRNOC::Simp::Data::Worker;
 
 use strict;
 use Carp;
+use List::Util qw(none);
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
 use Try::Tiny;
@@ -295,7 +296,7 @@ sub _find_group{
     return;
 }
 
-sub _find_key{
+sub _find_keys{
 
     my $self = shift;
     my %params = @_;
@@ -345,7 +346,7 @@ sub _find_key{
     my $set = $self->redis->get($lookup);
     $self->redis->select(0);
 
-    return $set;
+    return [ $set ];
 }
 
 
@@ -367,40 +368,39 @@ sub _get{
 	foreach my $oid (@$oidmatch){
 	    foreach my $host (@$node){
 		
-		#find the correct key to fetch for!
-		my $set = $self->_find_key( host => $host,
-					    oid => $oid,
-					    requested => $requested);
+                #find the correct keys to fetch for!
+                my $sets = $self->_find_keys( host => $host,
+                                              oid => $oid,
+                                              requested => $requested);
 
-		if(!defined($set)){
-		    $self->logger->error("Unable to find set to look at");
-		    next;
-		}
-		my ($host, $group, $time) = split(',',$set);
+                if(!defined($sets) || (scalar(@$sets) <= 0) || (none { defined($_) } @$sets)){
+                    $self->logger->error("Unable to find set to look at");
+                    next;
+                }
 
-		my $keys;
-		my $cursor = 0;
-		while(1){
-		    #--- get the set of hash entries that match our pattern
-		    ($cursor,$keys) =  $redis->sscan($set, $cursor,MATCH=>$oid . "*",COUNT=>2000);
-		    foreach my $key (@$keys){
-			
-			$key =~ /([\d+|\.]+),(.*)/;
-			my $oid = $1;
-			my $value = $2;
+                foreach my $set (@$sets){
+                    next if !defined($set);
 
-			if(!defined($oid)){
-			    $key =~ /(.*),(.*)/;
-			    $oid = $1;
-			    $value = $2;
-			}
+                    my ($host, $group, $time) = split(',',$set);
 
-			$results{$host}{$oid}{'value'} = $value;
-			$results{$host}{$oid}{'time'} = $time;
-		    }
-		    
-		    last if($cursor == 0);
-		}
+                    my $keys;
+                    my $cursor = 0;
+                    while(1){
+                        #--- get the set of hash entries that match our pattern
+                        ($cursor,$keys) =  $redis->sscan($set, $cursor,MATCH=>$oid . "*",COUNT=>2000);
+                        foreach my $key (@$keys){
+
+                            $key =~ /^([^,]*),(.*)/;
+                            my $oid = $1;
+                            my $value = $2;
+
+                            $results{$host}{$oid}{'value'} = $value;
+                            $results{$host}{$oid}{'time'} = $time;
+                        }
+
+                        last if($cursor == 0);
+                    }
+                }
 	    }
 	}
 
