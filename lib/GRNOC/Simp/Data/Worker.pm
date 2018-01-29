@@ -244,7 +244,7 @@ sub _ping{
   return gettimeofday();
 }
 
-sub _find_group{
+sub _find_groups{
     my $self = shift;
     my %params = @_;
 
@@ -279,7 +279,7 @@ sub _find_group{
 
     # If we have 1 candidate, return that group
     if(scalar(@new_host_groups) == 1){
-	return $new_host_groups[0];
+        return [ $new_host_groups[0] ];
     }elsif(scalar(@new_host_groups) > 1){
 
         # If we have multiple matching candidates, sort lexicographically by
@@ -289,7 +289,7 @@ sub _find_group{
 
         # We now have in $sorted[0] the most specific match; if there are multiple
         # most-specific matches, $sorted[0] is the one with the shortest interval.
-        return $sorted[0];
+        return [ $sorted[0] ];
     }
 
     $self->logger->error("NO host groups found for $host and $oid"); 
@@ -305,48 +305,53 @@ sub _find_keys{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    my $group = $self->_find_group( host => $host, 
-				    oid => $oid,
-				    requested => $requested);
-    
-    if(!defined($group)){
-	$self->logger->error("unable to find group for $host $oid");
-	return;
+    my $groups = $self->_find_groups( host => $host, 
+                                      oid => $oid,
+                                      requested => $requested);
+
+    if(!defined($groups) || (scalar(@$groups) <= 0) || (none { defined($_) } @$groups)){
+        $self->logger->error("unable to find group for $host $oid");
+        return;
     }
 
-    #ok so we have the group name we want now... grab the key that leads to the current time chunk
-    $self->redis->select(2);
-    my $res = $self->redis->get($host . "," . $group->{'group'});
-    $self->redis->select(0);
-    
-    #key should be poll_id,ts
-    my ($poll_id,$time) = split(',',$res);
+    my @sets;
 
-    #if the requested time is newer than our poll time OR the poll time - the requested time is less than 1 poll interval return the current one
-    my $lookup;
-    if($requested > $time){
-	$lookup = $host . "," . $group->{'group'} . "," . $poll_id;
-    }else{
-	#find the closest poll cycle
-	my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
-	if($poll_id >= $poll_ids_back){
-	    $self->logger->debug("looking " . $poll_ids_back);
-	    $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - $poll_ids_back);
-	    $self->logger->debug("lookup key: " . $lookup);
-	}else{
-	    $self->logger->debug("No time available that matches the requested time!");
-	    return;
-	}
+    foreach my $group (@$groups){
+        next if !defined($group);
+        #ok so we have the group name we want now... grab the key that leads to the current time chunk
+        $self->redis->select(2);
+        my $res = $self->redis->get($host . "," . $group->{'group'});
+        $self->redis->select(0);
+
+        #key should be poll_id,ts
+        my ($poll_id,$time) = split(',',$res);
+
+        #if the requested time is newer than our poll time OR the poll time - the requested time is less than 1 poll interval return the current one
+        my $lookup;
+        if($requested > $time){
+            $lookup = $host . "," . $group->{'group'} . "," . $poll_id;
+        }else{
+            #find the closest poll cycle
+            my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
+            if($poll_id >= $poll_ids_back){
+                $self->logger->debug("looking " . $poll_ids_back);
+                $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - $poll_ids_back);
+                $self->logger->debug("lookup key: " . $lookup);
+            }else{
+                $self->logger->debug("No time available that matches the requested time!");
+                return;
+            }
+        }
+
+
+        #ok so lookup is now defined
+        #lookup will give us the right set to sscan through
+        $self->redis->select(1);
+        push @sets, $self->redis->get($lookup);
+        $self->redis->select(0);
     }
 
-
-    #ok so lookup is now defined
-    #lookup will give us the right set to sscan through
-    $self->redis->select(1);
-    my $set = $self->redis->get($lookup);
-    $self->redis->select(0);
-
-    return [ $set ];
+    return \@sets;
 }
 
 
