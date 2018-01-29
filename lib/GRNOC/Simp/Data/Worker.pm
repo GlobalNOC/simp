@@ -244,6 +244,19 @@ sub _ping{
   return gettimeofday();
 }
 
+# Is the first argument, interpreted as an OID, a prefix of
+# the second argument, also interpreted as an OID?
+sub _is_oid_prefix{
+    my $a = shift;
+    my $b = shift;
+
+    my $len = length($a);
+    my $next_char = substr($b, $len, 1);
+
+    return ((substr($b, 0, $len) eq $a) &&
+            ($next_char eq '.' || $next_char eq ''));
+}
+
 sub _find_groups{
     my $self = shift;
     my %params = @_;
@@ -254,6 +267,9 @@ sub _find_groups{
 
     my %host_groups;
 
+    # Remove any ".*" suffixes
+    $oid =~ s/(\.\*+)*$//;
+
     try{
 	$self->redis->select(3);
 	%host_groups = $self->redis->hgetall($host);
@@ -262,17 +278,14 @@ sub _find_groups{
 	$self->redis->select(0);
 	$self->logger->error("Error fetching all groups host is a part of");
 	return;
-    };	
+    };
 
     my @new_host_groups;
     foreach my $base_oid (keys %host_groups){
 	my ($group, $interval) = split(',', $host_groups{$base_oid});
 
-        my $next_char = substr($oid, length($base_oid), 1);
-
         # group is a candidate if its base OID is a prefix of ours
-        if(substr($oid, 0, length($base_oid)) eq $base_oid &&
-                  ($next_char eq '.' || $next_char eq '')){
+        if(_is_oid_prefix($base_oid, $oid)){
 	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
 	}
     }
@@ -284,16 +297,52 @@ sub _find_groups{
 
         # If we have multiple matching candidates, sort lexicographically by
         # (length of base_oid descending, interval ascending)
-        my @sorted = sort {    -(length($a->{'base_oid'}) <=> length($b->{'base_oid'}))
-                            or ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
+        my @sorted = sort { -(length($a->{'base_oid'}) <=> length($b->{'base_oid'})) or
+                            ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
 
         # We now have in $sorted[0] the most specific match; if there are multiple
         # most-specific matches, $sorted[0] is the one with the shortest interval.
         return [ $sorted[0] ];
     }
 
-    $self->logger->error("NO host groups found for $host and $oid"); 
-    return;
+    # If we got here, we had no candidates - groups whose base OID is a prefix
+    # of $oid, the base OID of the tree we're interested in. That said, all hope
+    # is not lost yet - it may be that there are one or more groups whose
+    # base OID has $oid as a prefix! We now look for these. If we find more than
+    # one, we then weed out groups that are redundant, i.e., groups for which
+    # there is a "wider" (shorter-prefix) group with the same or shorter interval.
+
+    @new_host_groups = ();
+    foreach my $base_oid (keys %host_groups){
+	my ($group, $interval) = split(',', $host_groups{$base_oid});
+
+        # This time around, group is a candidate if our OID is a prefix of its base
+        if(_is_oid_prefix($oid, $base_oid)){
+	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
+	}
+    }
+
+    # Sort the groups lexicographically by
+    # (length of base_oid ascending, interval ascending)
+    my @sorted = sort { (length($a->{'base_oid'}) <=> length($b->{'base_oid'})) or
+                        ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
+
+    # Filter out redundant groups
+    my @final_list = ();
+    foreach my $group (@sorted){
+        if(none { _is_oid_prefix($_->{'base_oid'}, $group->{'base_oid'}) &&
+                  $_->{'interval'} <= $group->{'interval'} } @final_list){
+            push @final_list, $group;
+        }
+    }
+    # For the purposes of _find_groups's callees, we want to work from wider to
+    # narrower groups; @final_list has the groups in the right order.
+
+    if(scalar(@final_list) <= 0){
+        $self->logger->error("NO host groups found for $host and $oid");
+    }
+
+    return \@final_list;
 }
 
 sub _find_keys{
