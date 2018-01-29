@@ -267,32 +267,32 @@ sub _find_group{
     foreach my $base_oid (keys %host_groups){
 	my ($group, $interval) = split(',', $host_groups{$base_oid});
 
+        my $next_char = substr($oid, length($base_oid), 1);
+
         # group is a candidate if its base OID is a prefix of ours
-        if(substr($oid, 0, length($base_oid)) eq $base_oid){
+        if(substr($oid, 0, length($base_oid)) eq $base_oid &&
+                  ($next_char eq '.' || $next_char eq '')){
 	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
 	}
     }
-    
-    #ok we are close! we only have matching host groups...
-    #if we have none... return undef
-    if(scalar(@new_host_groups) <= 0){
-	$self->logger->error("NO host groups found for $host and $oid"); 
-	return;
-    }
 
-    # If we have 1 match, return that group
+    # If we have 1 candidate, return that group
     if(scalar(@new_host_groups) == 1){
 	return $new_host_groups[0];
+    }elsif(scalar(@new_host_groups) > 1){
+
+        # If we have multiple matching candidates, sort lexicographically by
+        # (length of base_oid descending, interval ascending)
+        my @sorted = sort {    -(length($a->{'base_oid'}) <=> length($b->{'base_oid'}))
+                            or ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
+
+        # We now have in $sorted[0] the most specific match; if there are multiple
+        # most-specific matches, $sorted[0] is the one with the shortest interval.
+        return $sorted[0];
     }
 
-    # OK, if we have multiple matches, sort lexicographically by
-    # (length of base_oid descending, interval ascending)
-    my @sorted = sort {    -(length($a->{'base_oid'}) <=> length($b->{'base_oid'}))
-                        or ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
-
-    # We now have in $sorted[0] the most specific match; if there are multiple
-    # most-specific matches, $sorted[0] is the one with the shortest interval.
-    return $sorted[0];
+    $self->logger->error("NO host groups found for $host and $oid"); 
+    return;
 }
 
 sub _find_key{
