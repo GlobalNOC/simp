@@ -475,28 +475,28 @@ sub _do_vals{
                     next if !defined($oid_suffixes); # Make sure there's stuff to iterate over
 
                     my %lut; # look-up table from (full OID) to list of (OID suffix, variable name) pairs
-                    my @oid_list;
+                    my $oid_base = join '.', @oid_parts[0 .. ($scan_var_idx - 1)], '*'; # OID subtree to scan through
 
                     foreach my $oid_suffix (@$oid_suffixes){
                         # re-use @oid_parts to construct the full OID to look for
                         $oid_parts[$scan_var_idx] = $oid_suffix;
                         my $full_oid = join '.', @oid_parts;
 
-                        push @oid_list, $full_oid;
                         push @{$lut{$full_oid}}, [$oid_suffix, $id];
                     }
-
-                    # SimpData does not like it when you call it with an empty oidmatch, so:
-                    next if scalar(@oid_list) <= 0;
 
                     # Now get the data for these OIDs from Simp
                     $cv->begin;
 
+                    # It is tempting to request just the OIDs you know you want,
+                    # instead of asking for the whole subtree, but requesting
+                    # a bunch of individual OIDs takes SimpData a *whole* lot
+                    # more time and CPU, so we go for the subtree.
                     if(defined($type) && $type eq 'rate'){
                         $self->client->get_rate(
                             node     => [$host],
                             period   => $params->{'period'}{'value'},
-                            oidmatch => \@oid_list,
+                            oidmatch => [$oid_base],
                             async_callback => sub {
                                 my $data = shift;
 				$self->_val_cb($data->{'results'},$results,$host,\%lut);
@@ -506,7 +506,7 @@ sub _do_vals{
                     }else{
                         $self->client->get(
                             node     => [$host],
-                            oidmatch => \@oid_list,
+                            oidmatch => [$oid_base],
                             async_callback => sub {
                                 my $data = shift;
 				$self->_val_cb($data->{'results'},$results,$host,\%lut);
