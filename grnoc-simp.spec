@@ -1,25 +1,31 @@
 Summary: A small system for gathering large amounts of SNMP data and providing a RabbitMQ mechanism to access them 
 Name: grnoc-simp
-Version: 1.0.2
-Release: 2%{dist}
+Version: 1.0.5
+Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
 Source0: simp-%{version}.tar.gz
+
 BuildRequires: perl
-Requires: perl-GRNOC-RabbitMQ
-Requires: perl-Moo
+
 Requires: redis
+Requires: perl(AnyEvent)
+Requires: perl(AnyEvent::SNMP)
+Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
-Requires: perl-Redis >= 1.991
-Requires: perl-Parallel-ForkManager
-Requires: perl-Try-Tiny
+Requires: perl-GRNOC-RabbitMQ
+Requires: perl-Moo
 Requires: perl-Net-SNMP
+Requires: perl-Parallel-ForkManager
+Requires: perl-Redis >= 1.991
+Requires: perl-Try-Tiny
+Requires: perl-Type-Tiny
+
 Provides: perl(GRNOC::Simp::Data)
 Provides: perl(GRNOC::Simp::CompData)
 Provides: perl(GRNOC::Simp::Poller)
-Provides: perl(GRNOC::Simp::Poller::Purger)
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
@@ -40,7 +46,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller
-%{__install} -d -p %{buildroot}/etc/grnoc/simp
+%{__install} -d -p %{buildroot}/etc/grnoc/simp/hosts.d
 %{__install} -d -p %{buildroot}/etc/init.d
 
 %{__install} -d -p %{buildroot}/usr/bin/
@@ -57,6 +63,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} bin/compData.pl %{buildroot}/usr/bin/compData.pl
 %{__install} conf/*.xml %{buildroot}/etc/grnoc/simp/
 %{__install} conf/*.conf %{buildroot}/etc/grnoc/simp/
+%{__install} conf/hosts.d/*.xml %{buildroot}/etc/grnoc/simp/hosts.d/
 %{__install} conf/simp.init %{buildroot}/etc/init.d/simp
 %{__install} conf/simp_data.init %{buildroot}/etc/init.d/simpData
 %{__install} conf/comp_data.init %{buildroot}/etc/init.d/compData
@@ -65,7 +72,7 @@ rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_ROOT
 
 %files
-%defattr(-,root,root,-)
+%defattr(644,root,root,755)
 %{perl_vendorlib}/GRNOC/Simp.pm
 %{perl_vendorlib}/GRNOC/Simp/Data.pm
 %{perl_vendorlib}/GRNOC/Simp/CompData.pm
@@ -73,14 +80,16 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
 %{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
 %{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
+%defattr(755,root,root,755)
 /usr/bin/simp.pl
 /usr/bin/simpData.pl
 /usr/bin/compData.pl
 /etc/init.d/simp
 /etc/init.d/simpData
 /etc/init.d/compData
+%defattr(644,root,root,755)
 %config(noreplace) /etc/grnoc/simp/config.xml
-%config(noreplace) /etc/grnoc/simp/hosts.xml
+%config(noreplace) /etc/grnoc/simp/hosts.d/hosts.xml
 %config(noreplace) /etc/grnoc/simp/logging.conf
 %config(noreplace) /etc/grnoc/simp/simpDataConfig.xml
 %config(noreplace) /etc/grnoc/simp/compDataConfig.xml

@@ -14,7 +14,11 @@ package GRNOC::Simp;
 use strict;
 use warnings;
 
-our $VERSION = '1.0.2';
+our $VERSION = '1.0.5';
+
+=head2 new
+
+=cut
 
 sub new {
     my $caller = shift;
@@ -30,6 +34,10 @@ sub new {
 
     return $self;
 }
+
+=head2 get_version
+
+=cut
 
 sub get_version {
     my $self = shift;
