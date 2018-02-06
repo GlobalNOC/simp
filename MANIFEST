@@ -7,7 +7,7 @@ bin/testClient.pl
 conf/comp_data.init
 conf/compDataConfig.xml
 conf/config.xml
-conf/hosts.xml
+conf/hosts.d/hosts.xml
 conf/logging.conf
 conf/simp.init
 conf/simp_data.init
@@ -19,7 +19,6 @@ lib/GRNOC/Simp/CompData/Worker.pm
 lib/GRNOC/Simp/Data.pm
 lib/GRNOC/Simp/Data/Worker.pm
 lib/GRNOC/Simp/Poller.pm
-lib/GRNOC/Simp/Poller/Purger.pm
 lib/GRNOC/Simp/Poller/Worker.pm
 LICENSE
 Makefile.PL

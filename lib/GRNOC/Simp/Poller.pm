@@ -13,9 +13,24 @@ use GRNOC::Config;
 use GRNOC::Log;
 
 use GRNOC::Simp::Poller::Worker;
-use GRNOC::Simp::Poller::Purger;
 
 ### required attributes ###
+
+=head2 public attributes
+
+=over 12
+
+=item config_file
+
+=item hosts_file
+
+=item logging_file
+
+=item daemonize
+
+=back
+
+=cut
 
 has config_file => ( is => 'ro',
                      isa => Str,
@@ -37,6 +52,22 @@ has daemonize => ( is => 'ro',
 
 ### private attributes ###
 
+=head2 private_attributes
+
+=over 12
+
+=item config
+
+=item hosts
+
+=item logger
+
+=item children
+
+=back
+
+=cut
+
 has config => ( is => 'rwp' );
 
 has hosts  => ( is => 'rwp' );
@@ -45,6 +76,10 @@ has logger => ( is => 'rwp' );
 
 has children => ( is => 'rwp',
                   default => sub { [] } );
+
+=head2 BUILD 
+
+=cut
 
 sub BUILD {
 
@@ -61,13 +96,46 @@ sub BUILD {
                                      force_array => 1 );
     $self->_set_config( $config );
  
-    # create and store the host portion of the config   
-    my $hosts = GRNOC::Config->new( config_file => $self->hosts_file,
-                                     force_array => 1 );
-    $self->_set_hosts( $hosts );
+    $self->_process_hosts_config();
 
     return $self;
 }
+
+=head2 _process_hosts_config
+
+=cut
+
+sub _process_hosts_config{
+    my $self = shift;
+
+    opendir my $dir, $self->hosts_file;
+    my @files = readdir $dir;
+    closedir $dir;
+
+    my @hosts;
+
+    foreach my $file (@files){
+
+        next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
+        
+        my $conf = GRNOC::Config->new( config_file => $self->hosts_file . "/" . $file,
+                                       force_array => 1);
+
+        
+        my $rawhosts = $conf->get("/config/host");
+        foreach my $raw (@$rawhosts){
+            push(@hosts, $raw);
+        }
+    }
+
+    $self->_set_hosts(\@hosts);
+    
+   
+}
+
+=head2 start
+
+=cut
 
 
 sub start {
@@ -88,6 +156,10 @@ sub start {
     $SIG{'HUP'} = sub {
 
         $self->logger->info( 'Received SIG HUP.' );
+        $self->stop();
+        # create and store the host portion of the config
+        $self->_process_hosts_config();
+        $self->_create_workers();
     };
 
     # need to daemonize
@@ -129,6 +201,10 @@ sub start {
     return 1;
 }
 
+=head2 stop
+
+=cut
+
 sub stop {
 
     my ( $self ) = @_;
@@ -139,7 +215,11 @@ sub stop {
 
     $self->logger->debug( 'Stopping child worker processes ' . join( ' ', @pids ) . '.' );
 
-    return kill( 'TERM', @pids );
+    my $res = kill( 'TERM', @pids );
+
+    $self->_set_children([]);
+
+
 }
 
 #-------- end of multprocess boilerplate
@@ -149,6 +229,10 @@ sub _create_workers {
 
    #--- get the set of active groups 
     my $groups  = $self->config->get( "/config/group" );
+
+    # For each host, one worker handles the host variables.
+    # This hash keeps track of whether a host has had a worker assigned for that.
+    my %var_worker;
 
     my $total_workers = 0;
     foreach my $group (@$groups){
@@ -179,29 +263,32 @@ sub _create_workers {
       }
 
       my %hostsByWorker;
+      my %varsByWorker;
       my $idx=0;
       #--- get the set of hosts that belong to this group 
       my $id= $group->{'name'};
 
-      #--- once the config object has full xpath support we can simplify the code below
-      #--- as follows 
-      #--- my $xpath = "/config/host[group/\@id = \'$id\']";
-      #--- my $hosts = $self->hosts->get($xpath);
-      my $rawhosts = $self->hosts->get("/config/host");
-      my $hosts = ();
-      foreach my $raw (@$rawhosts){
-        my $groups = $raw->{'group'};
-        foreach my $group (keys %$groups){
-          if($group eq $id){
-            #-- match add the host to the host list
-            push(@$hosts,$raw);  
+      my @hosts;
+      
+      foreach my $host (@{$self->hosts}){
+          my $groups = $host->{'group'};
+          foreach my $group (keys %$groups){
+              if($group eq $id){
+                  #-- match add the host to the host list
+                  push(@hosts,$host);
+                  # no double-pushing:
+                  last;
+              }
           }
-        }
       }
 
       #--- split hosts between workers
-      foreach my $host (@$hosts){
+      foreach my $host (@hosts){
         push(@{$hostsByWorker{$idx}},$host);
+        if(!$var_worker{$host->{'node_name'}}){
+            $var_worker{$host->{'node_name'}} = 1;
+            $varsByWorker{$idx}{$host->{'node_name'}} = 1;
+        }
         $idx++;
         if($idx>=$workers) { $idx = 0; }
       }
@@ -228,22 +315,24 @@ sub _create_workers {
 	  
 			      } );
       
-
+      
       # create workers
       for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
-        $forker->start() and next;
-   
-        # create worker in this process
-        my $worker = GRNOC::Simp::Poller::Worker->new( worker_name   => "$name$worker_id",
-						       config        => $self->config,
-						       oids          => \@oids,
-						       hosts 	     => $hostsByWorker{$worker_id}, 
-						       poll_interval => $poll_interval,
-						       retention     => $retention,
-						       logger        => $self->logger,
-						       max_reps      => $max_reps,
-						       snmp_timeout  => $snmp_timeout
-	    );
+	  $forker->start() and next;
+	  
+	  # create worker in this process
+	  my $worker = GRNOC::Simp::Poller::Worker->new( instance      => $worker_id,
+							 group_name    => $name,
+							 config        => $self->config,
+							 oids          => \@oids,
+							 hosts 	     => $hostsByWorker{$worker_id}, 
+							 poll_interval => $poll_interval,
+							 retention     => $retention,
+							 logger        => $self->logger,
+							 max_reps      => $max_reps,
+							 snmp_timeout  => $snmp_timeout,
+							 var_hosts     => $varsByWorker{$worker_id} || {}
+	      );
 	
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
@@ -251,40 +340,9 @@ sub _create_workers {
         # exit child process
         $forker->finish();
       }
- 
-     
-
 
     } 
 
-    my $purger_interval = $self->config->get('/config/@purge_interval')->[0];
-    warn Dumper($purger_interval);
-    if(!defined($purger_interval)){
-	$purger_interval = 500;
-    }
-
-    $self->logger->info("Creating purger at " . $purger_interval);
-
-    warn "Creating the purger\n";
-
-    for(my $i=0; $i < 1; $i++){
-	$forker->start() and next;
-	#create the purger
-	my $purger = GRNOC::Simp::Poller::Purger->new( worker_name   => "purger",
-						       config        => $self->config,
-						       logger        => $self->logger,
-						       purge_interval => $purger_interval );
-	
-	# this should only return if we tell it to stop via TERM signal etc.
-	$purger->start();
-	
-	#finish the forker
-	$forker->finish();
-    }
-
-
-    warn "Created purger\n";
-    
     $self->logger->debug( 'Waiting for all child worker processes to exit.' );
 
     # wait for all children to return
