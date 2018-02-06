@@ -1,0 +1,20 @@
+# Files generated in build process
+/MYMETA.json
+/MYMETA.yml
+/Makefile
+/Makefile.old
+/blib
+/pm_to_blib
+/simp-*.tar
+/simp-*.tar.gz
+
+# Files generated during tests
+/t/conf/*DataConfig.xml
+/t/conf/redis.conf
+/t/conf/*.pid
+/t/redis.[0-9]*
+
+# Editor tempfiles
+~*
+*~
+*.swp

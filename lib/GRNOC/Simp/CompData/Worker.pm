@@ -125,13 +125,13 @@ sub _start {
  
     $self->logger->debug( 'Setup RabbitMQ' );
 
-    my $client = GRNOC::RabbitMQ::Client->new(   host => "127.0.0.1",
-                                             port => 5672,
-                                             user => "guest",
-                                             pass => "guest",
-                                             exchange => 'Simp',
-                                             timeout => 15,
-                                             topic => 'Simp.Data');
+    my $client = GRNOC::RabbitMQ::Client->new(  host => $rabbit_host,
+                                                port => $rabbit_port,
+                                                user => $rabbit_user,
+                                                pass => $rabbit_pass,
+                                                exchange => 'Simp',
+                                                timeout => 15,
+                                                topic => 'Simp.Data');
 
     $self->_set_client($client);
 
@@ -257,6 +257,9 @@ sub _get{
   # $results{'final'}{$host}{$oid_suffix}{$var_name} = $val
   #    * The results from the compute-functions phase (_do_functions);
   #      $results{'final'} is passed back to the caller
+
+  # Make sure this exists, even if we get zero results
+  $results{'final'} = {};
 
   my $success_callback = $rpc_ref->{'success_callback'};
 
@@ -570,11 +573,15 @@ sub _do_functions{
     my $results      = shift; # request-global $results hash
     my $cv           = shift; # assumes that it's been begin()'ed with a callback
 
+    my $now = time;
+
     # First off, by default, we pass through the 'time' value, as it has special
     # significance for clients:
     foreach my $host (keys %{$results->{'val'}}){
         foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
-            $results->{'final'}{$host}{$oid_suffix}{'time'} = $results->{'val'}{$host}{$oid_suffix}{'time'};
+            my $tm = $results->{'val'}{$host}{$oid_suffix}{'time'};
+            $tm = $now if !defined($tm);
+            $results->{'final'}{$host}{$oid_suffix}{'time'} = $tm;
         }
     }
 
