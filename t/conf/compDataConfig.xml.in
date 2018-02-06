@@ -1,0 +1,240 @@
+<config workers="3" pid-file="@TEST_DIR@/conf/compData.pid" >
+  <rabbitMQ host="127.0.0.1" port="5673" user="guest" password="guest"/>
+
+
+  <!-- Simple test of scanning, unprocessed gauge values -->
+  <composite id="test1">
+    <input id="node" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.1.*" />
+      <result>
+        <val id="name" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" />
+        <val id="outRawCounter" oid="1.3.6.1.2.1.31.1.1.1.10.ifIdx" />
+      </result>
+    </instance>
+  </composite>
+
+  <!-- simple test of counter values -->
+  <composite id="test2">
+    <input id="node" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="idx" oid="1.3.6.1.2.1.31.1.1.1.1.*" />
+      <result>
+        <val id="input" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.idx" />
+        <val id="output" type="rate" oid="1.3.6.1.2.1.31.1.1.1.10.idx" />
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of gauge and counter values together -->
+  <composite id="test3">
+    <input id="node" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="xyzzy" oid="1.3.6.1.2.1.31.1.1.1.1.*" />
+      <result>
+        <val id="*name"                  oid="1.3.6.1.2.1.31.1.1.1.1.xyzzy" />
+        <val id="status"                 oid="1.3.6.1.2.1.2.2.1.8.xyzzy" />
+        <val id="inPackets"  type="rate" oid="1.3.6.1.2.1.2.2.1.11.xyzzy" />
+        <val id="outPackets" type="rate" oid="1.3.6.1.2.1.2.2.1.17.xyzzy" />
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of optional input, as well as of string-manipulation <fctn>s -->
+  <composite id="test4">
+    <input id="node" required="1" />
+    <input id="cpuName" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="cpuIdx" oid="2.10.9994.27.1.*" var="cpuName" />
+      <result>
+        <val id="name"     oid="2.10.9994.27.1.cpuIdx" />
+        <val id="nameMod1" oid="2.10.9994.27.1.cpuIdx">
+          <fctn name="regexp" value="^CP(U.*)$" />
+        </val>
+        <val id="nameMod2" oid="2.10.9994.27.1.cpuIdx">
+          <fctn name="replace" value="2$" with="TWO" />
+        </val>
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of a required, non-node input -->
+  <composite id="test5">
+    <input id="node" required="1" />
+    <input id="cpuName" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="cpuIdx" oid="2.10.9994.27.1.*" var="cpuName" />
+      <result>
+        <val id="name"     oid="2.10.9994.27.1.cpuIdx" />
+        <val id="usagePct" oid="2.10.9994.27.8.cpuIdx" />
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of numerical <fctn>s, as well as of
+       chaining functions together and their order of execution -->
+  <composite id="test6">
+    <input id="node" required="1" />
+    <input id="ifName" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+
+      <result>
+        <val id="*name" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" />
+        <val id="status" oid="1.3.6.1.2.1.2.2.1.8.ifIdx" />
+        <val id="statusFunky" oid="1.3.6.1.2.1.2.2.1.8.ifIdx">
+          <fctn name="-" value="1" />
+        </val>
+        <val id="statusInverted" oid="1.3.6.1.2.1.2.2.1.8.ifIdx">
+          <fctn name="*" value="-1" />
+          <fctn name="+" value="1" />
+        </val>
+        <val id="input" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.ifIdx">
+          <fctn name="*" value="8" />
+        </val>
+        <val id="outputScaledWrong" type="rate" oid="1.3.6.1.2.1.31.1.1.1.10.ifIdx">
+          <fctn name="/" value="8" />
+        </val>
+        <val id="inPacketsTimes5Mod7"  type="rate" oid="1.3.6.1.2.1.2.2.1.11.ifIdx">
+          <fctn name="*" value="5" />
+          <fctn name="%" value="7" />
+        </val>
+        <val id="logOutPackets" type="rate" oid="1.3.6.1.2.1.2.2.1.17.ifIdx">
+          <fctn name="ln" />
+        </val>
+        <val id="testAddingUndef" type="rate" oid="1.3.6.1.2.1.2.2.1.17.ifIdx">
+          <fctn name="log10" />
+          <fctn name="+" value="1" />
+        </val>
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of multiple <input>s -->
+  <composite id="test7">
+    <input id="node" required="1" />
+    <input id="ifName" />
+    <input id="cpuName" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+      <scan id="cpuIdx" oid="2.10.9994.27.1.*"         var="cpuName" />
+
+      <result>
+        <val id="*ifName"  oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" />
+        <val id="*cpuName" oid="2.10.9994.27.1.cpuIdx" />
+
+        <val id="usageAsFraction" oid="2.10.9994.27.8.cpuIdx">
+          <fctn name="/" value="100" />
+        </val>
+        <val id="inputOctets" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.ifIdx" />
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of 'rpn' function -->
+  <composite id="test8">
+    <input id="node" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="idx" oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+
+      <result>
+        <val id="*name" oid="1.3.6.1.2.1.31.1.1.1.1.idx" />
+        <val id="modName" oid="1.3.6.1.2.1.31.1.1.1.1.idx">
+          <fctn name="rpn" value="'^[a-zA-Z]*(([^a-zA-Z].*)?)$' match 'Ethernet' exch concat" />
+        </val>
+        <val id="input" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.idx">
+          <fctn name="rpn" value="pop _" />
+        </val>
+        <val id="ioDiff" type="rate" oid="1.3.6.1.2.1.31.1.1.1.10.idx">
+          <fctn name="rpn" value="$input exch -" />
+        </val>
+      </result>
+    </instance>
+  </composite>
+
+  <!-- test of basic host-variables use -->
+  <composite id="test9">
+    <input id="node" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="cpuIdx" oid="2.10.9994.27.1.*" />
+
+      <result>
+        <val id="ts" var="node">
+          <fctn name='rpn' value='#test' />
+        </val>
+        <val id="cd" var="node">
+          <fctn name='rpn' value='#card_no' />
+        </val>
+        <val id="x" var="node">
+          <fctn name='rpn' value='@ "/" #card_no "/" #test concat concat concat concat' />
+        </val>
+      </result>
+    </instance>
+  </composite>
+
+  <composite id="interface">
+    <input id="node" required="1" />
+    <input id="ifName" />
+
+    <instance id="genericInterface" hostType="default">
+      <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+      <result>
+        <val id="*node" var="node">
+          <fctn name='regexp' value='^([^_]*)(_.*)?$' />
+        </val>
+        <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" />
+        <val id="input" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.ifIdx">
+          <fctn name="*" value="8" />
+        </val>
+        <val id="output" type="rate" oid="1.3.6.1.2.1.31.1.1.1.10.ifIdx">
+          <fctn name="rpn" value="8 *" />
+        </val>
+        <val id="inUcast" type="rate" oid="1.3.6.1.2.1.2.2.1.11.ifIdx" />
+        <val id="outUcast" type="rate" oid="1.3.6.1.2.1.2.2.1.17.ifIdx" />
+        <val id="status" oid="1.3.6.1.2.1.2.2.1.8.ifIdx" />
+      </result>
+    </instance>
+  </composite>
+
+  <composite id="CPU">
+    <input id="node" required="1" />
+
+    <instance id="genericCPU" hostType="default">
+      <scan id="idx" oid="2.10.9994.27.1.*" />
+      <result>
+        <val id="*node" var="node">
+          <fctn name='regexp' value='^([^_]*)(_.*)?$' />
+        </val>
+        <val id="*name" oid="2.10.9994.27.1.idx" />
+        <val id="cpu" oid="2.10.9994.27.8.idx" />
+      </result>
+    </instance>
+  </composite>
+
+<!--
+  <composite id="">
+    <input id="node" required="1" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="" oid="" var="" />
+      <result>
+        <val id="" var="" />
+        <val id="" oid="" />
+        <val id="" type="rate" oid="">
+          <fctn name="" value="" />
+        </val>
+      </result>
+    </instance>
+  </composite>
+-->
+
+</config>

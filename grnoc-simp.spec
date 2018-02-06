@@ -8,6 +8,8 @@ URL: http://globalnoc.iu.edu/simp
 Source0: simp-%{version}.tar.gz
 
 BuildRequires: perl
+BuildRequires: perl(Test::Deep)
+BuildRequires: perl(Test::More)
 
 Requires: redis
 Requires: perl(AnyEvent)
