@@ -14,7 +14,7 @@ package GRNOC::Simp;
 use strict;
 use warnings;
 
-our $VERSION = '1.0.5';
+our $VERSION = '1.0.5.1';
 
 =head2 new
 
