@@ -1,6 +1,6 @@
 Summary: A small system for gathering large amounts of SNMP data and providing a RabbitMQ mechanism to access them 
 Name: grnoc-simp
-Version: 1.0.5
+Version: 1.0.5a
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -17,7 +17,7 @@ Requires: perl(AnyEvent::SNMP)
 Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
-Requires: perl-GRNOC-RabbitMQ
+Requires: perl-GRNOC-RabbitMQ >= 1.1.1
 Requires: perl-Moo
 Requires: perl-Net-SNMP
 Requires: perl-Parallel-ForkManager
