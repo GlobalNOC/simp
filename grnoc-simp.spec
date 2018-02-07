@@ -15,6 +15,7 @@ Requires: redis
 Requires: perl(AnyEvent)
 Requires: perl(AnyEvent::SNMP)
 Requires: perl(Data::Munge)
+Requires: perl(List::Utils)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 Requires: perl-GRNOC-RabbitMQ >= 1.1.1
