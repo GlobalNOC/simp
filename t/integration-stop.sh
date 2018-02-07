@@ -14,7 +14,7 @@ sleep 3
 
 redis-cli -h 127.0.0.1 -p 6380 shutdown
 C=$?
-sudo rabbitmqctl -n rabbit-simp-integration stop
+sudo /usr/sbin/rabbitmqctl -n rabbit-simp-integration stop
 D=$?
 
 [ 0 -eq "$A" -a 0 -eq "$B" -a 0 -eq "$C" -a 0 -eq "$D" ]

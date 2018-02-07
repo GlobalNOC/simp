@@ -31,7 +31,7 @@ export RABBITMQ_CONFIG_FILE RABBITMQ_ADVANCED_CONFIG_FILE \
 
 sudo chown -R rabbitmq:rabbitmq "${RMQ_DIR}"
 
-sudo -E rabbitmq-server -detached
+sudo -E /usr/sbin/rabbitmq-server -detached
 
 
 
