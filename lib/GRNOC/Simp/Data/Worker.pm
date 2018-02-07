@@ -2,7 +2,7 @@ package GRNOC::Simp::Data::Worker;
 
 use strict;
 use Carp;
-use List::Util qw(none);
+use List::MoreUtils qw(none);
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
 use Try::Tiny;

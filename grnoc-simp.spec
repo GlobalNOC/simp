@@ -10,10 +10,12 @@ Source0: simp-%{version}.tar.gz
 BuildRequires: perl
 BuildRequires: perl(Test::Deep)
 BuildRequires: perl(Test::More)
+BuildRequires: perl(Test::Pod) >= 1.22
 
 Requires: redis
 Requires: perl(AnyEvent)
 Requires: perl(AnyEvent::SNMP)
+Requires: perl(List::MoreUtils)
 Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
@@ -22,7 +24,6 @@ Requires: perl-Moo
 Requires: perl-Net-SNMP
 Requires: perl-Parallel-ForkManager
 Requires: perl-Redis >= 1.991
-Requires: perl-Scalar-List-Utils
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
 
