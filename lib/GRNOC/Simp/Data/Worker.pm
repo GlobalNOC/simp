@@ -250,6 +250,8 @@ sub _is_oid_prefix{
     my $a = shift;
     my $b = shift;
 
+    return 0 if length($a) > length($b);
+
     my $len = length($a);
     my $next_char = substr($b, $len, 1);
 
@@ -371,6 +373,7 @@ sub _find_keys{
         $self->redis->select(2);
         my $res = $self->redis->get($host . "," . $group->{'group'});
         $self->redis->select(0);
+        next if !defined($res);
 
         #key should be poll_id,ts
         my ($poll_id,$time) = split(',',$res);
@@ -396,7 +399,8 @@ sub _find_keys{
         #ok so lookup is now defined
         #lookup will give us the right set to sscan through
         $self->redis->select(1);
-        push @sets, $self->redis->get($lookup);
+        my $set = $self->redis->get($lookup);
+        push @sets, $set if defined($set);
         $self->redis->select(0);
     }
 
