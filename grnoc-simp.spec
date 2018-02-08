@@ -11,6 +11,7 @@ BuildRequires: perl
 BuildRequires: perl(Test::Deep)
 BuildRequires: perl(Test::More)
 BuildRequires: perl(Test::Pod) >= 1.22
+BuildRequires: rabbitmq-server
 
 Requires: redis
 Requires: perl(AnyEvent)
