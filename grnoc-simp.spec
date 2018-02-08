@@ -10,10 +10,13 @@ Source0: simp-%{version}.tar.gz
 BuildRequires: perl
 BuildRequires: perl(Test::Deep)
 BuildRequires: perl(Test::More)
+BuildRequires: perl(Test::Pod) >= 1.22
+BuildRequires: rabbitmq-server
 
 Requires: redis
 Requires: perl(AnyEvent)
 Requires: perl(AnyEvent::SNMP)
+Requires: perl(List::MoreUtils)
 Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
