@@ -245,7 +245,7 @@ check_response(7, $response,
 # Request 8: test of including an optional input parameter
 $response = $client->test4(
     node    => ['a.example.net', 'b.example.net', 'c.example.net_2'],
-    cpuName => ['CPU2'],
+    cpuName => ['^CPU2$'],
 );
 
 check_response(8, $response,
@@ -286,7 +286,7 @@ check_response(9, $response,
 # Request 10: test of including a required input parameter
 $response = $client->test5(
     node    => ['a.example.net', 'b.example.net', 'c.example.net_2'],
-    cpuName => ['CPU1/1', 'CPU1', 'CPU2', 'CPU9001'],
+    cpuName => ['CPU1/1', 'CPU1$', 'CPU2$', 'CPU9001'],
 );
 
 check_response(10, $response,
@@ -425,7 +425,7 @@ check_response(13, $response,
 $response = $client->test7(
     node    => ['a.example.net', 'b.example.net', 'c.example.net_2'],
     ifName  => ['eth1', 'eth2'],
-    cpuName => ['CPU2'],
+    cpuName => ['^CPU2$'],
 );
 
 check_response(14, $response,
