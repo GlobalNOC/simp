@@ -5,6 +5,7 @@ use Carp;
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
 use Data::Munge qw();
+use List::MoreUtils qw(any);
 use Try::Tiny;
 use Moo;
 use Redis;
@@ -347,13 +348,8 @@ sub _scan_cb{
 
       my @oid_suffixes;
 
-      # return only those entries matching specified values, if values are specified
-      my %val_matches;
-      my $use_val_matches = 0;
-      if(defined($vals) && (scalar(@$vals) > 0)){
-          $use_val_matches = 1;
-          %val_matches = map { $_ => 1 } @$vals;
-      }
+      # return only those entries matching specified value regexps, if value regexps are specified
+      my $use_val_matches = (defined($vals) && (scalar(@$vals) > 0));
 
       foreach my $oid (keys %{$data->{$host}}){
 	  my $base_value = $data->{$host}{$oid}{'value'};
@@ -361,7 +357,7 @@ sub _scan_cb{
           # strip out the wildcard part of the oid
 	  $oid =~ s/^$oid_pattern//;
 
-          if((!$use_val_matches) || $val_matches{$base_value}){
+          if((!$use_val_matches) || (any { $base_value =~ /$_/ } @$vals)){
               push @oid_suffixes, $oid;
               $results->{'scan-match'}{$host}{$var_name}{$oid} = $base_value;
           }
