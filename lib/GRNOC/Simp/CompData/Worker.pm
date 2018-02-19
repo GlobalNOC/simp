@@ -111,7 +111,7 @@ sub _start {
     $SIG{'TERM'} = sub {
 
         $self->logger->info( "Received SIG TERM." );
-        $self->stop();
+        $self->_stop();
     };
 
     $SIG{'HUP'} = sub {
@@ -209,6 +209,10 @@ sub _start {
 }
 
 ### private methods ###
+
+sub _stop{
+  exit 0;
+}
 
 sub _ping{
   my $self = shift;
