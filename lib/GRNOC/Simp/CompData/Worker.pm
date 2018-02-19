@@ -52,7 +52,9 @@ has worker_id => ( is => 'ro',
 
 =item client
 
-=item need_restart
+=item do_shutdown
+
+=item dispatcher
 
 =back
 
@@ -65,8 +67,11 @@ has dispatcher  => ( is => 'rwp' );
 
 has client      => ( is => 'rwp' );
 
-has need_restart => (is => 'rwp',
-                    default => 0 );
+has do_shutdown => ( is => 'rwp',
+                     default => 0 );
+
+has dispatcher => ( is => 'rwp',
+                    default => sub { undef } );
 
 my %_FUNCTIONS; # Used by _function_one_val
 my %_RPN_FUNCS; # Used by _rpn_calc
@@ -85,11 +90,14 @@ my %_RPN_FUNCS; # Used by _rpn_calc
 sub start {
    my ( $self ) = @_;
 
+  $self->_set_do_shutdown( 0 );
+
   while(1){
     #--- we use try catch to, react to issues such as com failure
     #--- when any error condition is found, the reactor stops and we then reinitialize 
     $self->logger->debug( $self->worker_id." restarting." );
     $self->_start();
+    exit(0) if $self->do_shutdown;
     sleep 2;
   }
 
@@ -200,18 +208,23 @@ sub _start {
 
     $dispatcher->register_method($method2);
  
+    $self->_set_dispatcher( $dispatcher );
     #--- go into event loop handing requests that come in over rabbit  
     $self->logger->debug( 'Entering RabbitMQ event loop' );
     $dispatcher->start_consuming();
     
     #--- you end up here if one of the handlers called stop_consuming
+    $self->_set_dispatcher( undef );
     return;
 }
 
 ### private methods ###
 
 sub _stop{
-  exit 0;
+  ($self) = @_;
+
+  $self->_set_do_shutdown( 1 );
+  $self->dispatcher->stop_consuming();
 }
 
 sub _ping{
