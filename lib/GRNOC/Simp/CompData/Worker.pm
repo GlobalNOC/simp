@@ -54,7 +54,7 @@ has worker_id => ( is => 'ro',
 
 =item do_shutdown
 
-=item dispatcher
+=item rmq_dispatcher
 
 =back
 
@@ -70,8 +70,8 @@ has client      => ( is => 'rwp' );
 has do_shutdown => ( is => 'rwp',
                      default => 0 );
 
-has dispatcher => ( is => 'rwp',
-                    default => sub { undef } );
+has rmq_dispatcher => ( is => 'rwp',
+                        default => undef );
 
 my %_FUNCTIONS; # Used by _function_one_val
 my %_RPN_FUNCS; # Used by _rpn_calc
@@ -208,23 +208,24 @@ sub _start {
 
     $dispatcher->register_method($method2);
  
-    $self->_set_dispatcher( $dispatcher );
+    $self->_set_rmq_dispatcher( $dispatcher );
     #--- go into event loop handing requests that come in over rabbit  
     $self->logger->debug( 'Entering RabbitMQ event loop' );
     $dispatcher->start_consuming();
     
     #--- you end up here if one of the handlers called stop_consuming
-    $self->_set_dispatcher( undef );
+    $self->_set_rmq_dispatcher( undef );
     return;
 }
 
 ### private methods ###
 
 sub _stop{
-  ($self) = @_;
+  my $self = shift;
 
   $self->_set_do_shutdown( 1 );
-  $self->dispatcher->stop_consuming();
+  my $dispatcher = $self->rmq_dispatcher;
+  $dispatcher->stop_consuming() if defined($dispatcher);
 }
 
 sub _ping{
