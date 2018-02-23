@@ -387,7 +387,7 @@ sub _find_keys{
             my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
             if($poll_id >= $poll_ids_back){
                 $self->logger->debug("looking " . $poll_ids_back);
-                $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - $poll_ids_back);
+                $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - ($poll_ids_back +1));
                 $self->logger->debug("lookup key: " . $lookup);
             }else{
                 $self->logger->debug("No time available that matches the requested time!");
