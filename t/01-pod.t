@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
+use lib './lib';
 
 # Ensure a recent version of Test::Pod
 my $min_tp = 1.22;
