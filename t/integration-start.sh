@@ -53,7 +53,7 @@ for I in simpDataConfig.xml compDataConfig.xml
 do
     sed -e "s,@TEST_DIR@,${TEST_DIR},g" < "${TEST_DIR}/conf/${I}.in" > "${TEST_DIR}/conf/${I}"
 done
-SIMP_PERL_DIR="${TEST_DIR}/../blib/lib"
+SIMP_PERL_DIR="${TEST_DIR}/../lib"
 
 # SimpData:
 /usr/bin/perl -I"$SIMP_PERL_DIR" "${TEST_DIR}/../bin/simp-data.pl" \
