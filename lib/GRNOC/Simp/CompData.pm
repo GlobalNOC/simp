@@ -8,6 +8,8 @@ use Types::Standard qw( Str Bool );
 use Parallel::ForkManager;
 use Proc::Daemon;
 
+our $VERSION='1.0.6';
+
 use GRNOC::Config;
 use GRNOC::Log;
 
