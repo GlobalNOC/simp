@@ -8,10 +8,10 @@ rpm:	dist
 	rpmbuild -ta dist/simp-tsds-$(VERSION).tar.gz
 
 test:
-	/usr/bin/perl -I lib t/TEST $(TEST_VERBOSE)
+	/usr/bin/perl -I ./lib t/TEST $(TEST_VERBOSE)
 
 test_jenkins:
-	/usr/bin/perl -I lib t/TEST $(TEST_VERBOSE) --formatter=TAP::Formatter::Console
+	/usr/bin/perl -I ./lib t/TEST $(TEST_VERBOSE) --formatter=TAP::Formatter::Console
 
 clean:
 	rm -rf dist
