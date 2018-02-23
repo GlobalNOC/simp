@@ -8,7 +8,6 @@ use Data::Munge qw();
 use List::MoreUtils qw(any);
 use Try::Tiny;
 use Moo;
-use Redis;
 use AnyEvent;
 use GRNOC::Log;
 use GRNOC::RabbitMQ::Method;
