@@ -13,6 +13,22 @@ use GRNOC::WebService::Client;
 use constant MAX_TSDS_MESSAGES => 20;
 use constant SERVICE_CACHE_FILE => "/etc/grnoc/name-service-cacher/name-service.xml";
 
+=head2 public attributes
+
+=over 12
+
+=item logger
+
+=item worker_name
+
+=item tsds_config
+
+=item tsds_svc
+
+=back
+
+=cut
+
 has logger => (is => 'rwp',
 	       required => 1);
 
@@ -23,6 +39,10 @@ has tsds_config => (is => 'rwp',
 		    required => 1);
 
 has tsds_svc => (is => 'rwp');
+
+=head2 BUILD
+
+=cut
 
 sub BUILD {
     my ($self) = @_;
@@ -38,6 +58,10 @@ sub BUILD {
 			     usePost => 1
 			 ));
 }
+
+=head2 push
+
+=cut
 
 sub push {
     my ($self, $msg_list) = @_;

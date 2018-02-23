@@ -5,6 +5,14 @@ use warnings;
 
 our $VERSION = '1.0.6';
 
+=head1 NAME
+
+GRNOC::Simp::TSDS
+
+=head2 new
+
+=cut
+
 sub new {
     my $caller = shift;
     my $class = ref($caller);
@@ -14,10 +22,18 @@ sub new {
     return $self;
 }
 
+=head2 get_version
+
+=cut
+
 sub get_version {
     my $self = shift;
     return $VERSION;
 }
+
+=head2 error_message
+
+=cut
 
 sub error_message {
     my $res = shift;

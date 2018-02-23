@@ -15,11 +15,51 @@ use GRNOC::Config;
 use GRNOC::RabbitMQ::Client;
 use GRNOC::Simp::TSDS::Worker;
 
+=head2 public attributes
+
+=over 12
+
+=item config_file
+
+=item pidfile
+
+=item daemonize
+
+=item run_user
+
+=item run_group
+
+=back
+
+=cut
+
 has config_file => (is => 'ro', isa => Str, required => 1);
 has pidfile => (is => 'ro', isa => Str, required => 1);
 has daemonize => (is => 'ro', isa => Bool, required => 1);
 has run_user => (is => 'ro', required => 0);
 has run_group => (is => 'ro', required => 0);
+
+=head2 private attributes
+
+=over 12
+
+=item logger
+
+=item simp_config
+
+=item tsds_config
+
+=item collections
+
+=item worker_client
+
+=item children
+
+=item hup
+
+=back
+
+=cut
 
 has logger => (is => 'rwp');
 has simp_config => (is => 'rwp');
@@ -31,6 +71,10 @@ has hup => (is => 'rwp', default => 0);
 
 my $running;
 
+=head2 BUILD
+
+=cut
+
 sub BUILD {
     my $self = shift;
     
@@ -39,9 +83,11 @@ sub BUILD {
     return $self;
 }
 
-#
-# Start up the master
-#
+=head2 start
+
+    start the master process
+
+=cut
 sub start {
     my ($self) = @_;
     
