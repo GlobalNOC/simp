@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test::More;
-
+use lib './lib';
 # Ensure a recent version of Test::Pod::Coverage
 my $min_tpc = 1.08;
 eval "use Test::Pod::Coverage $min_tpc";
