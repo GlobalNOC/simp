@@ -15,6 +15,36 @@ use GRNOC::RabbitMQ::Method;
 use GRNOC::Simp::TSDS;
 use GRNOC::Simp::TSDS::Pusher;
 
+=head2 public attributes
+
+=over 12
+
+=item logger
+
+=item worker_name
+
+=item simp_config
+
+=item tsds_config
+
+=item tsds_type
+
+=item hosts
+
+=item interval
+
+=item composite_name
+
+=item filter_name
+
+=item filter_value
+
+=item required_value_fields
+
+=back
+
+=cut
+
 has worker_name => (is => 'ro',
 		    required => 1);
 
@@ -44,6 +74,29 @@ has filter_value => (is => 'rwp');
 
 has required_value_fields => (is => 'rwp', default => sub { [] });
 
+
+=head2 private attributes
+
+=over 12
+
+=item simp_client
+
+=item tsds_pusher
+
+=item poll_w
+
+=item push_w
+
+=item msg_list
+
+=item cv
+
+=item stop_me
+
+=back 
+
+=cut
+
 has simp_client => (is => 'rwp');
 has tsds_pusher => (is => 'rwp');
 has poll_w => (is => 'rwp');
@@ -52,9 +105,9 @@ has msg_list => (is => 'rwp', default => sub { [] });
 has cv => (is => 'rwp');
 has stop_me => (is => 'rwp', default => 0);
 
-# 
-# Run worker
-#
+=head2 run
+
+=cut
 sub run {
     my ($self) = @_;
 
