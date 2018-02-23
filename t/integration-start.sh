@@ -56,14 +56,14 @@ done
 SIMP_PERL_DIR="${TEST_DIR}/../blib/lib"
 
 # SimpData:
-/usr/bin/perl -I"$SIMP_PERL_DIR" "${TEST_DIR}/../bin/simpData.pl" \
+/usr/bin/perl -I"$SIMP_PERL_DIR" "${TEST_DIR}/../bin/simp-data.pl" \
     --config "${TEST_DIR}/conf/simpDataConfig.xml" \
     --logging "${TEST_DIR}/conf/simpDataLogging.conf"
 
 
 
 # CompData:
-/usr/bin/perl -I"$SIMP_PERL_DIR" "${TEST_DIR}/../bin/compData.pl" \
+/usr/bin/perl -I"$SIMP_PERL_DIR" "${TEST_DIR}/../bin/comp-data.pl" \
     --config "${TEST_DIR}/conf/compDataConfig.xml" \
     --logging "${TEST_DIR}/conf/compDataLogging.conf"
 
