@@ -45,13 +45,13 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data
 %{__install} -d -p %{buildroot}/etc/init.d
 %{__install} -d -p %{buildroot}/usr/bin/
-%{__install} -d -p %{buildroot}/etc/grnoc/simp
+%{__install} -d -p %{buildroot}/etc/simp
 
 %{__install} lib/GRNOC/Simp/Data.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data.pm
 %{__install} lib/GRNOC/Simp/Data/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
 %{__install} bin/simp-data.pl %{buildroot}/usr/bin/simp-data.pl
-%{__install} conf/simpDataConfig.xml %{buildroot}/etc/grnoc/simp/
-%{__install} conf/logging.conf %{buildroot}/etc/grnoc/simp/data_logging.conf
+%{__install} conf/simpDataConfig.xml %{buildroot}/etc/simp/
+%{__install} conf/logging.conf %{buildroot}/etc/simp/data_logging.conf
 %{__install} conf/simp_data.init %{buildroot}/etc/init.d/simp-data
 
 %clean
@@ -65,8 +65,8 @@ rm -rf $RPM_BUILD_ROOT
 /usr/bin/simp-data.pl
 /etc/init.d/simp-data
 %defattr(644,root,root,755)
-%config(noreplace) /etc/grnoc/simp/simpDataConfig.xml
-%config(noreplace) /etc/grnoc/simp/data_logging.conf
+%config(noreplace) /etc/simp/simpDataConfig.xml
+%config(noreplace) /etc/simp/data_logging.conf
 %doc
 
 
