@@ -3,6 +3,8 @@
 use strict;
 use warnings;
 
+use lib './lib';
+
 use Test::More tests => 131;
 
 # Unit tests of the following function:
