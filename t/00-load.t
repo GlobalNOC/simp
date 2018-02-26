@@ -1,10 +1,9 @@
 #!/usr/bin/perl
 
-use Test::More tests => 11;
+use Test::More tests => 10;
 use lib './lib';
 
 BEGIN {
-        use_ok( 'GRNOC::Simp' );
         use_ok( 'GRNOC::Simp::Poller' );
         use_ok( 'GRNOC::Simp::Poller::Worker' );
         use_ok( 'GRNOC::Simp::Data' );
