@@ -24,6 +24,7 @@ Requires: perl(GRNOC::Config)
 Requires: perl(GRNOC::WebService::Client)
 Requires: perl(GRNOC::RabbitMQ::Client)
 Requires: perl(GRNOC::Log)
+Requires: perl(AnyEvent::Subprocess)
 
 %define execdir /usr/bin
 %define configdir /etc/simp
