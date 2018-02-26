@@ -7,6 +7,7 @@ use Test::More tests => 90;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num any code);
+use Data::Dumper;
 
 use constant THRESHOLD => 1e-9;
 
@@ -124,13 +125,13 @@ check_response(4, $response,
     {
       'a.example.net' => {
         '1' => {
-          'input' => num(100, THRESHOLD),
-          'output' => num(20, THRESHOLD),
+          'input' => num(51.2521008403361, THRESHOLD),
+          'output' => num(10.6050420168067, THRESHOLD),
           'time' => 100124,
         },
         '2' => {
-          'input' => num(50, THRESHOLD),
-          'output' => num(2, THRESHOLD),
+          'input' => num(25.2100840336134, THRESHOLD),
+          'output' => num(1.00840336134454, THRESHOLD),
           'time' => 100124,
         },
       },
@@ -148,19 +149,19 @@ check_response(5, $response,
     {
       'a.example.net' => {
         '1' => {
-          'input' => num(100, THRESHOLD),
-          'output' => num(20, THRESHOLD),
+          'input' => num(51.2521008403361, THRESHOLD),
+          'output' => num(10.6050420168067, THRESHOLD),
           'time' => 100124,
         },
         '2' => {
-          'input' => num(50, THRESHOLD),
-          'output' => num(2, THRESHOLD),
+          'input' => num(25.2100840336134, THRESHOLD),
+          'output' => num(1.00840336134454, THRESHOLD),
           'time' => 100124,
         },
       },
       'c.example.net_1' => {
         '1' => {
-          'input' => num(100, THRESHOLD),
+          'input' => num(45.045045045045, THRESHOLD),
           'output' => num(0, THRESHOLD),
           'time' => 100131,
         },
@@ -181,15 +182,15 @@ check_response(6, $response,
         '1' => {
           '*name' => 'eth1',
           'status' => 1,
-          'inPackets' => num(0.1, THRESHOLD),
-          'outPackets' => num(1, THRESHOLD),
+          'inPackets' => num(0.075, THRESHOLD),
+          'outPackets' => num(0.508333333333333, THRESHOLD),
           'time' => 100132,
         },
         '3' => {
           '*name' => 'eth2',
           'status' => 1,
-          'inPackets' => num(2, THRESHOLD),
-          'outPackets' => num(0.1, THRESHOLD),
+          'inPackets' => num(1.00833333333333, THRESHOLD),
+          'outPackets' => num(0.0583333333333333, THRESHOLD),
           'time' => 100132,
         },
       },
@@ -247,6 +248,7 @@ $response = $client->test4(
     node    => ['a.example.net', 'b.example.net', 'c.example.net_2'],
     cpuName => ['^CPU2$'],
 );
+
 
 check_response(8, $response,
     {
@@ -356,11 +358,11 @@ check_response(13, $response,
           'status' => 1,
           'statusFunky' => num(0 , THRESHOLD),
           'statusInverted' => num(0 , THRESHOLD),
-          'input' => num(800, THRESHOLD),
-          'outputScaledWrong' => num(2.5, THRESHOLD),
+          'input' => num(410.016806722689, THRESHOLD),
+          'outputScaledWrong' => num(1.32563025210084, THRESHOLD),
           'inPacketsTimes5Mod7' => num(0, THRESHOLD),  # ***
-          'logOutPackets' => num(log(0.3), THRESHOLD),
-          'testAddingUndef' => num(1+(log(0.3)/log(10)), THRESHOLD),
+          'logOutPackets' => num(-1.83468451394509, THRESHOLD),
+          'testAddingUndef' => num(0.203206639560297, THRESHOLD),
           'time' => 100124,
         },
         '2' => {
@@ -368,11 +370,11 @@ check_response(13, $response,
           'status' => 0,
           'statusFunky' => num(-1, THRESHOLD),   # ***
           'statusInverted' => num(1, THRESHOLD), # ***
-          'input' => num(400, THRESHOLD),
-          'outputScaledWrong' => num(0.25, THRESHOLD),
+          'input' => num(201.680672268907, THRESHOLD),
+          'outputScaledWrong' => num(0.126050420168068, THRESHOLD),
           'inPacketsTimes5Mod7' => num(0, THRESHOLD),
-          'logOutPackets' => num(log(4), THRESHOLD),
-          'testAddingUndef' => num(1+(log(4)/log(10)), THRESHOLD),
+          'logOutPackets' => num(0.701515430230464, THRESHOLD),
+          'testAddingUndef' => num(1.30466428031908, THRESHOLD),
           'time' => 100124,
         },
       },
@@ -382,11 +384,11 @@ check_response(13, $response,
           'status' => 1,
           'statusFunky' => num(0, THRESHOLD),
           'statusInverted' => num(0, THRESHOLD),
-          'input' => num(80, THRESHOLD),
-          'outputScaledWrong' => num(1/16, THRESHOLD),
+          'input' => num(46.6666666666666, THRESHOLD),
+          'outputScaledWrong' => num(0.0416666666666666, THRESHOLD),
           'inPacketsTimes5Mod7' => num(0, THRESHOLD),
-          'logOutPackets' => num(0, THRESHOLD),
-          'testAddingUndef' => num(1, THRESHOLD),
+          'logOutPackets' => num(-0.676617878608735, THRESHOLD),
+          'testAddingUndef' => num(0.706148588963142, THRESHOLD),
           'time' => 100132,
         },
         '3' => {
@@ -394,11 +396,11 @@ check_response(13, $response,
           'status' => 1,
           'statusFunky' => num(0, THRESHOLD),
           'statusInverted' => num(0, THRESHOLD),
-          'input' => num(160, THRESHOLD),
-          'outputScaledWrong' => num(1/8, THRESHOLD),
-          'inPacketsTimes5Mod7' => num(3, THRESHOLD),  # ***
-          'logOutPackets' => num(log(0.1), THRESHOLD),
-          'testAddingUndef' => num(0, THRESHOLD),
+          'input' => num(81.3333333333336, THRESHOLD),
+          'outputScaledWrong' => num(0.09375, THRESHOLD),
+          'inPacketsTimes5Mod7' => num(5, THRESHOLD),  # ***
+          'logOutPackets' => num(-2.84158159372673, THRESHOLD),
+          'testAddingUndef' => num(-0.234083206033368, THRESHOLD),
           'time' => 100132,
         },
       },
@@ -408,9 +410,9 @@ check_response(13, $response,
           'status' => 1,
           'statusFunky' => num(0, THRESHOLD),
           'statusInverted' => num(0, THRESHOLD),
-          'input' => num(800, THRESHOLD),
+          'input' => num(360.36036036036, THRESHOLD),
           'outputScaledWrong' => num(0, THRESHOLD),
-          'inPacketsTimes5Mod7' => num(2, THRESHOLD), # ***
+          'inPacketsTimes5Mod7' => num(1, THRESHOLD), # ***
           'logOutPackets' => undef,    # ***
           'testAddingUndef' => undef,  # ***
           'time' => 100131,
@@ -428,6 +430,7 @@ $response = $client->test7(
     cpuName => ['^CPU2$'],
 );
 
+
 check_response(14, $response,
     {
       'a.example.net' => {
@@ -435,7 +438,7 @@ check_response(14, $response,
           '*ifName' => 'eth1',
           '*cpuName' => undef,
           'usageAsFraction' => undef,
-          'inputOctets' => num(50, THRESHOLD),
+          'inputOctets' => num(25.2100840336134, THRESHOLD),
           'time' => 100124,
         },
       },
@@ -444,14 +447,14 @@ check_response(14, $response,
           '*ifName' => 'eth1',
           '*cpuName' => undef,
           'usageAsFraction' => undef,
-          'inputOctets' => num(10, THRESHOLD),
+          'inputOctets' => num(5.83333333333333, THRESHOLD),
           'time' => 100132,
         },
         '3' => {
           '*ifName' => 'eth2',
           '*cpuName' => undef,
           'usageAsFraction' => undef,
-          'inputOctets' => num(20, THRESHOLD),
+          'inputOctets' => num(10.1666666666667, THRESHOLD),
           'time' => 100132,
         },
         '2' => {
@@ -512,7 +515,7 @@ check_response(15, $response,
           '*ifName' => 'eth2',
           '*cpuName' => undef,
           'usageAsFraction' => undef,
-          'inputOctets' => num(20, THRESHOLD),
+          'inputOctets' => num(10.1666666666667, THRESHOLD),
           'time' => 100132,
         },
         '2' => {
@@ -561,14 +564,14 @@ check_response(16, $response,
           '*ifName' => 'eth0',
           '*cpuName' => undef,
           'usageAsFraction' => undef,
-          'inputOctets' => num(100, THRESHOLD),
+          'inputOctets' => num(51.2521008403361, THRESHOLD),
           'time' => 100124,
         },
         '2' => {
           '*ifName' => 'eth1',
           '*cpuName' => undef,
           'usageAsFraction' => undef,
-          'inputOctets' => num(50, THRESHOLD),
+          'inputOctets' => num(25.2100840336134, THRESHOLD),
           'time' => 100124,
         },
       },
@@ -582,6 +585,7 @@ $response = $client->test8(
     node => 'b.example.net'
 );
 
+
 check_response(17, $response,
     {
       'b.example.net' => {
@@ -589,14 +593,14 @@ check_response(17, $response,
           '*name' => 'eth1',
           'modName' => 'Ethernet1',
           'input' => undef,
-          'ioDiff' => num(9.5, THRESHOLD),
+          'ioDiff' => num(5.5, THRESHOLD),
           'time' => 100132,
         },
         '3' => {
           '*name' => 'eth2',
           'modName' => 'Ethernet2',
           'input' => undef,
-          'ioDiff' => num(19, THRESHOLD),
+          'ioDiff' => num(9.4166666666667, THRESHOLD),
           'time' => 100132,
         },
       },
@@ -641,26 +645,28 @@ $response = $client->interface(
     node => ['a.example.net', 'b.example.net', 'c.example.net_1', 'c.example.net_2']
 );
 
+
+
 check_response(20, $response,
     {
       'a.example.net' => {
         '1' => {
           '*node' => 'a.example.net',
           '*intf' => 'eth0',
-          'input' => num(800, THRESHOLD),
-          'output' => num(160, THRESHOLD),
-          'inUcast' => num(0.1, THRESHOLD),
-          'outUcast' => num(0.3, THRESHOLD),
+          'input' => num(410.016806722689, THRESHOLD),
+          'output' => num(84.8403361344536, THRESHOLD),
+          'inUcast' => num(0.0672268907563025, THRESHOLD),
+          'outUcast' => num(0.159663865546218, THRESHOLD),
           'status' => 1,
           'time' => 100124,
         },
         '2' => {
           '*node' => 'a.example.net',
           '*intf' => 'eth1',
-          'input' => num(400, THRESHOLD),
-          'output' => num(16, THRESHOLD),
-          'inUcast' => num(0.1, THRESHOLD),
-          'outUcast' => num(4, THRESHOLD),
+          'input' => num(201.680672268907, THRESHOLD),
+          'output' => num(8.06722689075632, THRESHOLD),
+          'inUcast' => num(0.0504201680672269, THRESHOLD),
+          'outUcast' => num(2.01680672268908, THRESHOLD),
           'status' => 0,
           'time' => 100124,
         },
@@ -669,20 +675,20 @@ check_response(20, $response,
         '1' => {
           '*node' => 'b.example.net',
           '*intf' => 'eth1',
-          'input' => num(80, THRESHOLD),
-          'output' => num(4, THRESHOLD),
-          'inUcast' => num(0.1, THRESHOLD),
-          'outUcast' => num(1, THRESHOLD),
+          'input' => num(46.6666666666666, THRESHOLD),
+          'output' => num(2.66666666666666, THRESHOLD),
+          'inUcast' => num(0.075, THRESHOLD),
+          'outUcast' => num(0.508333333333333, THRESHOLD),
           'status' => 1,
           'time' => 100132,
         },
         '3' => {
           '*node' => 'b.example.net',
           '*intf' => 'eth2',
-          'input' => num(160, THRESHOLD),
-          'output' => num(8, THRESHOLD),
-          'inUcast' => num(2, THRESHOLD),
-          'outUcast' => num(0.1, THRESHOLD),
+          'input' => num(81.3333333333336, THRESHOLD),
+          'output' => num(6, THRESHOLD),
+          'inUcast' => num(1.00833333333333, THRESHOLD),
+          'outUcast' => num(0.0583333333333333, THRESHOLD),
           'status' => 1,
           'time' => 100132,
         },
@@ -691,9 +697,9 @@ check_response(20, $response,
         '1' => {
           '*node' => 'c.example.net',
           '*intf' => 'eth0',
-          'input' => num(800, THRESHOLD),
+          'input' => num(360.36036036036, THRESHOLD),
           'output' => num(0, THRESHOLD),
-          'inUcast' => num(0.5, THRESHOLD),
+          'inUcast' => num(0.225225225225225, THRESHOLD),
           'outUcast' => num(0, THRESHOLD),
           'status' => 1,
           'time' => 100131,
@@ -728,10 +734,10 @@ check_response(21, $response,
         '1' => {
           '*node' => 'a.example.net',
           '*intf' => 'eth0',
-          'input' => num(800, THRESHOLD),
-          'output' => num(160, THRESHOLD),
-          'inUcast' => num(0.1, THRESHOLD),
-          'outUcast' => num(0.3, THRESHOLD),
+          'input' => num(410.016806722689, THRESHOLD),
+          'output' => num(84.8403361344536, THRESHOLD),
+          'inUcast' => num(0.0672268907563025, THRESHOLD),
+          'outUcast' => num(0.159663865546218, THRESHOLD),
           'status' => 1,
           'time' => 100124,
         },
@@ -740,9 +746,9 @@ check_response(21, $response,
         '1' => {
           '*node' => 'c.example.net',
           '*intf' => 'eth0',
-          'input' => num(800, THRESHOLD),
+          'input' => num(360.36036036036, THRESHOLD),
           'output' => num(0, THRESHOLD),
-          'inUcast' => num(0.5, THRESHOLD),
+          'inUcast' => num(0.225225225225225, THRESHOLD),
           'outUcast' => num(0, THRESHOLD),
           'status' => 1,
           'time' => 100131,
@@ -759,6 +765,7 @@ $response = $client->test7(
     node => 'd.example.net',
 );
 
+
 check_response(22, $response,
     {
       'd.example.net' => {
@@ -773,14 +780,14 @@ check_response(22, $response,
           '*ifName' => 'eth1',
           '*cpuName' => 'CPU2',
           'usageAsFraction' => num(0.19, THRESHOLD),
-          'inputOctets' => num(10, THRESHOLD),
+          'inputOctets' => num(5.83333333333333, THRESHOLD),
           'time' => any(100112, 100121),
         },
         '104' => {
           '*ifName' => 'eth4',
           '*cpuName' => undef,
           'usageAsFraction' => undef,
-          'inputOctets' => num(20, THRESHOLD),
+          'inputOctets' => num(10.1666666666667, THRESHOLD),
           'time' => 100121,
         },
       },
@@ -793,6 +800,7 @@ check_response(22, $response,
 $response = $client->test9(
     node => ['a.example.net', 'b.example.net', 'c.example.net_1', 'c.example.net_2', 'd.example.net']
 );
+
 
 # This works unless you're running this test with a system time earlier than when
 # I wrote this -- sorry, time travelers.

@@ -7,7 +7,7 @@ use Test::More tests => 37;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num);
-
+use Data::Dumper;
 use constant THRESHOLD => 1e-9;
 
 my $client = GRNOC::RabbitMQ::Client->new(
@@ -87,10 +87,10 @@ cmp_deeply(
     $response->{'results'},
     {
       'b.example.net' => {
-        '1.3.6.1.2.1.31.1.1.1.6.1' => { 'value' => num(10, THRESHOLD),  'time' => 100132 },
-        '1.3.6.1.2.1.31.1.1.1.6.3' => { 'value' => num(20, THRESHOLD),  'time' => 100132 },
-        '1.3.6.1.2.1.2.2.1.11.1'   => { 'value' => num(0.1, THRESHOLD), 'time' => 100132 },
-        '1.3.6.1.2.1.2.2.1.11.3'   => { 'value' => num(2, THRESHOLD),   'time' => 100132 },
+        '1.3.6.1.2.1.31.1.1.1.6.1' => { 'value' => num(5.83333333333333, THRESHOLD),  'time' => 100132 },
+        '1.3.6.1.2.1.31.1.1.1.6.3' => { 'value' => num(10.1666666666667, THRESHOLD),  'time' => 100132 },
+        '1.3.6.1.2.1.2.2.1.11.1'   => { 'value' => num(0.075, THRESHOLD), 'time' => 100132 },
+        '1.3.6.1.2.1.2.2.1.11.3'   => { 'value' => num(1.00833333333333, THRESHOLD),   'time' => 100132 },
       },
     },
     'request 3: got the correct results in the response'
@@ -147,19 +147,19 @@ cmp_deeply(
     $response->{'results'},
     {
       'a.example.net' => {
-        '1.3.6.1.2.1.31.1.1.1.6.1'  => { 'value' => num(100, THRESHOLD), 'time' => 100124 },
-        '1.3.6.1.2.1.31.1.1.1.6.2'  => { 'value' => num(50, THRESHOLD),  'time' => 100124 },
-        '1.3.6.1.2.1.31.1.1.1.10.1' => { 'value' => num(20, THRESHOLD),  'time' => 100124 },
-        '1.3.6.1.2.1.31.1.1.1.10.2' => { 'value' => num(2, THRESHOLD),   'time' => 100124 },
+        '1.3.6.1.2.1.31.1.1.1.6.1'  => { 'value' => num(51.2521008403361, THRESHOLD), 'time' => 100124 },
+        '1.3.6.1.2.1.31.1.1.1.6.2'  => { 'value' => num(25.2100840336134, THRESHOLD),  'time' => 100124 },
+        '1.3.6.1.2.1.31.1.1.1.10.1' => { 'value' => num(10.6050420168067, THRESHOLD),  'time' => 100124 },
+        '1.3.6.1.2.1.31.1.1.1.10.2' => { 'value' => num(1.00840336134454, THRESHOLD),   'time' => 100124 },
       },
       'b.example.net' => {
-        '1.3.6.1.2.1.31.1.1.1.6.1'  => { 'value' => num(10, THRESHOLD),  'time' => 100132 },
-        '1.3.6.1.2.1.31.1.1.1.6.3'  => { 'value' => num(20, THRESHOLD),  'time' => 100132 },
-        '1.3.6.1.2.1.31.1.1.1.10.1' => { 'value' => num(0.5, THRESHOLD), 'time' => 100132 },
-        '1.3.6.1.2.1.31.1.1.1.10.3' => { 'value' => num(1, THRESHOLD),   'time' => 100132 },
+        '1.3.6.1.2.1.31.1.1.1.6.1'  => { 'value' => num(5.83333333333333, THRESHOLD),  'time' => 100132 },
+        '1.3.6.1.2.1.31.1.1.1.6.3'  => { 'value' => num(10.1666666666667, THRESHOLD),  'time' => 100132 },
+        '1.3.6.1.2.1.31.1.1.1.10.1' => { 'value' => num(0.333333333333333, THRESHOLD), 'time' => 100132 },
+        '1.3.6.1.2.1.31.1.1.1.10.3' => { 'value' => num(0.75, THRESHOLD),   'time' => 100132 },
       },
       'c.example.net_1' => {
-        '1.3.6.1.2.1.31.1.1.1.6.1'  => { 'value' => num(100, THRESHOLD), 'time' => 100131 },
+        '1.3.6.1.2.1.31.1.1.1.6.1'  => { 'value' => num(45.045045045045, THRESHOLD), 'time' => 100131 },
         '1.3.6.1.2.1.31.1.1.1.10.1' => { 'value' => num(0, THRESHOLD),   'time' => 100131 },
       },
     },
