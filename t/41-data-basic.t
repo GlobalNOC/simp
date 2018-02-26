@@ -7,6 +7,7 @@ use Test::More tests => 19;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num);
+use Data::Dumper;
 
 my $client = GRNOC::RabbitMQ::Client->new(
     host     => '127.0.0.1',
@@ -59,7 +60,8 @@ cmp_deeply(
     $results->{'results'},
     {
       'c.example.net_1' => {
-        '1.3.6.1.2.1.2.2.1.11.1' => { 'value' => num(0.5, 1e-6), 'time' => 100131 },
+        '1.3.6.1.2.1.2.2.1.11.1' => { 'value' => '0.225225225225225',
+				      'time' => 100131 },
       },
     },
     'request 2: we got the correct data in the response'
