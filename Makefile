@@ -53,6 +53,7 @@ dist:
 	cp -r conf/simp-tsds.xml dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/simp-tsds.init dist/simp-tsds-$(VERSION)/conf/
+	cp -r conf/simp-tsds.systemd dist/simp-tsds-$(VERSION)/conf/
 	cp -r simp-data.spec dist/simp-data-$(VERSION)/
 	cp -r simp-comp.spec dist/simp-comp-$(VERSION)/
 	cp -r simp-poller.spec dist/simp-poller-$(VERSION)/
