@@ -8,15 +8,15 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
-name="simp-collector"
-exec="/usr/sbin/simp-collector"
-pidfile="/var/run/simp-collector.pid"
-CONFIG="/etc/simp/collector/config.xml"
-LOGGING="/etc/simp/collector/logging.conf"
-OTHER_ARGS='--user simp-collector --group simp-collector'
+name="simp-tsds"
+exec="/usr/bin/simp-tsds"
+pidfile="/var/run/simp-tsds.pid"
+CONFIG="/etc/simp/simp-tsds.xml"
+LOGGING="/etc/simp/simp_tsds_logging.conf"
+OTHER_ARGS='--user simp --group simp'
 
 # Variable overrides
-. /etc/sysconfig/simp-collector
+. /etc/sysconfig/simp-tsds
 
 start() {
     [ -f $CONFIG ] || exit 6
