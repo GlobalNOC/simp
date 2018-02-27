@@ -17,7 +17,7 @@ sub usage {
 
 use constant DEFAULT_CONFIG_FILE  => '/etc/simp/config.xml';
 use constant DEFAULT_HOSTS_FILE   => '/etc/simp/hosts.d';
-use constant DEFAULT_LOGGING_FILE => '/etc/simp/logging.conf';
+use constant DEFAULT_LOGGING_FILE => '/etc/simp/poller_logging.conf';
 
 my $config_file = DEFAULT_CONFIG_FILE;
 my $hosts_file  = DEFAULT_HOSTS_FILE;

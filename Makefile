@@ -36,13 +36,13 @@ dist:
 	cp -r lib/GRNOC/Simp/Data* dist/simp-data-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/Comp* dist/simp-comp-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/TSDS* dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
-	cp -r bin/comp-data.pl dist/simp-comp-$(VERSION)/bin/
+	cp -r bin/simp-comp.pl dist/simp-comp-$(VERSION)/bin/
 	cp -r bin/simp-data.pl dist/simp-data-$(VERSION)/bin/
 	cp -r bin/simp-poller.pl dist/simp-poller-$(VERSION)/bin/
 	cp -r bin/simp-tsds.pl dist/simp-tsds-$(VERSION)/bin/
 	cp -r conf/compDataConfig.xml dist/simp-comp-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-comp-$(VERSION)/conf/
-	cp -r conf/comp_data.init dist/simp-comp-$(VERSION)/conf/
+	cp -r conf/simp_comp.init dist/simp-comp-$(VERSION)/conf/
 	cp -r conf/simpDataConfig.xml dist/simp-data-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-data-$(VERSION)/conf/
 	cp -r conf/simp_data.init dist/simp-data-$(VERSION)/conf/

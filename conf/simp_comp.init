@@ -20,7 +20,7 @@ fi
 # Check that networking is up.
 [ ${NETWORKING} = "no" ] && exit 0
 
-name=comp-data.pl
+name=simp-comp.pl
 exec_file=/usr/bin/$name
 options=""
 username=simp

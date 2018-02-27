@@ -13,7 +13,7 @@ sub usage {
 
 
 use constant DEFAULT_CONFIG_FILE => '/etc/simp/simpDataConfig.xml';
-use constant DEFAULT_LOG_FILE    => '/etc/simp/logging.conf';
+use constant DEFAULT_LOG_FILE    => '/etc/simp/data_logging.conf';
 
 my $config_file = DEFAULT_CONFIG_FILE;
 my $logging     = DEFAULT_LOG_FILE;
