@@ -63,7 +63,7 @@ SIMP_PERL_DIR="${TEST_DIR}/../lib"
 
 
 # CompData:
-/usr/bin/perl -I"$SIMP_PERL_DIR" "${TEST_DIR}/../bin/comp-data.pl" \
+/usr/bin/perl -I"$SIMP_PERL_DIR" "${TEST_DIR}/../bin/simp-comp.pl" \
     --config "${TEST_DIR}/conf/compDataConfig.xml" \
     --logging "${TEST_DIR}/conf/compDataLogging.conf"
 
