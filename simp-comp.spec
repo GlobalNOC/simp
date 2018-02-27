@@ -47,10 +47,10 @@ rm -rf $RPM_BUILD_ROOT
 
 %{__install} lib/GRNOC/Simp/CompData.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData.pm
 %{__install} lib/GRNOC/Simp/CompData/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
-%{__install} bin/comp-data.pl %{buildroot}/usr/bin/comp-data.pl
+%{__install} bin/simp-comp.pl %{buildroot}/usr/bin/simp-comp.pl
 %{__install} conf/compDataConfig.xml %{buildroot}/etc/simp/compDataConfig.xml
 %{__install} conf/logging.conf %{buildroot}/etc/simp/comp_logging.conf
-%{__install} conf/comp_data.init %{buildroot}/etc/init.d/comp-data
+%{__install} conf/simp_comp.init %{buildroot}/etc/init.d/simp-comp
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -60,8 +60,8 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/CompData.pm
 %{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
 %defattr(755,root,root,755)
-/usr/bin/comp-data.pl
-/etc/init.d/comp-data
+/usr/bin/simp-comp.pl
+/etc/init.d/simp-comp
 %defattr(644,root,root,755)
 %config(noreplace) /etc/simp/comp_logging.conf
 %config(noreplace) /etc/simp/compDataConfig.xml
