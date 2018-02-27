@@ -11,6 +11,8 @@ use Proc::Daemon;
 use GRNOC::Config;
 use GRNOC::Log;
 
+our $VERSION='1.0.6';
+
 use GRNOC::Simp::Data::Worker;
 
 ### required attributes ###
@@ -72,7 +74,7 @@ sub BUILD{
     my ($self) = @_;
 
     # create and store logger object
-    my $grnoc_log = GRNOC::Log->new( config => $self->logging_file );
+    my $grnoc_log = GRNOC::Log->new( config => $self->logging_file, watch => 120 );
     my $logger = GRNOC::Log->get_logger();
 
     $self->_set_logger( $logger );
