@@ -5,9 +5,9 @@ use Carp;
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
 use Data::Munge qw();
+use List::MoreUtils qw(any);
 use Try::Tiny;
 use Moo;
-use Redis;
 use AnyEvent;
 use GRNOC::Log;
 use GRNOC::RabbitMQ::Method;
@@ -51,7 +51,9 @@ has worker_id => ( is => 'ro',
 
 =item client
 
-=item need_restart
+=item do_shutdown
+
+=item rmq_dispatcher
 
 =back
 
@@ -64,8 +66,11 @@ has dispatcher  => ( is => 'rwp' );
 
 has client      => ( is => 'rwp' );
 
-has need_restart => (is => 'rwp',
-                    default => 0 );
+has do_shutdown => ( is => 'rwp',
+                     default => 0 );
+
+has rmq_dispatcher => ( is => 'rwp',
+                        default => undef );
 
 my %_FUNCTIONS; # Used by _function_one_val
 my %_RPN_FUNCS; # Used by _rpn_calc
@@ -84,11 +89,14 @@ my %_RPN_FUNCS; # Used by _rpn_calc
 sub start {
    my ( $self ) = @_;
 
+  $self->_set_do_shutdown( 0 );
+
   while(1){
     #--- we use try catch to, react to issues such as com failure
     #--- when any error condition is found, the reactor stops and we then reinitialize 
     $self->logger->debug( $self->worker_id." restarting." );
     $self->_start();
+    exit(0) if $self->do_shutdown;
     sleep 2;
   }
 
@@ -110,7 +118,7 @@ sub _start {
     $SIG{'TERM'} = sub {
 
         $self->logger->info( "Received SIG TERM." );
-        $self->stop();
+        $self->_stop();
     };
 
     $SIG{'HUP'} = sub {
@@ -125,13 +133,13 @@ sub _start {
  
     $self->logger->debug( 'Setup RabbitMQ' );
 
-    my $client = GRNOC::RabbitMQ::Client->new(   host => "127.0.0.1",
-                                             port => 5672,
-                                             user => "guest",
-                                             pass => "guest",
-                                             exchange => 'Simp',
-                                             timeout => 15,
-                                             topic => 'Simp.Data');
+    my $client = GRNOC::RabbitMQ::Client->new(  host => $rabbit_host,
+                                                port => $rabbit_port,
+                                                user => $rabbit_user,
+                                                pass => $rabbit_pass,
+                                                exchange => 'Simp',
+                                                timeout => 15,
+                                                topic => 'Simp.Data');
 
     $self->_set_client($client);
 
@@ -199,15 +207,25 @@ sub _start {
 
     $dispatcher->register_method($method2);
  
+    $self->_set_rmq_dispatcher( $dispatcher );
     #--- go into event loop handing requests that come in over rabbit  
     $self->logger->debug( 'Entering RabbitMQ event loop' );
     $dispatcher->start_consuming();
     
     #--- you end up here if one of the handlers called stop_consuming
+    $self->_set_rmq_dispatcher( undef );
     return;
 }
 
 ### private methods ###
+
+sub _stop{
+  my $self = shift;
+
+  $self->_set_do_shutdown( 1 );
+  my $dispatcher = $self->rmq_dispatcher;
+  $dispatcher->stop_consuming() if defined($dispatcher);
+}
 
 sub _ping{
   my $self = shift;
@@ -258,6 +276,9 @@ sub _get{
   #    * The results from the compute-functions phase (_do_functions);
   #      $results{'final'} is passed back to the caller
 
+  # Make sure this exists, even if we get zero results
+  $results{'final'} = {};
+
   my $success_callback = $rpc_ref->{'success_callback'};
 
 
@@ -266,7 +287,13 @@ sub _get{
   $cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });
   $cv[1]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[2]); });
   $cv[2]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[3]); });
-  $cv[3]->begin(sub { \&$success_callback($results{'final'}); });
+  $cv[3]->begin(sub { &$success_callback($results{'final'});
+		      undef %results;
+		      undef $ref;
+		      undef $params;
+		      undef @cv;
+		      undef $success_callback;
+		});
 
   # Start off the pipeline:
   $cv[0]->end;
@@ -344,13 +371,8 @@ sub _scan_cb{
 
       my @oid_suffixes;
 
-      # return only those entries matching specified values, if values are specified
-      my %val_matches;
-      my $use_val_matches = 0;
-      if(defined($vals) && (scalar(@$vals) > 0)){
-          $use_val_matches = 1;
-          %val_matches = map { $_ => 1 } @$vals;
-      }
+      # return only those entries matching specified value regexps, if value regexps are specified
+      my $use_val_matches = (defined($vals) && (scalar(@$vals) > 0));
 
       foreach my $oid (keys %{$data->{$host}}){
 	  my $base_value = $data->{$host}{$oid}{'value'};
@@ -358,7 +380,7 @@ sub _scan_cb{
           # strip out the wildcard part of the oid
 	  $oid =~ s/^$oid_pattern//;
 
-          if((!$use_val_matches) || $val_matches{$base_value}){
+          if((!$use_val_matches) || (any { $base_value =~ /$_/ } @$vals)){
               push @oid_suffixes, $oid;
               $results->{'scan-match'}{$host}{$var_name}{$oid} = $base_value;
           }
@@ -475,28 +497,28 @@ sub _do_vals{
                     next if !defined($oid_suffixes); # Make sure there's stuff to iterate over
 
                     my %lut; # look-up table from (full OID) to list of (OID suffix, variable name) pairs
-                    my @oid_list;
+                    my $oid_base = join '.', @oid_parts[0 .. ($scan_var_idx - 1)], '*'; # OID subtree to scan through
 
                     foreach my $oid_suffix (@$oid_suffixes){
                         # re-use @oid_parts to construct the full OID to look for
                         $oid_parts[$scan_var_idx] = $oid_suffix;
                         my $full_oid = join '.', @oid_parts;
 
-                        push @oid_list, $full_oid;
                         push @{$lut{$full_oid}}, [$oid_suffix, $id];
                     }
-
-                    # SimpData does not like it when you call it with an empty oidmatch, so:
-                    next if scalar(@oid_list) <= 0;
 
                     # Now get the data for these OIDs from Simp
                     $cv->begin;
 
+                    # It is tempting to request just the OIDs you know you want,
+                    # instead of asking for the whole subtree, but requesting
+                    # a bunch of individual OIDs takes SimpData a *whole* lot
+                    # more time and CPU, so we go for the subtree.
                     if(defined($type) && $type eq 'rate'){
                         $self->client->get_rate(
                             node     => [$host],
                             period   => $params->{'period'}{'value'},
-                            oidmatch => \@oid_list,
+                            oidmatch => [$oid_base],
                             async_callback => sub {
                                 my $data = shift;
 				$self->_val_cb($data->{'results'},$results,$host,\%lut);
@@ -506,7 +528,7 @@ sub _do_vals{
                     }else{
                         $self->client->get(
                             node     => [$host],
-                            oidmatch => \@oid_list,
+                            oidmatch => [$oid_base],
                             async_callback => sub {
                                 my $data = shift;
 				$self->_val_cb($data->{'results'},$results,$host,\%lut);
@@ -570,11 +592,15 @@ sub _do_functions{
     my $results      = shift; # request-global $results hash
     my $cv           = shift; # assumes that it's been begin()'ed with a callback
 
+    my $now = time;
+
     # First off, by default, we pass through the 'time' value, as it has special
     # significance for clients:
     foreach my $host (keys %{$results->{'val'}}){
         foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
-            $results->{'final'}{$host}{$oid_suffix}{'time'} = $results->{'val'}{$host}{$oid_suffix}{'time'};
+            my $tm = $results->{'val'}{$host}{$oid_suffix}{'time'};
+            $tm = $now if !defined($tm);
+            $results->{'final'}{$host}{$oid_suffix}{'time'} = $tm;
         }
     }
 

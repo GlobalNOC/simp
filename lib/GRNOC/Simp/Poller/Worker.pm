@@ -186,6 +186,7 @@ sub start {
 						  interval => $self->poll_interval,
 						  cb => sub {
 						      $self->_collect_data();
+						      AnyEvent->now_update;
 						  });
     
 
@@ -237,7 +238,6 @@ sub _poll_cb{
 	$self->logger->error("Host/Context ID: $host->{'node_name'} " . (defined($context_id) ? $context_id : '[no context ID]'));
 	$self->logger->error("$id failed     $reqstr");
 	$self->logger->error("Error: $error");
-
 	return;
     }
 
@@ -310,8 +310,8 @@ sub _poll_cb{
     } catch {
 	$redis->select(0);
 	$self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
-	return;
     }
+    AnyEvent->now_update;
 }
 
 sub _connect_to_snmp{

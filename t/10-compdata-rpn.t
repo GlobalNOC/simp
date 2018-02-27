@@ -3,6 +3,8 @@
 use strict;
 use warnings;
 
+use lib './lib';
+
 use Test::More tests => 131;
 
 # Unit tests of the following function:
@@ -484,12 +486,3 @@ ok(!defined($res), 'indexes larger than stack size yield undef (a)');
 
 $res = rpn_calc('c', '"b" "a" 7 index pop', undef, {}, {}, 'example.org');
 ok($res eq 'a', 'indexes larger than stack size yield undef (b)');
-
-# at 130 tests
-
-
-my $xxx = "
-# 
-$res = rpn_calc(, '', undef, {}, {}, 'example.org');
-ok(, '');
-";
