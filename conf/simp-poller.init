@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# compData
+# Simple init-script
 #
 # description: simp poller daemon
 # location:    /usr/bin/simp.pl
@@ -20,13 +20,13 @@ fi
 # Check that networking is up.
 [ ${NETWORKING} = "no" ] && exit 0
 
-name=compData.pl
+name=simp-poller.pl
 exec_file=/usr/bin/$name
 options=""
-username=vce
+username=simp
 lockfile=/var/lock/subsys/$name
 command="$exec_file $options"
-PIDFILE=/var/run/simp_comp.pid
+PIDFILE=/var/run/simp_poller.pid
 
 start() {
     if [ -f $PIDFILE ]; then

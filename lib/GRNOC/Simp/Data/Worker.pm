@@ -2,6 +2,7 @@ package GRNOC::Simp::Data::Worker;
 
 use strict;
 use Carp;
+use List::MoreUtils qw(none);
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
 use Try::Tiny;
@@ -243,7 +244,22 @@ sub _ping{
   return gettimeofday();
 }
 
-sub _find_group{
+# Is the first argument, interpreted as an OID, a prefix of
+# the second argument, also interpreted as an OID?
+sub _is_oid_prefix{
+    my $a = shift;
+    my $b = shift;
+
+    return 0 if length($a) > length($b);
+
+    my $len = length($a);
+    my $next_char = substr($b, $len, 1);
+
+    return ((substr($b, 0, $len) eq $a) &&
+            ($next_char eq '.' || $next_char eq ''));
+}
+
+sub _find_groups{
     my $self = shift;
     my %params = @_;
 
@@ -253,6 +269,9 @@ sub _find_group{
 
     my %host_groups;
 
+    # Remove any ".*" suffixes
+    $oid =~ s/(\.\*+)*$//;
+
     try{
 	$self->redis->select(3);
 	%host_groups = $self->redis->hgetall($host);
@@ -261,41 +280,74 @@ sub _find_group{
 	$self->redis->select(0);
 	$self->logger->error("Error fetching all groups host is a part of");
 	return;
-    };	
+    };
 
     my @new_host_groups;
     foreach my $base_oid (keys %host_groups){
 	my ($group, $interval) = split(',', $host_groups{$base_oid});
 
         # group is a candidate if its base OID is a prefix of ours
-        if(substr($oid, 0, length($base_oid)) eq $base_oid){
+        if(_is_oid_prefix($base_oid, $oid)){
 	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
 	}
     }
-    
-    #ok we are close! we only have matching host groups...
-    #if we have none... return undef
-    if(scalar(@new_host_groups) <= 0){
-	$self->logger->error("NO host groups found for $host and $oid"); 
-	return;
-    }
 
-    # If we have 1 match, return that group
+    # If we have 1 candidate, return that group
     if(scalar(@new_host_groups) == 1){
-	return $new_host_groups[0];
+        return [ $new_host_groups[0] ];
+    }elsif(scalar(@new_host_groups) > 1){
+
+        # If we have multiple matching candidates, sort lexicographically by
+        # (length of base_oid descending, interval ascending)
+        my @sorted = sort { -(length($a->{'base_oid'}) <=> length($b->{'base_oid'})) or
+                            ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
+
+        # We now have in $sorted[0] the most specific match; if there are multiple
+        # most-specific matches, $sorted[0] is the one with the shortest interval.
+        return [ $sorted[0] ];
     }
 
-    # OK, if we have multiple matches, sort lexicographically by
-    # (length of base_oid descending, interval ascending)
-    my @sorted = sort {    -(length($a->{'base_oid'}) <=> length($b->{'base_oid'}))
-                        or ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
+    # If we got here, we had no candidates - groups whose base OID is a prefix
+    # of $oid, the base OID of the tree we're interested in. That said, all hope
+    # is not lost yet - it may be that there are one or more groups whose
+    # base OID has $oid as a prefix! We now look for these. If we find more than
+    # one, we then weed out groups that are redundant, i.e., groups for which
+    # there is a "wider" (shorter-prefix) group with the same or shorter interval.
 
-    # We now have in $sorted[0] the most specific match; if there are multiple
-    # most-specific matches, $sorted[0] is the one with the shortest interval.
-    return $sorted[0];
+    @new_host_groups = ();
+    foreach my $base_oid (keys %host_groups){
+	my ($group, $interval) = split(',', $host_groups{$base_oid});
+
+        # This time around, group is a candidate if our OID is a prefix of its base
+        if(_is_oid_prefix($oid, $base_oid)){
+	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
+	}
+    }
+
+    # Sort the groups lexicographically by
+    # (length of base_oid ascending, interval ascending)
+    my @sorted = sort { (length($a->{'base_oid'}) <=> length($b->{'base_oid'})) or
+                        ($a->{'interval'} <=> $b->{'interval'}) } @new_host_groups;
+
+    # Filter out redundant groups
+    my @final_list = ();
+    foreach my $group (@sorted){
+        if(none { _is_oid_prefix($_->{'base_oid'}, $group->{'base_oid'}) &&
+                  $_->{'interval'} <= $group->{'interval'} } @final_list){
+            push @final_list, $group;
+        }
+    }
+    # For the purposes of _find_groups's callees, we want to work from wider to
+    # narrower groups; @final_list has the groups in the right order.
+
+    if(scalar(@final_list) <= 0){
+        $self->logger->error("NO host groups found for $host and $oid");
+    }
+
+    return \@final_list;
 }
 
-sub _find_key{
+sub _find_keys{
 
     my $self = shift;
     my %params = @_;
@@ -304,48 +356,55 @@ sub _find_key{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    my $group = $self->_find_group( host => $host, 
-				    oid => $oid,
-				    requested => $requested);
-    
-    if(!defined($group)){
-	$self->logger->error("unable to find group for $host $oid");
-	return;
+    my $groups = $self->_find_groups( host => $host, 
+                                      oid => $oid,
+                                      requested => $requested);
+
+    if(!defined($groups) || (scalar(@$groups) <= 0) || (none { defined($_) } @$groups)){
+        $self->logger->error("unable to find group for $host $oid");
+        return;
     }
 
-    #ok so we have the group name we want now... grab the key that leads to the current time chunk
-    $self->redis->select(2);
-    my $res = $self->redis->get($host . "," . $group->{'group'});
-    $self->redis->select(0);
-    
-    #key should be poll_id,ts
-    my ($poll_id,$time) = split(',',$res);
+    my @sets;
 
-    #if the requested time is newer than our poll time OR the poll time - the requested time is less than 1 poll interval return the current one
-    my $lookup;
-    if($requested > $time){
-	$lookup = $host . "," . $group->{'group'} . "," . $poll_id;
-    }else{
-	#find the closest poll cycle
-	my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
-	if($poll_id >= $poll_ids_back){
-	    $self->logger->debug("looking " . $poll_ids_back);
-	    $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - $poll_ids_back);
-	    $self->logger->debug("lookup key: " . $lookup);
-	}else{
-	    $self->logger->debug("No time available that matches the requested time!");
-	    return;
-	}
+    foreach my $group (@$groups){
+        next if !defined($group);
+        #ok so we have the group name we want now... grab the key that leads to the current time chunk
+        $self->redis->select(2);
+        my $res = $self->redis->get($host . "," . $group->{'group'});
+        $self->redis->select(0);
+        next if !defined($res);
+
+        #key should be poll_id,ts
+        my ($poll_id,$time) = split(',',$res);
+
+        #if the requested time is newer than our poll time OR the poll time - the requested time is less than 1 poll interval return the current one
+        my $lookup;
+        if($requested > $time){
+            $lookup = $host . "," . $group->{'group'} . "," . $poll_id;
+        }else{
+            #find the closest poll cycle
+            my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
+            if($poll_id >= $poll_ids_back){
+                $self->logger->debug("looking " . $poll_ids_back);
+                $lookup = $host . "," . $group->{'group'} . "," . ($poll_id - ($poll_ids_back +1));
+                $self->logger->debug("lookup key: " . $lookup);
+            }else{
+                $self->logger->debug("No time available that matches the requested time!");
+                return;
+            }
+        }
+
+
+        #ok so lookup is now defined
+        #lookup will give us the right set to sscan through
+        $self->redis->select(1);
+        my $set = $self->redis->get($lookup);
+        push @sets, $set if defined($set);
+        $self->redis->select(0);
     }
 
-
-    #ok so lookup is now defined
-    #lookup will give us the right set to sscan through
-    $self->redis->select(1);
-    my $set = $self->redis->get($lookup);
-    $self->redis->select(0);
-
-    return $set;
+    return \@sets;
 }
 
 
@@ -367,40 +426,39 @@ sub _get{
 	foreach my $oid (@$oidmatch){
 	    foreach my $host (@$node){
 		
-		#find the correct key to fetch for!
-		my $set = $self->_find_key( host => $host,
-					    oid => $oid,
-					    requested => $requested);
+                #find the correct keys to fetch for!
+                my $sets = $self->_find_keys( host => $host,
+                                              oid => $oid,
+                                              requested => $requested);
 
-		if(!defined($set)){
-		    $self->logger->error("Unable to find set to look at");
-		    next;
-		}
-		my ($host, $group, $time) = split(',',$set);
+                if(!defined($sets) || (scalar(@$sets) <= 0) || (none { defined($_) } @$sets)){
+                    $self->logger->error("Unable to find set to look at");
+                    next;
+                }
 
-		my $keys;
-		my $cursor = 0;
-		while(1){
-		    #--- get the set of hash entries that match our pattern
-		    ($cursor,$keys) =  $redis->sscan($set, $cursor,MATCH=>$oid . "*",COUNT=>2000);
-		    foreach my $key (@$keys){
-			
-			$key =~ /([\d+|\.]+),(.*)/;
-			my $oid = $1;
-			my $value = $2;
+                foreach my $set (@$sets){
+                    next if !defined($set);
 
-			if(!defined($oid)){
-			    $key =~ /(.*),(.*)/;
-			    $oid = $1;
-			    $value = $2;
-			}
+                    my ($host, $group, $time) = split(',',$set);
 
-			$results{$host}{$oid}{'value'} = $value;
-			$results{$host}{$oid}{'time'} = $time;
-		    }
-		    
-		    last if($cursor == 0);
-		}
+                    my $keys;
+                    my $cursor = 0;
+                    while(1){
+                        #--- get the set of hash entries that match our pattern
+                        ($cursor,$keys) =  $redis->sscan($set, $cursor,MATCH=>$oid . "*",COUNT=>2000);
+                        foreach my $key (@$keys){
+
+                            $key =~ /^([^,]*),(.*)/;
+                            my $oid = $1;
+                            my $value = $2;
+
+                            $results{$host}{$oid}{'value'} = $value;
+                            $results{$host}{$oid}{'time'} = $time;
+                        }
+
+                        last if($cursor == 0);
+                    }
+                }
 	    }
 	}
 
