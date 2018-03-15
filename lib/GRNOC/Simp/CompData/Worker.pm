@@ -372,7 +372,7 @@ sub _scan_cb{
       my @oid_suffixes;
 
       # return only those entries matching specified value regexps, if value regexps are specified
-      my $use_val_matches = (defined($vals) && (scalar(@$vals) >= 0));
+      my $use_val_matches = (defined($vals) && (scalar(@$vals) > 0));
 
       foreach my $oid (keys %{$data->{$host}}){
 	  my $base_value = $data->{$host}{$oid}{'value'};
