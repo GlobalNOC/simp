@@ -148,14 +148,26 @@ sub start {
             $0 = "SimpData";
 
             # figure out what user/group (if any) to change to
-            my $username  = $self->run_user;
-            my $groupname = $self->run_group;
+            my $user_name  = $self->run_user;
+            my $group_name = $self->run_group;
 
-            my $gid = (defined($groupname)) ? getgrnam($groupname) : undef;
-            setgid($gid) if defined($gid);
+            if (defined($group_name)) {
+                my $gid = getgrnam($group_name);
+                $self->_log_err_then_exit("Unable to get GID for group '$group_name'") if !defined($gid);
 
-            my $uid = (defined($username)) ? getpwnam($username) : undef;
-            setuid($uid) if defined($uid);
+                $! = 0;
+                setgid($gid);
+                $self->_log_err_then_exit("Unable to set GID to $gid ($group_name)") if $! != 0;
+            }
+
+            if (defined($user_name)) {
+                my $uid = getpwnam($user_name);
+                $self->_log_err_then_exit("Unable to get UID for user '$user_name'") if !defined($uid);
+
+                $! = 0;
+                setuid($uid);
+                $self->_log_err_then_exit("Unable to set UID to $uid ($user_name)") if $! != 0;
+            }
 
             $self->_create_workers();
         }
@@ -176,6 +188,15 @@ sub start {
     }
 
     return 1;
+}
+
+sub _log_err_then_exit {
+    my $self = shift;
+    my $msg  = shift;
+
+    $self->logger->error($msg);
+    warn "$msg\n";
+    exit 1;
 }
 
 =head2 stop
