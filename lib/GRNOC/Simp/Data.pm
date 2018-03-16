@@ -26,6 +26,10 @@ use GRNOC::Simp::Data::Worker;
 
 =item daemonize
 
+=item run_user
+
+=item run_group
+
 =back
 
 =cut
@@ -43,6 +47,12 @@ has logging_file => ( is => 'ro',
 has daemonize => ( is => 'ro',
                    isa => Bool,
                    default => 1 );
+
+has run_user => ( is => 'ro',
+                  required => 0 );
+
+has run_group => ( is => 'ro',
+                   required => 0 );
 
 ### private attributes ###
 =head2 private attributes
@@ -136,8 +146,15 @@ sub start {
             # change process name
             $0 = "SimpData";
 
-            my $uid = getpwnam('simp');
-            $> = $uid;
+            # figure out what user/group (if any) to change to
+            my $username  = $self->run_user;
+            my $groupname = $self->run_group;
+
+            my $gid = (defined($groupname)) ? getgrnam($groupname) : undef;
+            $) = $gid if defined($gid);
+
+            my $uid = (defined($username)) ? getpwnam($username) : undef;
+            $> = $uid if defined($uid);
 
             $self->_create_workers();
         }
