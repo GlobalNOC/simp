@@ -8,6 +8,7 @@ use Types::Standard qw( Str Bool );
 
 use Parallel::ForkManager;
 use Proc::Daemon;
+use POSIX qw( setuid setgid );
 
 use GRNOC::Config;
 use GRNOC::Log;
@@ -202,10 +203,10 @@ sub start {
             my $groupname = $self->run_group;
 
             my $gid = (defined($groupname)) ? getgrnam($groupname) : undef;
-            $) = $gid if defined($gid);
+            setgid($gid) if defined($gid);
 
             my $uid = (defined($username)) ? getpwnam($username) : undef;
-            $> = $uid if defined($uid);
+            setuid($uid) if defined($uid);
 
             $self->_create_workers();
         }
