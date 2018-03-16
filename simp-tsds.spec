@@ -11,6 +11,7 @@ BuildArch:noarch
 
 BuildRequires: perl
 Requires: perl(AnyEvent)
+Requires: perl(AnyEvent::Subprocess)
 Requires: perl(Data::Dumper)
 Requires: perl(Getopt::Long)
 Requires: perl(JSON::XS)
@@ -18,13 +19,13 @@ Requires: perl(List::MoreUtils)
 Requires: perl(Moo)
 Requires: perl(MooseX::Clone)
 Requires: perl(Parallel::ForkManager)
+Requires: perl(POSIX)
 Requires: perl(Proc::Daemon)
 Requires: perl(Types::Standard)
 Requires: perl(GRNOC::Config)
 Requires: perl(GRNOC::WebService::Client)
 Requires: perl(GRNOC::RabbitMQ::Client)
 Requires: perl(GRNOC::Log)
-Requires: perl(AnyEvent::Subprocess)
 
 %define execdir /usr/bin
 %define configdir /etc/simp
