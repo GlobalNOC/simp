@@ -7,7 +7,11 @@ use Getopt::Long;
 use GRNOC::Simp::Data;
 
 sub usage {
-    print "Usage: $0 [--config <file path>] [--logging <file path>] [--nofork]\n";
+    my $text = <<"EOM";
+Usage: $0 [--config <file path>] [--logging <file path>]
+    [--nofork] [--user <user name>] [--group <group name>]
+EOM
+    print $text;
     exit( 1 );
 }
 
@@ -19,11 +23,15 @@ my $config_file = DEFAULT_CONFIG_FILE;
 my $logging     = DEFAULT_LOG_FILE;
 my $nofork;
 my $help;
+my $username;
+my $groupname;
 
-GetOptions( 'config=s' => \$config_file,
- 	    'logging=s' => \$logging,
-	    'nofork' => \$nofork,
-            'help|h|?' => \$help );
+GetOptions( 'config=s'  => \$config_file,
+            'logging=s' => \$logging,
+            'nofork'    => \$nofork,
+            'user=s'    => \$username,
+            'group=s'   => \$groupname,
+            'help|h|?'  => \$help );
 
 usage() if $help;
 
@@ -31,6 +39,8 @@ usage() if $help;
 my $data_services = GRNOC::Simp::Data->new(
 			config_file    => $config_file,
                         logging_file   => $logging,
+                        run_user       => $username,
+                        run_group      => $groupname,
 			daemonize      => !$nofork );
 
 $data_services->start();

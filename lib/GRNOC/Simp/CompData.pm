@@ -7,6 +7,7 @@ use Types::Standard qw( Str Bool );
 
 use Parallel::ForkManager;
 use Proc::Daemon;
+use POSIX qw( setuid setgid );
 
 our $VERSION='1.0.6';
 
@@ -26,6 +27,10 @@ use GRNOC::Simp::CompData::Worker;
 
 =item daemonize
 
+=item run_user
+
+=item run_group
+
 =back
 
 =cut
@@ -43,6 +48,12 @@ has logging_file => ( is => 'ro',
 has daemonize => ( is => 'ro',
                    isa => Bool,
                    default => 1 );
+
+has run_user => ( is => 'ro',
+                  required => 0 );
+
+has run_group => ( is => 'ro',
+                   required => 0 );
 
 ### private attributes ###
 =head2 private attributes
@@ -135,8 +146,27 @@ sub start {
             # change process name
             $0 = "CompData";
 
-            my $uid = getpwnam('simp');
-            $> = $uid;
+            # figure out what user/group (if any) to change to
+            my $user_name  = $self->run_user;
+            my $group_name = $self->run_group;
+
+            if (defined($group_name)) {
+                my $gid = getgrnam($group_name);
+                $self->_log_err_then_exit("Unable to get GID for group '$group_name'") if !defined($gid);
+
+                $! = 0;
+                setgid($gid);
+                $self->_log_err_then_exit("Unable to set GID to $gid ($group_name)") if $! != 0;
+            }
+
+            if (defined($user_name)) {
+                my $uid = getpwnam($user_name);
+                $self->_log_err_then_exit("Unable to get UID for user '$user_name'") if !defined($uid);
+
+                $! = 0;
+                setuid($uid);
+                $self->_log_err_then_exit("Unable to set UID to $uid ($user_name)") if $! != 0;
+            }
 
             $self->_create_workers();
         }
@@ -157,6 +187,15 @@ sub start {
     }
 
     return 1;
+}
+
+sub _log_err_then_exit {
+    my $self = shift;
+    my $msg  = shift;
+
+    $self->logger->error($msg);
+    warn "$msg\n";
+    exit 1;
 }
 
 =head2 stop

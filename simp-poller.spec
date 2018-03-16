@@ -22,6 +22,7 @@ Requires: perl-GRNOC-Config
 Requires: perl-Moo
 Requires: perl-Net-SNMP
 Requires: perl-Parallel-ForkManager
+Requires: perl(POSIX)
 Requires: perl-Redis >= 1.991
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
