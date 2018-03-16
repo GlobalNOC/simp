@@ -7,7 +7,11 @@ use Getopt::Long;
 use GRNOC::Simp::CompData;
 
 sub usage {
-    print "Usage: $0 [--config <file path>] [--logging <file path>] [--nofork] [--user <user name>] [--group <group name>]\n";
+    my $text = <<"EOM";
+Usage: $0 [--config <file path>] [--logging <file path>]
+    [--nofork] [--user <user name>] [--group <group name>]
+EOM
+    print $text;
     exit( 1 );
 }
 
