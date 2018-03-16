@@ -21,6 +21,7 @@ Requires: perl-GRNOC-Config
 Requires: perl-GRNOC-RabbitMQ >= 1.1.1
 Requires: perl-Moo
 Requires: perl-Parallel-ForkManager
+Requires: perl(POSIX)
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
 
