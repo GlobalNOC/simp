@@ -182,7 +182,7 @@ sub _start {
 				    description => 'a set of var=regexp pairs, where if scan variable var matches the regexp, we exclude it from the results',
 				    required => 0,
 				    multiple => 1,
-				    pattern => '^[^=]+=.*$');
+				    pattern => '^([^=]+=.*)$');
 
       #--- let xpath do the iteration for us
       my $path = "/config/composite[\@id=\"$method_id\"]/input";
@@ -322,7 +322,7 @@ sub _do_scans{
 
   # find the set of exclude patterns, and group them by var
   my %exclude_patterns;
-  foreach my $pattern (@{$params->{'exclude_regexp'}{'value'}){
+  foreach my $pattern (@{$params->{'exclude_regexp'}{'value'}}){
       $pattern =~ /^([^=]+)=(.*)$/;
       push @{$exclude_patterns{$1}}, $2;
   }
@@ -650,7 +650,7 @@ sub _do_functions{
     foreach my $host (keys %{$results->{'val'}}){
         foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
             if ($results->{'scan-exclude'}{$host}{$oid_suffix}){
-                delete $results->{'val'}{$host}{$oid_suffix};
+                delete $results->{'final'}{$host}{$oid_suffix};
             }
         }
     }
