@@ -155,6 +155,8 @@ sub _start {
     $self->config->{'force_array'} = 1; 
     my $allowed_methods = $self->config->get( '/config/composite' );
 
+    my %predefined_param = map { $_ => 1 } ('node', 'period', 'exclude_regexp');
+
     foreach my $meth (@$allowed_methods){
       my $method_id = $meth->{'id'};
       print "$method_id:\n";
@@ -176,12 +178,18 @@ sub _start {
 				    multiple => 0,
 				    pattern => $GRNOC::WebService::Regex::ANY_NUMBER);
 
+      $method->add_input_parameter( name => 'exclude_regexp',
+				    description => 'a set of var=regexp pairs, where if scan variable var matches the regexp, we exclude it from the results',
+				    required => 0,
+				    multiple => 1,
+				    pattern => '^[^=]+=.*$');
+
       #--- let xpath do the iteration for us
       my $path = "/config/composite[\@id=\"$method_id\"]/input";
       my $inputs = $self->config->get($path);
       foreach my $input (@$inputs){
         my $input_id = $input->{'id'};
-        next if ($input_id eq 'node') || ($input_id eq 'period');
+        next if $predefined_param{$input_id};
         my $required = 0;
         if(defined $input->{'required'}){$required = 1;}
 
