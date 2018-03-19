@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 90;
+use Test::More tests => 94;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num any code);
@@ -865,6 +865,37 @@ check_response(23, $response,
           'cd' => '1',
           'x' => 'd.example.net/1/',
           'time' => any(100112, code(\&is_timestampy)),
+        },
+      },
+    }
+);
+
+# Request 24: test out a simple use of exclude_regexp
+$response = $client->test10(
+    node => ['a.example.net', 'c.example.net_2'],
+    exclude_regexp => 'cpuName=U2',
+);
+
+# Notice no "CPU2/3" or "CPU2"
+check_response(24, $response,
+    {
+      'a.example.net' => {
+        '1.1' => {
+          'n' => 'a.example.net',
+          'cpu' => 'CPU1/1',
+          'time' => 100135,
+        },
+        '1.2' => {
+          'n' => 'a.example.net',
+          'cpu' => 'CPU1/2',
+          'time' => 100135,
+        },
+      },
+      'c.example.net_2' => {
+        '1' => {
+          'n' => 'c.example.net_2',
+          'cpu' => 'CPU1',
+          'time' => 100100,
         },
       },
     }
