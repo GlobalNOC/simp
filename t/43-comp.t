@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 118;
+use Test::More tests => 124;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num any code);
@@ -1054,3 +1054,21 @@ check_response(30, $response,
       },
     }
 );
+
+# Request 31: a request with an invalid exclude_regexp
+$response = $client->test10(
+  node => ['a.example.net', 'd.example.net'],
+  exclude_regexp => ['cpuName'],
+);
+
+error_expected(31, $response);
+
+
+# Request 32: a request with another invalid exclude_regexp
+# (after a valid one)
+$response = $client->test10(
+  node => ['a.example.net', 'd.example.net'],
+  exclude_regexp => ['cpuExclude=x', '=2$'],
+);
+
+error_expected(32, $response);
