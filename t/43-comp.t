@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 94;
+use Test::More tests => 114;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num any code);
@@ -896,6 +896,132 @@ check_response(24, $response,
           'n' => 'c.example.net_2',
           'cpu' => 'CPU1',
           'time' => 100100,
+        },
+      },
+    }
+);
+
+# Request 25: test out an exclude_regexp that doesn't match anything
+$response = $client->test10(
+  node => ['b.example.net', 'd.example.net'],
+  exclude_regexp => 'cpuName=xyzzy',
+);
+
+check_response(25, $response,
+    {
+      'b.example.net' => {
+        '2' => {
+          'n' => 'b.example.net',
+          'cpu' => 'CPU2',
+          'time' => 100110,
+        },
+      },
+      'd.example.net' => {
+        '100' => {
+          'n' => 'd.example.net',
+          'cpu' => 'CPU1',
+          'time' => 100112,
+        },
+        '101' => {
+          'n' => 'd.example.net',
+          'cpu' => 'CPU2',
+          'time' => 100112,
+        },
+      },
+    }
+);
+
+# Request 26: test out multiple instances of exclude_regexp
+$response = $client->test10(
+  node => ['a.example.net'],
+  exclude_regexp => ['cpuName=/1', 'cpuName=/3'],
+);
+
+# No "CPU1/1" or "CPU2/3"
+check_response(26, $response,
+    {
+      'a.example.net' => {
+        '1.2' => {
+          'n' => 'a.example.net',
+          'cpu' => 'CPU1/2',
+          'time' => 100135,
+        },
+      },
+    }
+);
+
+# Request 27: test out exclude_regexp using a var that isn't a request parameter
+$response = $client->test10(
+  node => ['a.example.net', 'b.example.net'],
+  exclude_regexp => 'cpuExclude=2$',
+);
+
+# No "CPU1/1" or "CPU2/3"
+check_response(27, $response,
+    {
+      'a.example.net' => {
+        '1.1' => {
+          'n' => 'a.example.net',
+          'cpu' => 'CPU1/1',
+          'time' => 100135,
+        },
+        '2.3' => {
+          'n' => 'a.example.net',
+          'cpu' => 'CPU2/3',
+          'time' => 100135,
+        },
+      },
+      'b.example.net' => {
+      },
+    }
+);
+
+# Request 28: test out exclude_regexp using matches on multiple vars
+$response = $client->test10(
+  node => ['a.example.net', 'd.example.net'],
+  exclude_regexp => ['cpuExclude=1/', 'cpuName=2$'],
+);
+
+check_response(28, $response,
+    {
+      'a.example.net' => {
+        '2.3' => {
+          'n' => 'a.example.net',
+          'cpu' => 'CPU2/3',
+          'time' => 100135,
+        },
+      },
+      'd.example.net' => {
+        '100' => {
+          'n' => 'd.example.net',
+          'cpu' => 'CPU1',
+          'time' => 100112,
+        },
+      },
+    }
+);
+
+# Request 29: interaction between exclude_regexp and input vars
+$response = $client->test11(
+  node => ['a.example.net', 'd.example.net'],
+  cpuName => 'CPU1',
+  exclude_regexp => ['cpuName=2$'],
+);
+
+check_response(29, $response,
+    {
+      'a.example.net' => {
+        '1.1' => {
+          'n' => 'a.example.net',
+          'cpu' => 'CPU1/1',
+          'time' => 100135,
+        },
+      },
+      'd.example.net' => {
+        '100' => {
+          'n' => 'd.example.net',
+          'cpu' => 'CPU1',
+          'time' => 100112,
         },
       },
     }
