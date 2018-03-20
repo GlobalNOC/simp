@@ -197,6 +197,21 @@
     </instance>
   </composite>
 
+  <!-- another, slightly different test of exclude functionality -->
+  <composite id="test11">
+    <input id="node" required="1" />
+    <input id="cpuName" />
+
+    <instance id="genericX" hostType="default">
+      <scan id="cpuIdx" oid="2.10.9994.27.1.*" var="cpuName" />
+
+      <result>
+        <val id="n" var="node" />
+        <val id="cpu" oid="2.10.9994.27.1.cpuIdx" />
+      </result>
+    </instance>
+  </composite>
+
   <composite id="interface">
     <input id="node" required="1" />
     <input id="ifName" />

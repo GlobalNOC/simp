@@ -17,7 +17,7 @@ use GRNOC::WebService::Regex;
 
 
 ### required attributes ###
-=head1 public attrbibutes
+=head1 public attributes
 
 =over 12
 
