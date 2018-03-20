@@ -354,6 +354,7 @@ sub _do_scans{
 	  my $var_name = $scan->getAttribute("id");
 	  my $oid      = $scan->getAttribute("oid");
 	  my $param_nm = $scan->getAttribute("var");
+          my $ex_only  = $scan->getAttribute("exclude-only");
 
 	  my $targets;
 	  if(defined($param_nm) && defined($params->{$param_nm})){
@@ -370,7 +371,7 @@ sub _do_scans{
 	      oidmatch => $oid,
 	      async_callback => sub {
 		  my $data = shift;
-		  $self->_scan_cb($data->{'results'},$hosts,$var_name,$oid,$targets,$excludes,$results); 
+		  $self->_scan_cb($data->{'results'},$hosts,$var_name,$oid,$targets,$excludes,$results,$ex_only); 
 		  $cv->end;
 	      } );
       }
@@ -379,14 +380,15 @@ sub _do_scans{
 }
 
 sub _scan_cb{
-  my $self        = shift;
-  my $data        = shift;
-  my $hosts       = shift;
-  my $var_name    = shift;
-  my $oid_pattern = shift;
-  my $vals        = shift;
-  my $excludes    = shift;
-  my $results     = shift;
+  my $self         = shift;
+  my $data         = shift;
+  my $hosts        = shift;
+  my $var_name     = shift;
+  my $oid_pattern  = shift;
+  my $vals         = shift;
+  my $excludes     = shift;
+  my $results      = shift;
+  my $exclude_only = shift; # if true, don't *add* results, but still possibly *subtract* results
 
   $oid_pattern =~ s/\*.*$//;
   $oid_pattern =  quotemeta($oid_pattern);
@@ -406,7 +408,8 @@ sub _scan_cb{
           # strip out the wildcard part of the oid
 	  $oid =~ s/^$oid_pattern//;
 
-          if((!$use_val_matches) || (any { $base_value =~ /$_/ } @$vals)){
+          if(( !$exclude_only ) &&
+             ( (!$use_val_matches) || (any { $base_value =~ /$_/ } @$vals) )){
               push @oid_suffixes, $oid;
               $results->{'scan-match'}{$host}{$var_name}{$oid} = $base_value;
           }
@@ -417,7 +420,7 @@ sub _scan_cb{
           }
       }
 
-      $results->{'scan'}{$host}{$var_name} = \@oid_suffixes;
+      $results->{'scan'}{$host}{$var_name} = \@oid_suffixes if !$exclude_only;
   }
   
   return ;

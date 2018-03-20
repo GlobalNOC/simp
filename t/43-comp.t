@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 114;
+use Test::More tests => 118;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num any code);
@@ -1001,7 +1001,8 @@ check_response(28, $response,
     }
 );
 
-# Request 29: interaction between exclude_regexp and input vars
+# Request 29: interaction between an input var and an exclude_regexp
+# using the same var
 $response = $client->test11(
   node => ['a.example.net', 'd.example.net'],
   cpuName => 'CPU1',
@@ -1009,6 +1010,33 @@ $response = $client->test11(
 );
 
 check_response(29, $response,
+    {
+      'a.example.net' => {
+        '1.1' => {
+          'n' => 'a.example.net',
+          'cpu' => 'CPU1/1',
+          'time' => 100135,
+        },
+      },
+      'd.example.net' => {
+        '100' => {
+          'n' => 'd.example.net',
+          'cpu' => 'CPU1',
+          'time' => 100112,
+        },
+      },
+    }
+);
+
+# Request 30: like Request 29, but with a supplementary variable
+# in the composite as well; should have the same results
+$response = $client->test10(
+  node => ['a.example.net', 'd.example.net'],
+  cpuName => 'CPU1',
+  exclude_regexp => ['cpuName=2$'],
+);
+
+check_response(30, $response,
     {
       'a.example.net' => {
         '1.1' => {

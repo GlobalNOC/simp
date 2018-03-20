@@ -188,7 +188,9 @@
 
     <instance id="genericX" hostType="default">
       <scan id="cpuIdx" oid="2.10.9994.27.1.*" var="cpuName" />
-      <scan id="altIdx" oid="2.10.9994.27.1.*" var="cpuExclude" />
+      <!-- exclude-only means that we don't add OID matches based on this scan,
+           but it can be used for exclusions -->
+      <scan id="altIdx" oid="2.10.9994.27.1.*" var="cpuExclude" exclude-only="1" />
 
       <result>
         <val id="n" var="node" />
