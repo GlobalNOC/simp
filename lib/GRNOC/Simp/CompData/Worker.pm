@@ -70,7 +70,7 @@ has do_shutdown => ( is => 'rwp',
                      default => 0 );
 
 has rmq_dispatcher => ( is => 'rwp',
-                        default => undef );
+                        default => sub { undef } );
 
 my %_FUNCTIONS; # Used by _function_one_val
 my %_RPN_FUNCS; # Used by _rpn_calc
@@ -362,7 +362,7 @@ sub _do_scans{
 	  }
 
           my $excludes;
-          $excludes = $exclude_patterns{$param_nm} if defined($exclude_patterns{$param_nm});
+          $excludes = $exclude_patterns{$param_nm} if defined($param_nm) && defined($exclude_patterns{$param_nm});
 
 	  $cv->begin;
 
