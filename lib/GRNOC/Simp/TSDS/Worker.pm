@@ -195,7 +195,6 @@ sub _load_config {
 		my %args = (
 		    node           => $host,
 		    period         => $interval,
-                    exclude_regexp => $self->exclude_patterns,
 		    async_callback => sub {
 			my $res = shift;
 			
@@ -212,6 +211,11 @@ sub _load_config {
 		if ($self->filter_name){
 		    $args{$self->filter_name} = $self->filter_value;
 		}
+
+                # to provide some degree of backward compatibility, we only put this field on if we need to:
+                if (scalar(@{$self->exclude_patterns}) > 0) {
+                    $args{'async_callback'} = $self->exclude_patterns;
+                }
 
 		$self->simp_client->$composite(%args);
 	    }
