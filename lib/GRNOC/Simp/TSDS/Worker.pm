@@ -214,7 +214,7 @@ sub _load_config {
 
                 # to provide some degree of backward compatibility, we only put this field on if we need to:
                 if (scalar(@{$self->exclude_patterns}) > 0) {
-                    $args{'async_callback'} = $self->exclude_patterns;
+                    $args{'exclude_regexp'} = $self->exclude_patterns;
                 }
 
 		$self->simp_client->$composite(%args);
