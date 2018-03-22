@@ -39,6 +39,8 @@ use GRNOC::Simp::TSDS::Pusher;
 
 =item filter_value
 
+=item exclude_patterns
+
 =item required_value_fields
 
 =back
@@ -71,6 +73,8 @@ has composite_name => (is => 'rwp',
 
 has filter_name => (is => 'rwp');
 has filter_value => (is => 'rwp');
+
+has exclude_patterns => (is => 'rwp', default => sub { [] });
 
 has required_value_fields => (is => 'rwp', default => sub { [] });
 
@@ -191,6 +195,7 @@ sub _load_config {
 		my %args = (
 		    node           => $host,
 		    period         => $interval,
+                    exclude_regexp => $self->exclude_patterns,
 		    async_callback => sub {
 			my $res = shift;
 			
