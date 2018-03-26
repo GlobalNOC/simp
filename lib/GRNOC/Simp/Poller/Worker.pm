@@ -9,6 +9,11 @@ use AnyEvent::SNMP;
 use Net::SNMP;
 use Redis;
 
+use constant DB_MAIN => 0;
+use constant DB_POLLID_TO_KEY => 1;
+use constant DB_CURRENT_POLLID => 2;
+use constant DB_OID_MAP => 3;
+
 
 ### required attributes ###
 =head1 public attributes
@@ -251,7 +256,7 @@ sub _poll_cb{
 
     try {
 
-	$redis->select(0);
+	$redis->select(DB_MAIN);
 	my $key = $host->{'node_name'} . "," . $self->worker_name . ",$timestamp";
 	$redis->sadd($key, @values);
 	
@@ -260,14 +265,14 @@ sub _poll_cb{
 	    $redis->expireat($key, $expires);
 	    
 	    #our poll_id to time lookup
-	    $redis->select(1);
+	    $redis->select(DB_POLLID_TO_KEY);
 	    $redis->set($host->{'node_name'} . "," . $self->group_name . "," . $host->{'poll_id'}, $key);
 	    $redis->set($ip . "," . $self->group_name . "," . $host->{'poll_id'}, $key);
 	    #and expire
 	    $redis->expireat($host->{'node_name'} . "," . $self->group_name . "," . $host->{'poll_id'}, $expires);
 	    $redis->expireat($ip . "," . $self->group_name . "," . $host->{'poll_id'},$expires);
 	    
-            $redis->select(0);
+            $redis->select(DB_MAIN);
 	    #$self->logger->error(Dumper($host->{'group'}{$self->group_name}));
 
 	    if($self->var_hosts()->{$host->{'node_name'}} && defined($host->{'host_variable'})){
@@ -279,17 +284,17 @@ sub _poll_cb{
 		    my $sanitized_name = $name;
 		    $sanitized_name =~ s/,//g; # we don't allow commas in variable names
 		    my $str = 'vars.' . $sanitized_name . "," . $add_values{$name}->{'value'};
-		    $redis->select(0);
+		    $redis->select(DB_MAIN);
 		    $redis->sadd($key, $str);
 		}
 
-		$redis->select(3);
+		$redis->select(DB_OID_MAP);
 		$redis->hset($host->{'node_name'}, "vars", $self->group_name . "," . $self->poll_interval);
 		$redis->hset($ip, "vars", $self->group_name . "," . $self->poll_interval);
 	    }
 
 	    #and the current poll_id lookup
-	    $redis->select(2);
+	    $redis->select(DB_CURRENT_POLLID);
 	    $redis->set($host->{'node_name'} . "," . $self->group_name, $host->{'poll_id'} . "," . $timestamp);
 	    $redis->set($ip . "," . $self->group_name, $host->{'poll_id'} . "," . $timestamp);
 	    #and expire
@@ -300,15 +305,15 @@ sub _poll_cb{
 	}
 
 	
-	$redis->select(3);
+	$redis->select(DB_OID_MAP);
 	$redis->hset($host->{'node_name'}, $main_oid, $self->group_name . "," . $self->poll_interval);
 	$redis->hset($ip, $main_oid, $self->group_name . "," . $self->poll_interval);
 
 	#change back to the primary db...
-	$redis->select(0);
+	$redis->select(DB_MAIN);
 	#complete the transaction
     } catch {
-	$redis->select(0);
+	$redis->select(DB_MAIN);
 	$self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
     }
     AnyEvent->now_update;
@@ -380,16 +385,16 @@ sub _connect_to_snmp{
 	
 	my $host_poll_id;
 	try{
-	    $self->redis->select(2);
+	    $self->redis->select(DB_CURRENT_POLLID);
 	    $host_poll_id = $self->redis->get($host->{'node_name'} . ",main_oid");
-	    $self->redis->select(0);
+	    $self->redis->select(DB_MAIN);
 	    
 	    if(!defined($host_poll_id)){
 		$host_poll_id = 0;
 	    }
 
 	}catch{
-	    $self->redis->select(0);
+	    $self->redis->select(DB_MAIN);
 	    $host_poll_id = 0;
 	    $self->logger->error("Error fetching the current poll cycle id from redis: $_");
 	};

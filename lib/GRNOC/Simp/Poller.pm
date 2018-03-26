@@ -301,7 +301,7 @@ sub _create_workers {
 
       #--- get the set of OIDS for this group
       my @oids;
-      foreach my$line(@{$group->{'mib'}}){
+      foreach my $line (@{$group->{'mib'}}){
 	push(@oids,$line->{'oid'});
       }
 
