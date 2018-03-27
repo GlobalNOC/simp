@@ -3,13 +3,27 @@ package GRNOC::Simp::Poller::WorkerConfig;
 use GRNOC::Config;
 
 sub build_config {
-    my $conf_file = shift;
-    my $hosts_dir = shift;
+    my %args = @_;
+
+    my $conf_file = $args{'config_file'};
+    my $hosts_dir = $args{'hosts_dir'};
 
 
+    # Config that isn't specific to a group or a host: { redis_host, redis_port, pid_file }
+    my %globals;
+
+    # The set of active groups: name -> { name, interval, snmp_timeout, max_reps, retention, [workers], [mib] }
     my %groups;
-    # A list of hosts: { ip, snmp_version, community, node_name, {host_variable} }
+
+    # A list of hosts, each: { ip, snmp_version, community, username, node_name, {groups}, {host_variable} }
+    #
+    # groups is a hash of group names to an array of per-group context IDs; an empty array means the host
+    #   belongs to the group, but doesn't use context IDs
+    # host_variable is a hash of host variable name-value pairs
+    #
+    # will *not* contain keys "poll_id", "pending_replies", or "poll_status"
     my @hosts;
+
     # For each host group, a list of the hosts belonging to the group
     my %host_groups;
 
@@ -18,6 +32,12 @@ sub build_config {
         config_file => $self,
         force_array => 1
     );
+
+    $globals{'redis_host'} = $config->get('/config/redis/@host')->[0];
+    $globals{'redis_port'} = $config->get('/config/redis/@port')->[0];
+
+    my $pid_file = $self->config->get('/config/@pid-file')->[0];
+    $pid_file = '/var/run/simp_poller.pid' if !defined($pid_file);
 
     foreach my $group (@{$config->get('/config/group')}) {
         my %grp;
@@ -29,7 +49,8 @@ sub build_config {
         }
 
         my @workers;
-        my $num_workers = 0 + $group->{'workers'};
+        my $num_workers = int(0 + $group->{'workers'});
+        $num_workers = 1 if $num_workers < 1;
         for (my $i = 0; $i < $num_workers; $i++) {
             push @workers, "$grp{'name'}$i";
         }
@@ -61,9 +82,11 @@ sub build_config {
 
         foreach my $raw (@{$conf->get('/config/host')}) {
             my %host;
-            for my $i ('node_name', 'ip', 'snmp_version', 'community', 'auth_key') {
+            for my $i ('node_name', 'ip', 'snmp_version', 'community', 'username') {
                 $host{$i} = $raw->{$i};
             }
+
+            $host{'host_variable'} = {};
 
             if (defined($raw->{'host_variable'})) {
                 foreach my $var (keys @{$raw->{'host_variable'}}) {
@@ -71,15 +94,15 @@ sub build_config {
                 }
             }
 
-            $host{'groups'} = [];
+            $host{'groups'} = {};
 
             if (defined($raw->{'group'})) {
                 foreach my $grp (keys @{$raw->{'group'}}) {
                     next if !defined($groups{$grp});
                     my $context_ids = $raw->{'group'}{$grp}{'context_id'};
                     $context_ids = [] if !defined($context_ids);
-                    push @{$host_groups{$grp}}, [\%host, $context_ids] if defined($groups{$grp});
-                    push @{$host{'groups'}}, $grp;
+                    push @{$host_groups{$grp}}, \%host if defined($groups{$grp});
+                    push $host{'groups'}{$grp}, $context_ids;
                 }
             }
 
@@ -88,6 +111,7 @@ sub build_config {
     }
 
     return {
+        global      => \%globals,
         groups      => \%groups,
         hosts       => \@hosts,
         host_groups => \%host_groups,

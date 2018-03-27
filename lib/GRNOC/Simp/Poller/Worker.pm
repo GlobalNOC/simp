@@ -25,9 +25,9 @@ use constant N => 20;
 
 =item group_name
 
-=item instance
+=item worker_name
 
-=item config
+=item global_config
 
 =item logger
 
@@ -45,11 +45,11 @@ use constant N => 20;
 has group_name => (is => 'ro',
                    required => 1);
 
-has instance => (is => 'ro',
-                 required => 1);
+has worker_name => (is => 'ro',
+                    required => 1);
 
-has config      => ( is => 'ro',
-                     required => 1 );
+has global_config => ( is => 'ro',
+                       required => 1 );
 
 
 has logger => ( is => 'rwp',
@@ -73,8 +73,6 @@ has var_hosts => ( is => 'ro',
 
 =over 12
 
-=item worker_name
-
 =item is_running
 
 =item need_restart
@@ -92,10 +90,6 @@ has var_hosts => ( is => 'ro',
 =back
 
 =cut
-
-has worker_name => (is => 'rwp',
-                    required => 0,
-                    default => 'unknown');
 
 has is_running => ( is => 'rwp',
                     default => 0 );
@@ -132,8 +126,6 @@ sub start {
 
     my ( $self ) = @_;
 
-    $self->_set_worker_name($self->group_name . $self->instance);
-
     my $logger = GRNOC::Log->get_logger($self->worker_name);
     $self->_set_logger($logger);
 
@@ -159,8 +151,8 @@ sub start {
     };
 
     # connect to redis
-    my $redis_host = $self->config->get( '/config/redis/@host' )->[0];
-    my $redis_port = $self->config->get( '/config/redis/@port' )->[0];
+    my $redis_host = $self->global_config->{'redis_host'};
+    my $redis_port = $self->global_config->{'redis_port'};
 
     $self->logger->debug($self->worker_name." Connecting to Redis $redis_host:$redis_port." );
 
@@ -296,7 +288,7 @@ sub _poll_cb{
                 foreach my $name (keys %add_values){
                     my $sanitized_name = $name;
                     $sanitized_name =~ s/,//g; # we don't allow commas in variable names
-                    my $str = 'vars.' . $sanitized_name . "," . $add_values{$name}->{'value'};
+                    my $str = 'vars.' . $sanitized_name . "," . $add_values{$name};
                     $redis->select(DB_MAIN);
                     $redis->sadd($key, $str);
                 }
@@ -363,7 +355,7 @@ sub _connect_to_snmp{
             $self->{'snmp'}{$host->{'node_name'}} = $snmp;
 
         }elsif($host->{'snmp_version'} eq '3'){
-            if(!defined($host->{'group'}{$self->group_name}{'context_id'})){
+            if(scalar($host->{'groups'}{$self->group_name}) == 0){
                 ($snmp, $error) = Net::SNMP->session(
                     -hostname         => $host->{'ip'},
                     -version          => '3',
@@ -380,7 +372,7 @@ sub _connect_to_snmp{
 
                 $self->{'snmp'}{$host->{'node_name'}} = $snmp;
             }else{
-                foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
+                foreach my $ctxEngine (@{$host->{'groups'}{$self->group_name}}){
                     ($snmp, $error) = Net::SNMP->session(
                         -hostname         => $host->{'ip'},
                         -version          => '3',
@@ -470,7 +462,7 @@ sub _collect_data{
                     );
             }else{
                 #for each context engine specified for the group
-                if(!defined($host->{'group'}{$self->group_name}{'context_id'})){
+                if(scalar($host->{'groups'}{$self->group_name}) == 0){
                     $host->{'pending_replies'}->{$oid} = 1;
                     $res = $self->{'snmp'}{$host->{'node_name'}}->get_table(
                         -baseoid      => $oid,
@@ -487,7 +479,7 @@ sub _collect_data{
                         );
 
                 }else{
-                    foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
+                    foreach my $ctxEngine (@{$host->{'groups'}{$self->group_name}}){
                         $host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
                         $res = $self->{'snmp'}{$host->{'node_name'}}{$ctxEngine}->get_table(
                             -baseoid      => $oid,

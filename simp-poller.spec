@@ -15,10 +15,12 @@ BuildRequires: perl(Test::Pod) >= 1.22
 Requires: redis
 Requires: perl(AnyEvent)
 Requires: perl(AnyEvent::SNMP)
+Requires: perl(List::Util)
 Requires: perl(List::MoreUtils)
 Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
+Requires: perl(GRNOC::Simp::Poller::Config)
 Requires: perl-Moo
 Requires: perl-Net-SNMP
 Requires: perl-Parallel-ForkManager
@@ -50,6 +52,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %{__install} lib/GRNOC/Simp/Poller.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller.pm
 %{__install} lib/GRNOC/Simp/Poller/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
+%{__install} lib/GRNOC/Simp/Poller/Config.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Config.pm
 %{__install} bin/simp-poller.pl %{buildroot}/usr/bin/simp-poller.pl
 %{__install} conf/config.xml %{buildroot}/etc/simp/
 %{__install} conf/logging.conf %{buildroot}/etc/simp/poller_logging.conf
@@ -63,6 +66,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %{perl_vendorlib}/GRNOC/Simp/Poller.pm
 %{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
+%{perl_vendorlib}/GRNOC/Simp/Poller/Config.pm
 %defattr(755,root,root,755)
 /usr/bin/simp-poller.pl
 /etc/init.d/simp-poller
