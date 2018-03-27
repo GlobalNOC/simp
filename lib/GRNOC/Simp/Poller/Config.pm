@@ -52,7 +52,7 @@ sub build_config {
         my $num_workers = int(0 + $group->{'workers'});
         $num_workers = 1 if $num_workers < 1;
         for (my $i = 0; $i < $num_workers; $i++) {
-            push @workers, "$grp{'name'}$i";
+            push @workers, "$grp{'name'},$i";
         }
         $grp{'workers'} = \@workers;
 
