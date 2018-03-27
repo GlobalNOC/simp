@@ -7,12 +7,12 @@ use GRNOC::RabbitMQ::Client;
 use AnyEvent;
 
 my $client = GRNOC::RabbitMQ::Client->new(   host => "127.0.0.1",
-					     port => 5672,
-					     user => "guest", 
-					     pass => "guest",
-					     exchange => 'Simp',
-					     timeout => 1,
-					     topic => 'Simp.Data');
+                                             port => 5672,
+                                             user => "guest",
+                                             pass => "guest",
+                                             exchange => 'Simp',
+                                             timeout => 1,
+                                             topic => 'Simp.Data');
 my $results;
 my $start;
 my $sum = 0;

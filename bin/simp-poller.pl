@@ -1,8 +1,8 @@
-#!/usr/bin/perl -I ../lib 
+#!/usr/bin/perl -I ../lib
 #--- SNMP data collector
 #---   config file is used to define which parts of mib tree to collect
 #---   the set of hosts do poll and how many processes to use to do so.
-#---   nodes are divided up amongst processes in simple 1 in N fashion. 
+#---   nodes are divided up amongst processes in simple 1 in N fashion.
 use strict;
 use warnings;
 
@@ -34,11 +34,11 @@ my $groupname;
 
 GetOptions( 'config=s'  => \$config_file,
             'hosts=s'   => \$hosts_file,
- 	    'logging=s' => \$logging,
-	    'nofork'    => \$nofork,
-	    'user=s'    => \$username,
-	    'group=s'   => \$groupname,
-            'help|h|?'  => \$help ) 
+            'logging=s' => \$logging,
+            'nofork'    => \$nofork,
+            'user=s'    => \$username,
+            'group=s'   => \$groupname,
+            'help|h|?'  => \$help )
 
 or usage();
 
@@ -46,12 +46,12 @@ usage() if $help;
 
 
 my $poller = GRNOC::Simp::Poller->new(
-			config_file    => $config_file,
+                        config_file    => $config_file,
                         hosts_file     => $hosts_file,
                         logging_file   => $logging,
                         run_user       => $username,
                         run_group      => $groupname,
-			daemonize      => !$nofork );
+                        daemonize      => !$nofork );
 
 $poller->start();
 

@@ -177,11 +177,11 @@ sub start {
 
         $self->logger->debug( 'Running in foreground.' );
 
-        #-- when in fg just act as a working directly with no sub processes so we can nytprof 
+        #-- when in fg just act as a working directly with no sub processes so we can nytprof
         my $worker = GRNOC::Simp::CompData::Worker->new( config    => $self->config,
-						     logger    => $self->logger,
-						     worker_id => 13 );
-	
+                                                     logger    => $self->logger,
+                                                     worker_id => 13 );
+
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
     }
@@ -235,19 +235,19 @@ sub _create_workers {
                            } );
     # create high res workers
     for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
-        
+
         $forker->start() and next;
 
 
-	# create worker in this process
-	my $worker = GRNOC::Simp::CompData::Worker->new( config    => $self->config,
-						     logger    => $self->logger,
-						     worker_id => $worker_id );
-	
-	# this should only return if we tell it to stop via TERM signal etc.
-	$worker->start();
-	
-	# exit child process
+        # create worker in this process
+        my $worker = GRNOC::Simp::CompData::Worker->new( config    => $self->config,
+                                                     logger    => $self->logger,
+                                                     worker_id => $worker_id );
+
+        # this should only return if we tell it to stop via TERM signal etc.
+        $worker->start();
+
+        # exit child process
         $forker->finish();
     }
 

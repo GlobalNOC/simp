@@ -61,7 +61,7 @@ cmp_deeply(
     {
       'c.example.net_1' => {
         '1.3.6.1.2.1.2.2.1.11.1' => { 'value' => '0.225225225225225',
-				      'time' => 100131 },
+                                      'time' => 100131 },
       },
     },
     'request 2: we got the correct data in the response'

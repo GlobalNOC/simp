@@ -90,7 +90,7 @@ has logger => ( is => 'rwp' );
 has children => ( is => 'rwp',
                   default => sub { [] } );
 
-=head2 BUILD 
+=head2 BUILD
 
 =cut
 
@@ -108,7 +108,7 @@ sub BUILD {
     my $config = GRNOC::Config->new( config_file => $self->config_file,
                                      force_array => 1 );
     $self->_set_config( $config );
- 
+
     $self->_process_hosts_config();
 
     return $self;
@@ -130,11 +130,11 @@ sub _process_hosts_config{
     foreach my $file (@files){
 
         next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
-        
+
         my $conf = GRNOC::Config->new( config_file => $self->hosts_file . "/" . $file,
                                        force_array => 1);
 
-        
+
         my $rawhosts = $conf->get("/config/host");
         foreach my $raw (@$rawhosts){
             push(@hosts, $raw);
@@ -142,8 +142,8 @@ sub _process_hosts_config{
     }
 
     $self->_set_hosts(\@hosts);
-    
-   
+
+
 }
 
 =head2 start
@@ -192,9 +192,9 @@ sub start {
 
         # in child/daemon process
         if ( !$pid ) {
-            
+
             $self->logger->debug( 'Created daemon process.' );
-            
+
             # change process name
             $0 = "simpPoller";
 
@@ -270,7 +270,7 @@ sub _create_workers {
 
     my ( $self ) = @_;
 
-   #--- get the set of active groups 
+   #--- get the set of active groups
     my $groups  = $self->config->get( "/config/group" );
 
     # For each host, one worker handles the host variables.
@@ -279,13 +279,13 @@ sub _create_workers {
 
     my $total_workers = 0;
     foreach my $group (@$groups){
-	#--- ignore the group if it isnt active
-	next if($group->{'active'} == 0);
-	$total_workers += $group->{'workers'};
+        #--- ignore the group if it isnt active
+        next if($group->{'active'} == 0);
+        $total_workers += $group->{'workers'};
     }
 
     my $forker = Parallel::ForkManager->new( $total_workers + 2);
-    
+
     #--- create workers for each group
     foreach my $group (@$groups){
       #--- ignore the group if it isnt active
@@ -302,17 +302,17 @@ sub _create_workers {
       #--- get the set of OIDS for this group
       my @oids;
       foreach my $line (@{$group->{'mib'}}){
-	push(@oids,$line->{'oid'});
+        push(@oids,$line->{'oid'});
       }
 
       my %hostsByWorker;
       my %varsByWorker;
       my $idx=0;
-      #--- get the set of hosts that belong to this group 
+      #--- get the set of hosts that belong to this group
       my $id= $group->{'name'};
 
       my @hosts;
-      
+
       foreach my $host (@{$self->hosts}){
           my $groups = $host->{'group'};
           foreach my $group (keys %$groups){
@@ -336,7 +336,7 @@ sub _create_workers {
         if($idx>=$workers) { $idx = 0; }
       }
 
-      $self->logger->info( "Creating $workers child processes for group: $name" );     
+      $self->logger->info( "Creating $workers child processes for group: $name" );
 
       # keep track of children pids
       $forker->run_on_start( sub {
@@ -351,32 +351,32 @@ sub _create_workers {
       # keep track of children pids
       $forker->run_on_finish( sub {
 
-	  my ( $pid ) = @_;
-	  
-	  $self->logger->error( "Child worker process $pid has died." );
-	  
-	  
-			      } );
-      
-      
+          my ( $pid ) = @_;
+
+          $self->logger->error( "Child worker process $pid has died." );
+
+
+                              } );
+
+
       # create workers
       for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
-	  $forker->start() and next;
-	  
-	  # create worker in this process
-	  my $worker = GRNOC::Simp::Poller::Worker->new( instance      => $worker_id,
-							 group_name    => $name,
-							 config        => $self->config,
-							 oids          => \@oids,
-							 hosts 	     => $hostsByWorker{$worker_id}, 
-							 poll_interval => $poll_interval,
-							 retention     => $retention,
-							 logger        => $self->logger,
-							 max_reps      => $max_reps,
-							 snmp_timeout  => $snmp_timeout,
-							 var_hosts     => $varsByWorker{$worker_id} || {}
-	      );
-	
+          $forker->start() and next;
+
+          # create worker in this process
+          my $worker = GRNOC::Simp::Poller::Worker->new( instance      => $worker_id,
+                                                         group_name    => $name,
+                                                         config        => $self->config,
+                                                         oids          => \@oids,
+                                                         hosts       => $hostsByWorker{$worker_id},
+                                                         poll_interval => $poll_interval,
+                                                         retention     => $retention,
+                                                         logger        => $self->logger,
+                                                         max_reps      => $max_reps,
+                                                         snmp_timeout  => $snmp_timeout,
+                                                         var_hosts     => $varsByWorker{$worker_id} || {}
+              );
+
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
 
@@ -384,7 +384,7 @@ sub _create_workers {
         $forker->finish();
       }
 
-    } 
+    }
 
     $self->logger->debug( 'Waiting for all child worker processes to exit.' );
 

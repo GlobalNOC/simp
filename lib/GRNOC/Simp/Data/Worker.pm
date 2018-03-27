@@ -75,7 +75,7 @@ sub start {
 
   while(1){
     #--- we use try catch to, react to issues such as com failure
-    #--- when any error condition is found, the reactor stops and we then reinitialize 
+    #--- when any error condition is found, the reactor stops and we then reinitialize
     $self->logger->debug( $self->worker_id." starting." );
     $self->_start();
     sleep 2;
@@ -121,19 +121,19 @@ sub _start {
 
     my $redis_host = $self->config->get( '/config/redis/@host' );
     my $redis_port = $self->config->get( '/config/redis/@port' );
-  
+
     my $rabbit_host = $self->config->get( '/config/rabbitMQ/@host' );
     my $rabbit_port = $self->config->get( '/config/rabbitMQ/@port' );
     my $rabbit_user = $self->config->get( '/config/rabbitMQ/@user' );
     my $rabbit_pass = $self->config->get( '/config/rabbitMQ/@password' );
- 
-   
+
+
     # conect to redis
     $self->logger->debug( "Connecting to Redis $redis_host:$redis_port." );
 
     my $redis;
 
-    
+
     #--- try to connect twice per second for 30 seconds, 60 attempts every 500ms.
     $redis = Redis->new(
                                 server    => "$redis_host:$redis_port",
@@ -147,25 +147,25 @@ sub _start {
 
     $self->logger->debug( 'Setup RabbitMQ' );
 
-    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue_name => "Simp.Data",
-							topic => "Simp.Data",
-							exchange => "Simp",
-							user => $rabbit_user,
-							pass => $rabbit_pass,
-							host => $rabbit_host,
-							port => $rabbit_port);
+    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new(  queue_name => "Simp.Data",
+                                                        topic => "Simp.Data",
+                                                        exchange => "Simp",
+                                                        user => $rabbit_user,
+                                                        pass => $rabbit_pass,
+                                                        host => $rabbit_host,
+                                                        port => $rabbit_port);
 
 
-    my $method = GRNOC::RabbitMQ::Method->new(	name => "get",
-						callback =>  sub {
-								   my ($method_ref,$params) = @_; 
-								   my $time = time();
-								   if(defined($params->{'time'}{'value'})){
-								       $time = $params->{'time'}{'value'};
-								   }
-								   return $self->_get($time,$params); 
-								 },
-						description => "function to pull SNMP data out of cache");
+    my $method = GRNOC::RabbitMQ::Method->new(  name => "get",
+                                                callback =>  sub {
+                                                                   my ($method_ref,$params) = @_;
+                                                                   my $time = time();
+                                                                   if(defined($params->{'time'}{'value'})){
+                                                                       $time = $params->{'time'}{'value'};
+                                                                   }
+                                                                   return $self->_get($time,$params);
+                                                                 },
+                                                description => "function to pull SNMP data out of cache");
 
     $method->add_input_parameter( name => "oidmatch",
                                   description => "redis pattern for specifying the OIDS of interest",
@@ -191,25 +191,25 @@ sub _start {
 
     $method = GRNOC::RabbitMQ::Method->new(  name => "get_rate",
                                              callback =>  sub {
-							        my ($method_ref,$params) = @_; 
-								return $self->_get_rate($params);
-							  },
+                                                                my ($method_ref,$params) = @_;
+                                                                return $self->_get_rate($params);
+                                                          },
                                              description => "function to pull SNMP data out of cache and calculate the rate");
-    
+
     $method->add_input_parameter( name => "oidmatch",
                                   description => "redis pattern for specifying the OIDS of interest",
                                   required => 1,
                                   multiple => 1,
                                   pattern => $GRNOC::WebService::Regex::TEXT);
-    
-    
+
+
     $method->add_input_parameter( name => "period",
-				  description => "time period (in seconds) for the rate, basically this is (now - period)",
-				  required => 0,
-				  multiple => 0,
-				  default => 60,
-				  pattern => $GRNOC::WebService::Regex::ANY_NUMBER);
-    
+                                  description => "time period (in seconds) for the rate, basically this is (now - period)",
+                                  required => 0,
+                                  multiple => 0,
+                                  default => 60,
+                                  pattern => $GRNOC::WebService::Regex::ANY_NUMBER);
+
     $method->add_input_parameter( name => "node",
                                   description => "array of ip addresses / node names to fetch data for",
                                   required => 1,
@@ -228,10 +228,10 @@ sub _start {
 
     $dispatcher->register_method($method2);
 
-    #--- go into event loop handing requests that come in over rabbit  
+    #--- go into event loop handing requests that come in over rabbit
     $self->logger->debug( 'Entering RabbitMQ event loop' );
     $dispatcher->start_consuming();
-    
+
     #--- you end up here if one of the handlers called stop_consuming
     #--- this is done when there are internal issues getting to redis that require a re-init.
     return;
@@ -273,23 +273,23 @@ sub _find_groups{
     $oid =~ s/(\.\*+)*$//;
 
     try{
-	$self->redis->select(3);
-	%host_groups = $self->redis->hgetall($host);
-	$self->redis->select(0);
+        $self->redis->select(3);
+        %host_groups = $self->redis->hgetall($host);
+        $self->redis->select(0);
     }catch{
-	$self->redis->select(0);
-	$self->logger->error("Error fetching all groups host is a part of");
-	return;
+        $self->redis->select(0);
+        $self->logger->error("Error fetching all groups host is a part of");
+        return;
     };
 
     my @new_host_groups;
     foreach my $base_oid (keys %host_groups){
-	my ($group, $interval) = split(',', $host_groups{$base_oid});
+        my ($group, $interval) = split(',', $host_groups{$base_oid});
 
         # group is a candidate if its base OID is a prefix of ours
         if(_is_oid_prefix($base_oid, $oid)){
-	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
-	}
+            push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
+        }
     }
 
     # If we have 1 candidate, return that group
@@ -316,12 +316,12 @@ sub _find_groups{
 
     @new_host_groups = ();
     foreach my $base_oid (keys %host_groups){
-	my ($group, $interval) = split(',', $host_groups{$base_oid});
+        my ($group, $interval) = split(',', $host_groups{$base_oid});
 
         # This time around, group is a candidate if our OID is a prefix of its base
         if(_is_oid_prefix($oid, $base_oid)){
-	    push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
-	}
+            push(@new_host_groups, { base_oid => $base_oid, group => $group, interval => $interval});
+        }
     }
 
     # Sort the groups lexicographically by
@@ -356,7 +356,7 @@ sub _find_keys{
     my $oid = $params{'oid'};
     my $requested = $params{'requested'};
 
-    my $groups = $self->_find_groups( host => $host, 
+    my $groups = $self->_find_groups( host => $host,
                                       oid => $oid,
                                       requested => $requested);
 
@@ -409,23 +409,23 @@ sub _find_keys{
 
 
 sub _get{
-  #--- implementation using pipelining and callbacks 
+  #--- implementation using pipelining and callbacks
     my $self      = shift;
     my $requested = shift;
     my $params    = shift;
     my $node      = $params->{'node'}{'value'};
     my $oidmatch  = $params->{'oidmatch'}{'value'};
     my $redis     = $self->redis;
-    
+
     my %results;
     $self->logger->debug("processing get request for time " . $requested);
-    
+
     try {
-	#--- convert the set of interesting ip address to the set of internal keys used to retrive data 
-	my $scan_start;
-	foreach my $oid (@$oidmatch){
-	    foreach my $host (@$node){
-		
+        #--- convert the set of interesting ip address to the set of internal keys used to retrive data
+        my $scan_start;
+        foreach my $oid (@$oidmatch){
+            foreach my $host (@$node){
+
                 #find the correct keys to fetch for!
                 my $sets = $self->_find_keys( host => $host,
                                               oid => $oid,
@@ -459,15 +459,15 @@ sub _get{
                         last if($cursor == 0);
                     }
                 }
-	    }
-	}
+            }
+        }
 
-	$self->logger->debug("Waiting for responses");
-	
-	#--- wait for all pending responses to hmget requests
-	$redis->wait_all_responses;
+        $self->logger->debug("Waiting for responses");
+
+        #--- wait for all pending responses to hmget requests
+        $redis->wait_all_responses;
     } catch {
-	$self->logger->error(" in get: ". $_);
+        $self->logger->error(" in get: ". $_);
     };
 
   $self->logger->debug("Response ready!");
@@ -478,13 +478,13 @@ sub _rate{
   my ($self,$cur_val,$cur_ts,$pre_val,$pre_ts,$context) = @_;
   my $et      = $cur_ts - $pre_ts;
   if(!($cur_val =~ /\d+$/)){
-      #not a number... 
+      #not a number...
       return $cur_val;
   }
-  
+
   my $delta   = $cur_val - $pre_val;
   my $max_val = 2**32;
-  
+
   if($et <= 0){
     #--- not elapse time cant calcualte rate / 0 and all
     return 0;
@@ -501,7 +501,7 @@ sub _rate{
       $self->logger->debug("  counter wrap: $context");
     }
     $delta = ($max_val - $pre_val) + $cur_val;
-  }  
+  }
 
   return $delta / $et;
 }
@@ -539,7 +539,7 @@ sub _get_rate{
   my %results;
 
   return \%results if !defined($previous_data);
-    
+
   #iterate over current and previous data to calculate rates where sensible
   foreach my $ip (keys (%$current_data)){
     foreach my $oid (keys (%{$current_data->{$ip}})){
@@ -549,11 +549,11 @@ sub _get_rate{
       my $previous_ts  = $previous_data->{$ip}{$oid}{'time'};
 
       #--- sanity check
-      if(!defined $current_val || !defined $previous_val || 
+      if(!defined $current_val || !defined $previous_val ||
         !defined $current_ts  || !defined $previous_ts){
         #--- incomplete data
         next;
-      } 
+      }
 
       if(!($current_val =~/^\d+$/)){
         #--- not a number
@@ -561,12 +561,12 @@ sub _get_rate{
       }
 
       $results{$ip}{$oid}{'value'} = $self->_rate($current_val,$current_ts,
-						  $previous_val,$previous_ts,
-						  "$ip->$oid");
+                                                  $previous_val,$previous_ts,
+                                                  "$ip->$oid");
       $results{$ip}{$oid}{'time'}  = $current_ts;
 
     }
-  } 
+  }
   return \%results;
 }
 
