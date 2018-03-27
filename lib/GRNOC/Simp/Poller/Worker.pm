@@ -245,22 +245,16 @@ sub _poll_cb{
         delete $host->{'pending_replies'}->{$main_oid};
     }
 
-    $monitoring_key = "simp-poller,host-status,$host," . $self->group_name;
-
     if(!defined $data){
 	my $error = $session->error();
 	$self->logger->error("Host/Context ID: $host->{'node_name'} " . (defined($context_id) ? $context_id : '[no context ID]'));
 	$self->logger->error("$id failed     $reqstr");
 	$self->logger->error("Error: $error");
 
-        try {
-	    $redis->select(DB_MONITORING);
-            $redis->lpush($monitoring_key, "$timestamp,TO"); # TODO: make it so that this only gets run once, and prevents the "$timestamp,S" below
-            $redis->ltrim($monitoring_key, 0, N);
-            $redis->expire($monitoring_key, max(2 * N * $self->poll_interval, 86400));
-	    $redis->select(DB_MAIN);
-        } catch {
-	    $redis->select(DB_MAIN);
+        $host->{'poll_status'} = 'TO';
+        if (scalar(keys %{$host->{'pending_replies'}}) == 0){
+            $self->_write_host_status($host, $timestamp);
+            $cycle_cv->end;
         }
 	return;
     }
@@ -328,13 +322,6 @@ sub _poll_cb{
 	$redis->hset($host->{'node_name'}, $main_oid, $self->group_name . "," . $self->poll_interval);
 	$redis->hset($ip, $main_oid, $self->group_name . "," . $self->poll_interval);
 
-        # Update status of this (host, group) for monitoring
-        # TODO: how to handle multiple context_ids on one (host, group)?
-        $redis->select(DB_MONITORING);
-        $redis->lpush($monitoring_key, "$timestamp,S");
-        $redis->ltrim($monitoring_key, 0, N);
-        $redis->expire($monitoring_key, max(2 * N * $self->poll_interval, 86400));
-
 	#change back to the primary db...
 	$redis->select(DB_MAIN);
 	#complete the transaction
@@ -344,6 +331,7 @@ sub _poll_cb{
     }
 
     if(scalar(keys %{$host->{'pending_replies'}}) == 0){
+        $self->_write_host_status($host, $timestamp);
         $cycle_cv->end;
     }
 
@@ -523,6 +511,34 @@ sub _collect_data{
     }
 }
 
+sub _write_host_status {
+    my $self = shift;
+    my $host = shift;
+    my $timestamp = shift;
+
+    my $host_group = $host->{'node_name'} . ',' . $self->group_name;
+
+    my $monitoring_key = "simp-poller,host-status,$host_group";
+    my $poll_status = $host->{'poll_status'};
+
+    # "Happy families are all alike; every unhappy family is unhappy in its own way."
+    #    --Leo Tolstoy, _Anna Karenina_
+    $poll_status = 'S' if !defined($poll_status);
+
+    try {
+        $redis->select(DB_MONITORING);
+        $redis->lpush($monitoring_key, "$timestamp,$poll_status");
+        $redis->ltrim($monitoring_key, 0, N);
+        $redis->expire($monitoring_key, max(2 * N * $self->poll_interval, 86400));
+        $redis->select(DB_MAIN);
+    } catch {
+        $self->logger->error($self->worker_name . " unable to write monitoring status for ($host_group) to Redis");
+        $redis->select(DB_MAIN);
+    }
+
+    $host->{'poll_status'} = undef;
+}
+
 sub _write_heartbeat {
     my $self = shift;
 
@@ -535,6 +551,7 @@ sub _write_heartbeat {
         $redis->expire($key, max(2 * N * $self->poll_interval, 86400));
         $redis->select(DB_MAIN);
     } catch {
+        $self->logger->error($self->worker_name . ' unable to write heartbeat to Redis');
         $redis->select(DB_MAIN);
     }
 }
