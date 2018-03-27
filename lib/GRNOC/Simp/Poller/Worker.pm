@@ -8,12 +8,15 @@ use AnyEvent;
 use AnyEvent::SNMP;
 use Net::SNMP;
 use Redis;
+use List::Util qw(max);
 
 use constant DB_MAIN => 0;
 use constant DB_POLLID_TO_KEY => 1;
 use constant DB_CURRENT_POLLID => 2;
 use constant DB_OID_MAP => 3;
+use constant DB_MONITORING => 4;
 
+use constant N => 20;
 
 ### required attributes ###
 =head1 public attributes
@@ -190,7 +193,10 @@ sub start {
     $self->{'collector_timer'} = AnyEvent->timer( after => 10,
 						  interval => $self->poll_interval,
 						  cb => sub {
-						      $self->_collect_data();
+                                                      my $cycle_cv = AnyEvent->condvar;
+                                                      $cycle_cv->begin(sub { undef $cycle_cv; $self->_write_heartbeat(); });
+                                                      $self->_collect_data($cycle_cv);
+                                                      $cycle_cv->end;
 						      AnyEvent->now_update;
 						  });
     
@@ -218,6 +224,7 @@ sub _poll_cb{
     my $self = shift;
     my %params = @_;
 
+    my $cycle_cv  = $params{'cycle_cv'};
     my $session   = $params{'session'};
     my $host      = $params{'host'};
     my $req_time  = $params{'timestamp'};
@@ -236,13 +243,25 @@ sub _poll_cb{
         delete $host->{'pending_replies'}->{$main_oid . "," . $context_id};
     }else{
         delete $host->{'pending_replies'}->{$main_oid};
-    }    
+    }
+
+    $monitoring_key = "simp-poller,host-status,$host," . $self->group_name;
 
     if(!defined $data){
 	my $error = $session->error();
 	$self->logger->error("Host/Context ID: $host->{'node_name'} " . (defined($context_id) ? $context_id : '[no context ID]'));
 	$self->logger->error("$id failed     $reqstr");
 	$self->logger->error("Error: $error");
+
+        try {
+	    $redis->select(DB_MONITORING);
+            $redis->lpush($monitoring_key, "$timestamp,TO"); # TODO: make it so that this only gets run once, and prevents the "$timestamp,S" below
+            $redis->ltrim($monitoring_key, 0, N);
+            $redis->expire($monitoring_key, max(2 * N * $self->poll_interval, 86400));
+	    $redis->select(DB_MAIN);
+        } catch {
+	    $redis->select(DB_MAIN);
+        }
 	return;
     }
 
@@ -309,6 +328,13 @@ sub _poll_cb{
 	$redis->hset($host->{'node_name'}, $main_oid, $self->group_name . "," . $self->poll_interval);
 	$redis->hset($ip, $main_oid, $self->group_name . "," . $self->poll_interval);
 
+        # Update status of this (host, group) for monitoring
+        # TODO: how to handle multiple context_ids on one (host, group)?
+        $redis->select(DB_MONITORING);
+        $redis->lpush($monitoring_key, "$timestamp,S");
+        $redis->ltrim($monitoring_key, 0, N);
+        $redis->expire($monitoring_key, max(2 * N * $self->poll_interval, 86400));
+
 	#change back to the primary db...
 	$redis->select(DB_MAIN);
 	#complete the transaction
@@ -316,6 +342,11 @@ sub _poll_cb{
 	$redis->select(DB_MAIN);
 	$self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
     }
+
+    if(scalar(keys %{$host->{'pending_replies'}}) == 0){
+        $cycle_cv->end;
+    }
+
     AnyEvent->now_update;
 }
 
@@ -408,6 +439,7 @@ sub _connect_to_snmp{
 
 sub _collect_data{
     my $self = shift;
+    my $cycle_cv = shift;
 
     my $hosts         = $self->hosts;
     my $oids          = $self->oids;
@@ -420,6 +452,8 @@ sub _collect_data{
 	    $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $host->{'node_name'} . " in poll cycle for group: " . $self->group_name);
 	    next;
 	}
+
+        $cycle_cv->begin;
 
 	for my $oid (@$oids){
 	    if(!defined($self->{'snmp'}{$host->{'node_name'}})){
@@ -442,7 +476,8 @@ sub _collect_data{
 					 timestamp => $timestamp,
 					 reqstr => $reqstr,
 					 oid => $oid,
-					 session => $session);
+					 session => $session,
+                                         cycle_cv => $cycle_cv);
 		    }
 		    );
 	    }else{
@@ -458,7 +493,8 @@ sub _collect_data{
 					     timestamp => $timestamp,
 					     reqstr => $reqstr,
 					     oid => $oid,
-					     session => $session);
+					     session => $session,
+                                             cycle_cv => $cycle_cv);
 			}
 			);
 		    
@@ -476,13 +512,30 @@ sub _collect_data{
 						 reqstr => $reqstr,
 						 oid => $oid,
 						 context_id => $ctxEngine,
-						 session => $session);
+						 session => $session,
+                                                 cycle_cv => $cycle_cv);
 			    }
 			    );
 		    }
 		}
 	    }
 	}
+    }
+}
+
+sub _write_heartbeat {
+    my $self = shift;
+
+    my $redis = $self->redis;
+    my $key = 'simp-poller,heartbeat,' . $self->worker_name;
+
+    try {
+        $redis->select(DB_MONITORING);
+        $redis->set($key, time);
+        $redis->expire($key, max(2 * N * $self->poll_interval, 86400));
+        $redis->select(DB_MAIN);
+    } catch {
+        $redis->select(DB_MAIN);
     }
 }
 
