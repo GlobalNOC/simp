@@ -20,7 +20,6 @@ Requires: perl(List::MoreUtils)
 Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
-Requires: perl(GRNOC::Simp::Poller::Config)
 Requires: perl-Moo
 Requires: perl-Net-SNMP
 Requires: perl-Parallel-ForkManager

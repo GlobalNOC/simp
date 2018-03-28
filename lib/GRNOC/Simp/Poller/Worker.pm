@@ -320,7 +320,7 @@ sub _poll_cb{
     } catch {
         $redis->select(DB_MAIN);
         $self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
-    }
+    };
 
     if(scalar(keys %{$host->{'pending_replies'}}) == 0){
         $self->_write_host_status($host, $timestamp);
@@ -355,7 +355,7 @@ sub _connect_to_snmp{
             $self->{'snmp'}{$host->{'node_name'}} = $snmp;
 
         }elsif($host->{'snmp_version'} eq '3'){
-            if(scalar($host->{'groups'}{$self->group_name}) == 0){
+            if(scalar(@{$host->{'groups'}{$self->group_name}}) == 0){
                 ($snmp, $error) = Net::SNMP->session(
                     -hostname         => $host->{'ip'},
                     -version          => '3',
@@ -462,7 +462,7 @@ sub _collect_data{
                     );
             }else{
                 #for each context engine specified for the group
-                if(scalar($host->{'groups'}{$self->group_name}) == 0){
+                if(scalar(@{$host->{'groups'}{$self->group_name}}) == 0){
                     $host->{'pending_replies'}->{$oid} = 1;
                     $res = $self->{'snmp'}{$host->{'node_name'}}->get_table(
                         -baseoid      => $oid,
@@ -508,6 +508,7 @@ sub _write_host_status {
     my $host = shift;
     my $timestamp = shift;
 
+    my $redis = $self->redis;
     my $host_group = $host->{'node_name'} . ',' . $self->group_name;
 
     my $monitoring_key = "simp-poller,host-status,$host_group";

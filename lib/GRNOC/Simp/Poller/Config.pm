@@ -1,4 +1,4 @@
-package GRNOC::Simp::Poller::WorkerConfig;
+package GRNOC::Simp::Poller::Config;
 
 use GRNOC::Config;
 
@@ -29,15 +29,16 @@ sub build_config {
 
 
     my $config = GRNOC::Config->new(
-        config_file => $self,
+        config_file => $conf_file,
         force_array => 1
     );
 
     $globals{'redis_host'} = $config->get('/config/redis/@host')->[0];
     $globals{'redis_port'} = $config->get('/config/redis/@port')->[0];
 
-    my $pid_file = $self->config->get('/config/@pid-file')->[0];
+    my $pid_file = $config->get('/config/@pid-file')->[0];
     $pid_file = '/var/run/simp_poller.pid' if !defined($pid_file);
+    $globals{'pid_file'} = $pid_file;
 
     foreach my $group (@{$config->get('/config/group')}) {
         my %grp;
@@ -68,7 +69,7 @@ sub build_config {
 
 
     opendir my $dir, $hosts_dir;
-    my @hosts_files = readdir $dir;
+    my @host_files = readdir $dir;
     closedir $dir;
 
     foreach my $host_file (@host_files) {
@@ -80,7 +81,7 @@ sub build_config {
             force_array => 1
         );
 
-        foreach my $raw (@{$conf->get('/config/host')}) {
+        foreach my $raw (@{$conf->get('/config/host') || []}) {
             my %host;
             for my $i ('node_name', 'ip', 'snmp_version', 'community', 'username') {
                 $host{$i} = $raw->{$i};
@@ -88,22 +89,18 @@ sub build_config {
 
             $host{'host_variable'} = {};
 
-            if (defined($raw->{'host_variable'})) {
-                foreach my $var (keys @{$raw->{'host_variable'}}) {
-                    $host{'host_variable'}{$var} = $raw->{'host_variable'}{'value'};
-                }
+            foreach my $var (keys %{$raw->{'host_variable'} || {}}) {
+                $host{'host_variable'}{$var} = $raw->{'host_variable'}{'value'};
             }
 
             $host{'groups'} = {};
 
-            if (defined($raw->{'group'})) {
-                foreach my $grp (keys @{$raw->{'group'}}) {
-                    next if !defined($groups{$grp});
-                    my $context_ids = $raw->{'group'}{$grp}{'context_id'};
-                    $context_ids = [] if !defined($context_ids);
-                    push @{$host_groups{$grp}}, \%host if defined($groups{$grp});
-                    push $host{'groups'}{$grp}, $context_ids;
-                }
+            foreach my $grp (keys %{$raw->{'group'} || {}}) {
+                next if !defined($groups{$grp});
+                my $context_ids = $raw->{'group'}{$grp}{'context_id'};
+                $context_ids = [] if !defined($context_ids);
+                $host{'groups'}{$grp} = $context_ids;
+                push @{$host_groups{$grp}}, \%host if defined($groups{$grp});
             }
 
             push @hosts, \%host;

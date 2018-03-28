@@ -239,7 +239,7 @@ sub _create_workers {
     # This hash keeps track of whether a host has had a worker assigned for that.
     my %var_worker;
 
-    my $total_workers = sum { scalar @{$groups{$_}{'workers'}} } (keys %groups);
+    my $total_workers = sum ( map { scalar @{$groups{$_}{'workers'}} } (keys %groups) );
 
     my $forker = Parallel::ForkManager->new( $total_workers + 2);
 
