@@ -263,7 +263,7 @@ sub _create_workers {
       my $idx = 0;
 
       #--- get the set of hosts that belong to this group
-      my $hosts = $self->config->{'group'}{$name};
+      my $hosts = $self->config->{'host_groups'}{$name};
       my @hosts;
       @hosts = @$hosts if defined($hosts);
 

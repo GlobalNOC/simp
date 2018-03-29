@@ -90,7 +90,7 @@ sub build_config {
             $host{'host_variable'} = {};
 
             foreach my $var (keys %{$raw->{'host_variable'} || {}}) {
-                $host{'host_variable'}{$var} = $raw->{'host_variable'}{'value'};
+                $host{'host_variable'}{$var} = $raw->{'host_variable'}{$var}{'value'};
             }
 
             $host{'groups'} = {};
