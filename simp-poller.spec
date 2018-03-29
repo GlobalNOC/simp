@@ -20,6 +20,7 @@ Requires: perl(List::MoreUtils)
 Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
+Requires: perl(GRNOC::Simp::Poller::Config)
 Requires: perl-Moo
 Requires: perl-Net-SNMP
 Requires: perl-Parallel-ForkManager
@@ -29,6 +30,8 @@ Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
 
 Provides: perl(GRNOC::Simp::Poller)
+Provides: perl(GRNOC::Simp::Poller::Worker)
+Provides: perl(GRNOC::Simp::Poller::Config)
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
