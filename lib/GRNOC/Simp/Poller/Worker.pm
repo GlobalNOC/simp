@@ -535,7 +535,7 @@ sub _write_host_status {
     } catch {
         $self->logger->error($self->worker_name . " unable to write monitoring status for ($host_group) to Redis");
         $redis->select(DB_MAIN);
-    }
+    };
 
     $host->{'poll_status'} = undef;
 }
@@ -554,7 +554,7 @@ sub _write_heartbeat {
     } catch {
         $self->logger->error($self->worker_name . ' unable to write heartbeat to Redis');
         $redis->select(DB_MAIN);
-    }
+    };
 }
 
 1;
