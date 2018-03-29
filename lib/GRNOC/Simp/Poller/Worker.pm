@@ -185,10 +185,7 @@ sub start {
     $self->{'collector_timer'} = AnyEvent->timer( after => 10,
                                                   interval => $self->poll_interval,
                                                   cb => sub {
-                                                      my $cycle_cv = AnyEvent->condvar;
-                                                      $cycle_cv->begin(sub { undef $cycle_cv; $self->_write_heartbeat(); });
-                                                      $self->_collect_data($cycle_cv);
-                                                      $cycle_cv->end;
+                                                      $self->_collect_data();
                                                       AnyEvent->now_update;
                                                   });
 
@@ -216,7 +213,6 @@ sub _poll_cb{
     my $self = shift;
     my %params = @_;
 
-    my $cycle_cv  = $params{'cycle_cv'};
     my $session   = $params{'session'};
     my $host      = $params{'host'};
     my $req_time  = $params{'timestamp'};
@@ -246,7 +242,6 @@ sub _poll_cb{
         $host->{'poll_status'} = 'TO';
         if (scalar(keys %{$host->{'pending_replies'}}) == 0){
             $self->_write_host_status($host, $timestamp);
-            $cycle_cv->end;
         }
         return;
     }
@@ -324,7 +319,6 @@ sub _poll_cb{
 
     if(scalar(keys %{$host->{'pending_replies'}}) == 0){
         $self->_write_host_status($host, $timestamp);
-        $cycle_cv->end;
     }
 
     AnyEvent->now_update;
@@ -419,12 +413,14 @@ sub _connect_to_snmp{
 
 sub _collect_data{
     my $self = shift;
-    my $cycle_cv = shift;
 
     my $hosts         = $self->hosts;
     my $oids          = $self->oids;
     my $timestamp     = time;
     $self->logger->debug($self->worker_name. " start poll cycle" );
+
+    my $cycle_cv = AnyEvent->condvar;
+    $cycle_cv->begin(sub { $self->_write_heartbeat(); });
 
     for my $host (@$hosts){
 
@@ -433,13 +429,14 @@ sub _collect_data{
             next;
         }
 
-        $cycle_cv->begin;
-
         for my $oid (@$oids){
             if(!defined($self->{'snmp'}{$host->{'node_name'}})){
                 $self->logger->error("No SNMP session defined for " . $host->{'node_name'});
                 next;
             }
+
+            $cycle_cv->begin;
+
             my $reqstr = " $oid -> $host->{'ip'} ($host->{'node_name'})";
             $self->logger->debug($self->worker_name ." requesting ". $reqstr);
             #--- iterate through the the provided set of base OIDs to collect
@@ -456,8 +453,8 @@ sub _collect_data{
                                          timestamp => $timestamp,
                                          reqstr => $reqstr,
                                          oid => $oid,
-                                         session => $session,
-                                         cycle_cv => $cycle_cv);
+                                         session => $session);
+                        $cycle_cv->end;
                     }
                     );
             }else{
@@ -473,8 +470,8 @@ sub _collect_data{
                                              timestamp => $timestamp,
                                              reqstr => $reqstr,
                                              oid => $oid,
-                                             session => $session,
-                                             cycle_cv => $cycle_cv);
+                                             session => $session);
+                            $cycle_cv->end;
                         }
                         );
 
@@ -492,8 +489,8 @@ sub _collect_data{
                                                  reqstr => $reqstr,
                                                  oid => $oid,
                                                  context_id => $ctxEngine,
-                                                 session => $session,
-                                                 cycle_cv => $cycle_cv);
+                                                 session => $session);
+                                $cycle_cv->end;
                             }
                             );
                     }
@@ -501,6 +498,8 @@ sub _collect_data{
             }
         }
     }
+
+    $cycle_cv->end;
 }
 
 sub _write_host_status {
