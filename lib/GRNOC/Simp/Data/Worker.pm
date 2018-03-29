@@ -439,7 +439,8 @@ sub _get{
                 foreach my $set (@$sets){
                     next if !defined($set);
 
-                    my ($host, $group, $time) = split(',',$set);
+                    my @components = split(',',$set);
+                    my $time = $components[-1];
 
                     my $keys;
                     my $cursor = 0;
