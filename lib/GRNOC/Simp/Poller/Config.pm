@@ -2,6 +2,8 @@ package GRNOC::Simp::Poller::Config;
 
 use GRNOC::Config;
 
+use constant DEFAULT_MONITORING_RETENTION => 20;
+
 =head1 Methods
 
 =over 12
@@ -61,6 +63,11 @@ sub build_config {
         foreach my $i ('name', 'interval', 'snmp_timeout', 'max_reps', 'retention') {
             $grp{$i} = $group->{$i};
         }
+
+        my $mon_retention = $group->{'monitoring_retention_cycles'};
+        $mon_retention = DEFAULT_MONITORING_RETENTION if !defined($mon_retention);
+        $mon_retention = 1 if (0 + $mon_retention) < 1;
+        $grp{'monitoring_retention'} = 0 + $mon_retention;
 
         my @workers;
         my $num_workers = int(0 + $group->{'workers'});

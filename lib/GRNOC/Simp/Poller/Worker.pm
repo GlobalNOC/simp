@@ -3,20 +3,18 @@ package GRNOC::Simp::Poller::Worker;
 use strict;
 use Try::Tiny;
 use Data::Dumper;
+use List::Util qw(max);
 use Moo;
 use AnyEvent;
 use AnyEvent::SNMP;
 use Net::SNMP;
 use Redis;
-use List::Util qw(max);
 
 use constant DB_MAIN => 0;
 use constant DB_POLLID_TO_KEY => 1;
 use constant DB_CURRENT_POLLID => 2;
 use constant DB_OID_MAP => 3;
 use constant DB_MONITORING => 4;
-
-use constant N => 20;
 
 ### required attributes ###
 =head1 public attributes
@@ -38,6 +36,8 @@ use constant N => 20;
 =item poll_interval
 
 =item var_hosts
+
+=item monitoring_retention
 
 =back
 
@@ -67,6 +67,9 @@ has poll_interval => ( is => 'ro',
 has var_hosts => ( is => 'ro',
                    required => 1 );
 
+has monitoring_retention => ( is => 'ro',
+                              required => 1 );
+
 
 ### internal attributes ###
 =head1 private attributes
@@ -86,6 +89,8 @@ has var_hosts => ( is => 'ro',
 =item snmp_timeout
 
 =item main_cv
+
+=item monitoring_retention_seconds
 
 =back
 
@@ -109,6 +114,8 @@ has snmp_timeout => (is => 'rwp',
                      default => 5);
 
 has main_cv => (is => 'rwp');
+
+has monitoring_retention_seconds => ( is => 'rwp' );
 
 ### public methods ###
 
@@ -134,6 +141,8 @@ sub start {
 
     # flag that we're running
     $self->_set_is_running( 1 );
+
+    $self->_set_monitoring_retention_seconds( max(2 * $self->monitoring_retention * $self->poll_interval, 86400) );
 
     # change our process name
     $0 = "simp($worker_name)";
@@ -520,8 +529,8 @@ sub _write_host_status {
     try {
         $redis->select(DB_MONITORING);
         $redis->lpush($monitoring_key, "$timestamp,$poll_status");
-        $redis->ltrim($monitoring_key, 0, N);
-        $redis->expire($monitoring_key, max(2 * N * $self->poll_interval, 86400));
+        $redis->ltrim($monitoring_key, 0, $self->monitoring_retention);
+        $redis->expire($monitoring_key, $self->monitoring_retention_seconds);
         $redis->select(DB_MAIN);
     } catch {
         $self->logger->error($self->worker_name . " unable to write monitoring status for ($host_group) to Redis");
@@ -540,7 +549,7 @@ sub _write_heartbeat {
     try {
         $redis->select(DB_MONITORING);
         $redis->set($key, time);
-        $redis->expire($key, max(2 * N * $self->poll_interval, 86400));
+        $redis->expire($key, $self->monitoring_retention_seconds);
         $redis->select(DB_MAIN);
     } catch {
         $self->logger->error($self->worker_name . ' unable to write heartbeat to Redis');

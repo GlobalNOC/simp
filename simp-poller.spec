@@ -15,8 +15,8 @@ BuildRequires: perl(Test::Pod) >= 1.22
 Requires: redis
 Requires: perl(AnyEvent)
 Requires: perl(AnyEvent::SNMP)
-Requires: perl(List::Util)
 Requires: perl(List::MoreUtils)
+Requires: perl(List::Util)
 Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
