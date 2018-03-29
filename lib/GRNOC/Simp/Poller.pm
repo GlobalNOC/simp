@@ -317,7 +317,7 @@ sub _create_workers {
                                                          max_reps      => $max_reps,
                                                          snmp_timeout  => $snmp_timeout,
                                                          var_hosts     => $varsByWorker{$worker_name},
-                                                         monitoring_retention => $group{'monitoring_retention'},
+                                                         monitoring_retention => $group->{'monitoring_retention'},
               );
 
         # this should only return if we tell it to stop via TERM signal etc.
