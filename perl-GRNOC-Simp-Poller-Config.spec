@@ -28,7 +28,6 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller
 
-ls -lR lib
 %{__install} lib/GRNOC/Simp/Poller/Config.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Config.pm
 
 %clean
