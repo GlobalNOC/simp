@@ -3,6 +3,7 @@ VERSION=1.0.6
 
 rpm:	dist
 	rpmbuild -ta dist/simp-poller-$(VERSION).tar.gz
+	rpmbuild -ta dist/poller-config-$(VERSION).tar.gz
 	rpmbuild -ta dist/simp-data-$(VERSION).tar.gz
 	rpmbuild -ta dist/simp-comp-$(VERSION).tar.gz
 	rpmbuild -ta dist/simp-tsds-$(VERSION).tar.gz
@@ -29,10 +30,12 @@ dist:
 	mkdir -p dist/simp-poller-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-poller-$(VERSION)/bin
 	mkdir -p dist/simp-poller-$(VERSION)/conf/hosts.d
+	mkdir -p dist/poller-config-$(VERSION)/lib/GRNOC/Simp/Poller
 	mkdir -p dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-tsds-$(VERSION)/bin
 	mkdir -p dist/simp-tsds-$(VERSION)/conf
 	cp -r lib/GRNOC/Simp/Poller* dist/simp-poller-$(VERSION)/lib/GRNOC/Simp
+	cp -r lib/GRNOC/Simp/Poller/Config.pm dist/poller-config-$(VERSION)/lib/GRNOC/Simp/Poller
 	cp -r lib/GRNOC/Simp/Data* dist/simp-data-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/Comp* dist/simp-comp-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/TSDS* dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
@@ -57,9 +60,11 @@ dist:
 	cp -r simp-data.spec dist/simp-data-$(VERSION)/
 	cp -r simp-comp.spec dist/simp-comp-$(VERSION)/
 	cp -r simp-poller.spec dist/simp-poller-$(VERSION)/
+	cp -r perl-GRNOC-Simp-Poller-Config.spec dist/poller-config-$(VERSION)/
 	cp -r simp-tsds.spec dist/simp-tsds-$(VERSION)/
 	cp -r conf/sysconfig dist/simp-tsds-$(VERSION)/conf/
 	cd dist; tar -czvf simp-poller-$(VERSION).tar.gz simp-poller-$(VERSION)/ --exclude .svn --exclude .git
+	cd dist; tar -czvf poller-config-$(VERSION).tar.gz poller-config-$(VERSION)/ --exclude .svn --exclude .git
 	cd dist; tar -czvf simp-data-$(VERSION).tar.gz simp-data-$(VERSION)/ --exclude .svn --exclude .git
 	cd dist; tar -czvf simp-comp-$(VERSION).tar.gz simp-comp-$(VERSION)/ --exclude .svn --exclude .git
 	cd dist; tar -czvf simp-tsds-$(VERSION).tar.gz simp-tsds-$(VERSION)/ --exclude .svn --exclude .git

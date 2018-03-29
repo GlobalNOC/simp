@@ -6,6 +6,7 @@ use lib './lib';
 BEGIN {
         use_ok( 'GRNOC::Simp::Poller' );
         use_ok( 'GRNOC::Simp::Poller::Worker' );
+        use_ok( 'GRNOC::Simp::Poller::Config' );
         use_ok( 'GRNOC::Simp::Data' );
         use_ok( 'GRNOC::Simp::Data::Worker' );
         use_ok( 'GRNOC::Simp::CompData' );
