@@ -2,6 +2,19 @@ package GRNOC::Simp::Poller::Config;
 
 use GRNOC::Config;
 
+=head1 Methods
+
+=over 12
+
+=cut
+
+=item build_config
+
+Parses a simp-poller config file and hosts.d dir, and returns objects
+representing the config files.
+
+=cut
+
 sub build_config {
     my %args = @_;
 
