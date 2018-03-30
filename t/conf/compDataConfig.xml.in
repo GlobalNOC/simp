@@ -214,6 +214,33 @@
     </instance>
   </composite>
 
+  <!-- test of int, sprintf functions -->
+  <composite id="test12">
+    <input id="node" required="1" />
+    <input id="ifName" />
+
+    <instance id="xyzzy" hostType="default">
+      <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+
+      <result>
+        <val id="*node" var="node" />
+        <val id="*node_mod" var="node">
+          <fctn name="sprintf" value="X%20sX" />
+        </val>
+        <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+          <fctn name="rpn" value="'(%-6s)' sprintf" />
+        </val>
+        <val id="input" type="rate" oid="1.3.6.1.2.1.31.1.1.1.6.ifIdx">
+          <fctn name="*" value="8" />
+          <fctn name="int" />
+        </val>
+        <val id="output" type="rate" oid="1.3.6.1.2.1.31.1.1.1.10.ifIdx">
+          <fctn name="rpn" value="8 * int" />
+        </val>
+      </result>
+    </instance>
+  </composite>
+
   <composite id="interface">
     <input id="node" required="1" />
     <input id="ifName" />

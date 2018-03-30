@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 124;
+use Test::More tests => 128;
 
 use GRNOC::RabbitMQ::Client;
 use Test::Deep qw(cmp_deeply num any code);
@@ -1072,3 +1072,31 @@ $response = $client->test10(
 );
 
 error_expected(32, $response);
+
+# Request 33: a composite that uses the int and sprintf functions
+$response = $client->test12(
+  node => 'a.example.net',
+);
+
+check_response(33, $response,
+    {
+      'a.example.net' => {
+        '1' => {
+          '*node' => 'a.example.net',
+          '*node_mod' => 'X       a.example.netX',
+          '*intf' => '(eth0  )',
+          'input' => 410,
+          'output' => 84,
+          'time' => 100124,
+        },
+        '2' => {
+          '*node' => 'a.example.net',
+          '*node_mod' => 'X       a.example.netX',
+          '*intf' => '(eth1  )',
+          'input' => 201,
+          'output' => 8,
+          'time' => 100124,
+        },
+      }
+    }
+);
