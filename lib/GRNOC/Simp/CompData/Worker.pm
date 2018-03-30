@@ -715,6 +715,15 @@ sub _function_one_val{
         $val = Data::Munge::replace($val, $operand, $replace_with);
         $val;
     },
+    'int' => sub { # truncate to integer
+        my $val = shift;
+        return $val if !defined($val);
+        int($val); # round to zero
+    },
+    'sprintf' => sub { # format a value using Perl's sprintf function
+        my ($val, $operand) = @_;
+        sprintf($operand, $val);
+    },
     'rpn' => \&_rpn_calc,
 );
 
@@ -854,6 +863,14 @@ sub _bool_to_int {
         push @$stack, (defined($a) && defined($b)) ? $x : undef;
     },
 
+    # number => integer
+    'int' => sub {
+        my $stack = shift;
+        my $x = pop @$stack;
+        $x = int($x) if defined($x);
+        push @$stack, $x;
+    },
+
     # => undef
     '_' => sub {
         my $stack = shift;
@@ -983,6 +1000,15 @@ sub _bool_to_int {
         $string1 = '' if !defined($string1);
         $string2 = '' if !defined($string2);
         push @$stack, ($string1 . $string2);
+    },
+    # value format_string => string
+    'sprintf' => sub {
+        my $stack = shift;
+        my $fmt = pop @$stack;
+        my $val = pop @$stack;
+
+        my $result = (defined($fmt)) ? sprintf($fmt, $val) : undef;
+        push @$stack, $result;
     },
 
     # stealing some names from PostScript...
