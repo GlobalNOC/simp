@@ -1,4 +1,4 @@
-#!/usr/bin/perl -I ../lib 
+#!/usr/bin/perl -I ../lib
 use strict;
 use warnings;
 
@@ -37,11 +37,11 @@ usage() if $help;
 
 
 my $data_services = GRNOC::Simp::CompData->new(
-			config_file    => $config_file,
+                        config_file    => $config_file,
                         logging_file   => $logging,
                         run_user       => $username,
                         run_group      => $groupname,
-			daemonize      => !$nofork );
+                        daemonize      => !$nofork );
 
 $data_services->start();
 

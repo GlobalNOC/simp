@@ -17,7 +17,7 @@ use GRNOC::WebService::Regex;
 
 
 ### required attributes ###
-=head1 public attrbibutes
+=head1 public attributes
 
 =over 12
 
@@ -70,7 +70,7 @@ has do_shutdown => ( is => 'rwp',
                      default => 0 );
 
 has rmq_dispatcher => ( is => 'rwp',
-                        default => undef );
+                        default => sub { undef } );
 
 my %_FUNCTIONS; # Used by _function_one_val
 my %_RPN_FUNCS; # Used by _rpn_calc
@@ -93,7 +93,7 @@ sub start {
 
   while(1){
     #--- we use try catch to, react to issues such as com failure
-    #--- when any error condition is found, the reactor stops and we then reinitialize 
+    #--- when any error condition is found, the reactor stops and we then reinitialize
     $self->logger->debug( $self->worker_id." restarting." );
     $self->_start();
     exit(0) if $self->do_shutdown;
@@ -130,7 +130,7 @@ sub _start {
     my $rabbit_port = $self->config->get( '/config/rabbitMQ/@port' );
     my $rabbit_user = $self->config->get( '/config/rabbitMQ/@user' );
     my $rabbit_pass = $self->config->get( '/config/rabbitMQ/@password' );
- 
+
     $self->logger->debug( 'Setup RabbitMQ' );
 
     my $client = GRNOC::RabbitMQ::Client->new(  host => $rabbit_host,
@@ -143,54 +143,62 @@ sub _start {
 
     $self->_set_client($client);
 
-    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	queue_name => "Simp.CompData",
-							topic => "Simp.CompData",
-							exchange => "Simp",
-							user => $rabbit_user,
-							pass => $rabbit_pass,
-							host => $rabbit_host,
-							port => $rabbit_port);
+    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new(  queue_name => "Simp.CompData",
+                                                        topic => "Simp.CompData",
+                                                        exchange => "Simp",
+                                                        user => $rabbit_user,
+                                                        pass => $rabbit_pass,
+                                                        host => $rabbit_host,
+                                                        port => $rabbit_port);
 
     #--- parse config and create methods based on the set of composite definitions.
-    $self->config->{'force_array'} = 1; 
+    $self->config->{'force_array'} = 1;
     my $allowed_methods = $self->config->get( '/config/composite' );
+
+    my %predefined_param = map { $_ => 1 } ('node', 'period', 'exclude_regexp');
 
     foreach my $meth (@$allowed_methods){
       my $method_id = $meth->{'id'};
       print "$method_id:\n";
 
       my $method = GRNOC::RabbitMQ::Method->new(  name => "$method_id",
-						  async => 1,
+                                                  async => 1,
                                                   callback =>  sub {$self->_get($method_id,@_) },
                                                   description => "retrieve composite simp data of type $method_id, we should add a descr to the config");
 
       $method->add_input_parameter( name => 'node',
-				    description => 'nodes to retrieve data for',
-				    required => 1,
-				    multiple => 1,
-				    pattern => $GRNOC::WebService::Regex::TEXT);
+                                    description => 'nodes to retrieve data for',
+                                    required => 1,
+                                    multiple => 1,
+                                    pattern => $GRNOC::WebService::Regex::TEXT);
 
       $method->add_input_parameter( name => 'period',
-				    description => "period of time to request for the data!",
-				    required => 0,
-				    multiple => 0,
-				    pattern => $GRNOC::WebService::Regex::ANY_NUMBER);
+                                    description => "period of time to request for the data!",
+                                    required => 0,
+                                    multiple => 0,
+                                    pattern => $GRNOC::WebService::Regex::ANY_NUMBER);
+
+      $method->add_input_parameter( name => 'exclude_regexp',
+                                    description => 'a set of var=regexp pairs, where if scan variable var matches the regexp, we exclude it from the results',
+                                    required => 0,
+                                    multiple => 1,
+                                    pattern => '^([^=]+=.*)$');
 
       #--- let xpath do the iteration for us
       my $path = "/config/composite[\@id=\"$method_id\"]/input";
       my $inputs = $self->config->get($path);
       foreach my $input (@$inputs){
         my $input_id = $input->{'id'};
-        next if ($input_id eq 'node') || ($input_id eq 'period');
+        next if $predefined_param{$input_id};
         my $required = 0;
         if(defined $input->{'required'}){$required = 1;}
 
         $method->add_input_parameter( name => $input_id,
-				      description => "we will add description to the config file later",
-				      required => $required,
-				      multiple => 1,
-				      pattern => $GRNOC::WebService::Regex::TEXT);
-        
+                                      description => "we will add description to the config file later",
+                                      required => $required,
+                                      multiple => 1,
+                                      pattern => $GRNOC::WebService::Regex::TEXT);
+
 
         print "  $input_id: $required:\n";
       }
@@ -206,12 +214,12 @@ sub _start {
                                                 description => "function to test latency");
 
     $dispatcher->register_method($method2);
- 
+
     $self->_set_rmq_dispatcher( $dispatcher );
-    #--- go into event loop handing requests that come in over rabbit  
+    #--- go into event loop handing requests that come in over rabbit
     $self->logger->debug( 'Entering RabbitMQ event loop' );
     $dispatcher->start_consuming();
-    
+
     #--- you end up here if one of the handlers called stop_consuming
     $self->_set_rmq_dispatcher( undef );
     return;
@@ -266,6 +274,8 @@ sub _get{
   #
   # $results{'scan'}{$node}{$var_name} = [ list of OID suffixes ]
   #    * The results from the scan phase (_do_scans and _scan_cb)
+  # $results{'scan-exclude'}{$node}{$oid_suffix} = 1
+  #    * If present, exclude the OID suffix from results for that node
   # $results{'scan-match'}{$node}{$var_name}{$oid_suffix} = $val
   #    * Mapping from (scan-variable name, OID suffix) to value at OID
   # $results{'val'}{$host}{$oid_suffix}{$var_name} = $val
@@ -288,12 +298,12 @@ sub _get{
   $cv[1]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[2]); });
   $cv[2]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[3]); });
   $cv[3]->begin(sub { &$success_callback($results{'final'});
-		      undef %results;
-		      undef $ref;
-		      undef $params;
-		      undef @cv;
-		      undef $success_callback;
-		});
+                      undef %results;
+                      undef $ref;
+                      undef $params;
+                      undef @cv;
+                      undef $success_callback;
+                });
 
   # Start off the pipeline:
   $cv[0]->end;
@@ -309,10 +319,17 @@ sub _do_scans{
 
   #--- find the set of required variables
   my $hosts = $params->{'node'}{'value'};
-  
+
+  # find the set of exclude patterns, and group them by var
+  my %exclude_patterns;
+  foreach my $pattern (@{$params->{'exclude_regexp'}{'value'}}){
+      $pattern =~ /^([^=]+)=(.*)$/;
+      push @{$exclude_patterns{$1}}, $2;
+  }
+
   #--- this function will execute multiple scans in "parallel" using the begin / end approach
   #--- we use $cv to signal when all those scans are done
-  
+
   #--- give up on config object and go direct to xmllib to get proper xpath support
   #--- these should be moved to the constructor
   my $doc = $self->config->{'doc'};
@@ -321,11 +338,12 @@ sub _do_scans{
   # Make sure several root hashes exist
   foreach my $host (@$hosts){
       $results->{'scan'}{$host} = {};
+      $results->{'scan-exclude'}{$host} = {};
       $results->{'scan-match'}{$host} = {};
       $results->{'val'}{$host} = {};
       $results->{'hostvar'}{$host} = {};
   }
- 
+
   foreach my $instance ($xrefs->get_nodelist){
       my $instance_id = $instance->getAttribute("id");
       #--- get the list of scans to perform
@@ -333,40 +351,50 @@ sub _do_scans{
       foreach my $scan ($scanres->get_nodelist){
           # example scan:
           # <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.18.*" var="ifAlias" />
-	  my $var_name = $scan->getAttribute("id");
-	  my $oid      = $scan->getAttribute("oid");
-	  my $param_nm = $scan->getAttribute("var");
-	  my $targets;
-	  if(defined($param_nm) && defined($params->{$param_nm})){
-	      $targets = $params->{$param_nm}{"value"};
-	  }
-	  $cv->begin;
+          my $var_name = $scan->getAttribute("id");
+          my $oid      = $scan->getAttribute("oid");
+          my $param_nm = $scan->getAttribute("var");
+          my $ex_only  = $scan->getAttribute("exclude-only");
 
-	  $self->client->get(
-	      node => $hosts, 
-	      oidmatch => $oid,
-	      async_callback => sub {
-		  my $data = shift;
-		  $self->_scan_cb($data->{'results'},$hosts,$var_name,$oid,$targets,$results); 
-		  $cv->end;
-	      } );
+          my $targets;
+          if(defined($param_nm) && defined($params->{$param_nm})){
+              $targets = $params->{$param_nm}{"value"};
+          }
+
+          my $excludes;
+          $excludes = $exclude_patterns{$param_nm} if defined($param_nm) && defined($exclude_patterns{$param_nm});
+
+          $cv->begin;
+
+          $self->client->get(
+              node => $hosts,
+              oidmatch => $oid,
+              async_callback => sub {
+                  my $data = shift;
+                  $self->_scan_cb($data->{'results'},$hosts,$var_name,$oid,$targets,$excludes,$results,$ex_only);
+                  $cv->end;
+              } );
       }
   }
   $cv->end;
 }
 
 sub _scan_cb{
-  my $self        = shift;
-  my $data        = shift;
-  my $hosts       = shift;
-  my $var_name    = shift;
-  my $oid_pattern = shift;
-  my $vals        = shift;
-  my $results     = shift;
+  my $self         = shift;
+  my $data         = shift;
+  my $hosts        = shift;
+  my $var_name     = shift;
+  my $oid_pattern  = shift;
+  my $vals         = shift;
+  my $excludes     = shift;
+  my $results      = shift;
+  my $exclude_only = shift; # if true, don't *add* results, but still possibly *subtract* results
 
   $oid_pattern =~ s/\*.*$//;
   $oid_pattern =  quotemeta($oid_pattern);
-  
+
+  $excludes = [] if !defined($excludes);
+
   foreach my $host (@$hosts){
 
       my @oid_suffixes;
@@ -375,20 +403,26 @@ sub _scan_cb{
       my $use_val_matches = (defined($vals) && (scalar(@$vals) > 0));
 
       foreach my $oid (keys %{$data->{$host}}){
-	  my $base_value = $data->{$host}{$oid}{'value'};
+          my $base_value = $data->{$host}{$oid}{'value'};
 
           # strip out the wildcard part of the oid
-	  $oid =~ s/^$oid_pattern//;
+          $oid =~ s/^$oid_pattern//;
 
-          if((!$use_val_matches) || (any { $base_value =~ /$_/ } @$vals)){
+          if(( !$exclude_only ) &&
+             ( (!$use_val_matches) || (any { $base_value =~ /$_/ } @$vals) )){
               push @oid_suffixes, $oid;
               $results->{'scan-match'}{$host}{$var_name}{$oid} = $base_value;
           }
+
+          # If the value matches an exclude for this scan, add it to the blacklist
+          if(any { $base_value =~ /$_/ } @$excludes){
+              $results->{'scan-exclude'}{$host}{$oid} = 1;
+          }
       }
 
-      $results->{'scan'}{$host}{$var_name} = \@oid_suffixes;
+      $results->{'scan'}{$host}{$var_name} = \@oid_suffixes if !$exclude_only;
   }
-  
+
   return ;
 }
 
@@ -399,10 +433,10 @@ sub _do_vals{
     my $params       = shift; # parameters to request
     my $results      = shift; # request-global $results hash
     my $cv           = shift; # assumes that it's been begin()'ed with a callback
-    
+
     #--- find the set of required variables
     my $hosts = $params->{'node'}{'value'};
-    
+
     #--- this function will execute multiple gets in "parallel" using the begin / end apprach
     #--- we use $cv to signal when all those gets are done
 
@@ -422,11 +456,11 @@ sub _do_vals{
     #--- these should be moved to the constructor
     my $doc = $self->config->{'doc'};
     my $xpc = XML::LibXML::XPathContext->new($doc);
-    
+
     foreach my $instance ($xrefs->get_nodelist){
-	#--- get the list of scans to perform
-	my $valres = $xpc->find("./result/val",$instance);
-	foreach my $val ($valres->get_nodelist){
+        #--- get the list of scans to perform
+        my $valres = $xpc->find("./result/val",$instance);
+        foreach my $val ($valres->get_nodelist){
             # The <val> tag can have a couple of different forms:
             #
             # <val id="var_name" var="scan_var_name">
@@ -434,16 +468,16 @@ sub _do_vals{
             # <val id="var_name" type="rate" oid="1.2.3.4.scan_var_name">
             #     - use OID suffixes from the scan phase, and lookup other OIDs,
             #       optionally doing a rate calculation
-	    my $id      = $val->getAttribute("id");
-	    my $var     = $val->getAttribute("var");
-	    my $oid     = $val->getAttribute("oid");
-	    my $type    = $val->getAttribute("type");
-	    
-	    if(!defined $id){
-		#--- required data missing
+            my $id      = $val->getAttribute("id");
+            my $var     = $val->getAttribute("var");
+            my $oid     = $val->getAttribute("oid");
+            my $type    = $val->getAttribute("type");
+
+            if(!defined $id){
+                #--- required data missing
                 $self->logger->error('no ID specified in a <val> element');
-		next;
-	    }
+                next;
+            }
 
             if(!defined $oid){ # Use the results of a scan
                 if(!defined $var){
@@ -521,8 +555,8 @@ sub _do_vals{
                             oidmatch => [$oid_base],
                             async_callback => sub {
                                 my $data = shift;
-				$self->_val_cb($data->{'results'},$results,$host,\%lut);
-				$cv->end;
+                                $self->_val_cb($data->{'results'},$results,$host,\%lut);
+                                $cv->end;
                             }
                         );
                     }else{
@@ -531,16 +565,16 @@ sub _do_vals{
                             oidmatch => [$oid_base],
                             async_callback => sub {
                                 my $data = shift;
-				$self->_val_cb($data->{'results'},$results,$host,\%lut);
-				$cv->end;
+                                $self->_val_cb($data->{'results'},$results,$host,\%lut);
+                                $cv->end;
                             }
                         );
                     }
                 }
             }
-	}
+        }
     }
-    $cv->end; 
+    $cv->end;
 }
 
 sub _hostvar_cb{
@@ -612,6 +646,16 @@ sub _do_functions{
         my @fctns    = $xpc->find("./fctn", $val)->get_nodelist;
 
         $self->_function_one_val($val_name, \@fctns, $params, $results);
+    }
+
+    # Finally, filter out OID suffixes that we identified
+    # as "should be excluded" in the scan phase
+    foreach my $host (keys %{$results->{'val'}}){
+        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
+            if ($results->{'scan-exclude'}{$host}{$oid_suffix}){
+                delete $results->{'final'}{$host}{$oid_suffix};
+            }
+        }
     }
 
     $cv->end;

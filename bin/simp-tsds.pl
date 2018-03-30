@@ -30,7 +30,7 @@ GetOptions(
     'help|h|?' => \$help,
 );
 
-usage() if ($help); 
+usage() if ($help);
 
 Log::Log4perl::init($logging_file);
 

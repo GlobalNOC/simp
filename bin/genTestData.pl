@@ -1,4 +1,4 @@
-#!/usr/bin/perl 
+#!/usr/bin/perl
 #--- script that will put a bunch of fake data into redis so we can create a bit of work for redis
 use strict;
 use Data::Dumper;
@@ -18,15 +18,15 @@ sub genHash{
     print "inserting data for host: $host\n";
     for(my $x=0;$x<50;$x++){
       for(my $y=0;$y<50;$y++){
-	my $oid  = $oid_str.$x.".".$y;
-	my $val  = $y;
-	#print "$oid -> $host : $val\n";
+        my $oid  = $oid_str.$x.".".$y;
+        my $val  = $y;
+        #print "$oid -> $host : $val\n";
          $redis->hset($oid,$host,$val,sub {});
       }
     }
     my $ts = gmtime();
     $redis->hset("ts",$host,$ts);
-    #$redis->wait_all_responses; 
+    #$redis->wait_all_responses;
   }
 }
 

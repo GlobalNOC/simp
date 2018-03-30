@@ -9,7 +9,7 @@ use Types::Standard qw(Str Bool);
 use Proc::Daemon;
 use AnyEvent::Subprocess;
 use POSIX qw(setuid setgid);
-use Data::Dumper; 
+use Data::Dumper;
 
 use GRNOC::Config;
 use GRNOC::RabbitMQ::Client;
@@ -77,7 +77,7 @@ my $running;
 
 sub BUILD {
     my $self = shift;
-    
+
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Master'));
 
     return $self;
@@ -90,54 +90,54 @@ sub BUILD {
 =cut
 sub start {
     my ($self) = @_;
-    
+
     $self->logger->info('Starting.');
     $self->logger->debug('Setting up signal handlers.');
 
 
     # Daemonize if needed
     if ($self->daemonize) {
-	$self->logger->debug('Daemonizing.');
+        $self->logger->debug('Daemonizing.');
 
-	my $daemon = Proc::Daemon->new( pid_file => $self->pidfile,
-				        child_STDOUT => '/tmp/oess-vlan-collector.out',
-				        child_STDERR => '/tmp/oess-vlan-collector.err');
-	my $pid = $daemon->Init();
+        my $daemon = Proc::Daemon->new( pid_file => $self->pidfile,
+                                        child_STDOUT => '/tmp/oess-vlan-collector.out',
+                                        child_STDERR => '/tmp/oess-vlan-collector.err');
+        my $pid = $daemon->Init();
 
-	if ($pid) {
-	    sleep 1;
-	    die 'Spawning child process failed' if !$daemon->Status();
-	    exit(0);
-	}
+        if ($pid) {
+            sleep 1;
+            die 'Spawning child process failed' if !$daemon->Status();
+            exit(0);
+        }
     }
 
     warn "Child is alive!!\n";
 
     # If requested, change to different user and group
     if (defined($self->run_group)) {
-	my $run_group = $self->run_group;
-	my $gid = getpwnam($self->run_group);
-	die "Unable to get GID for group '$run_group'\n" if !defined($gid);
-	$! = 0;
-	setgid($gid);
-	die "Unable to set GID to '$run_group' ($gid): $!\n" if $! != 0;
+        my $run_group = $self->run_group;
+        my $gid = getpwnam($self->run_group);
+        die "Unable to get GID for group '$run_group'\n" if !defined($gid);
+        $! = 0;
+        setgid($gid);
+        die "Unable to set GID to '$run_group' ($gid): $!\n" if $! != 0;
     }
 
     if (defined($self->run_user)) {
-	my $run_user = $self->run_user;
-	my $uid = getpwnam($run_user);
-	die "Unable to get UID for user '$run_user'\n" if !defined($uid);
-	$! = 0;
-	setuid($uid);
-	die "Unable to set UID to '$run_user' ($uid): $!\n" if $! != 0;
+        my $run_user = $self->run_user;
+        my $uid = getpwnam($run_user);
+        die "Unable to get UID for user '$run_user'\n" if !defined($uid);
+        $! = 0;
+        setuid($uid);
+        die "Unable to set UID to '$run_user' ($uid): $!\n" if $! != 0;
     }
 
     # Only run once unless HUP gets set, then reload and go again
     while (1) {
         $self->_set_hup(0);
-	$self->_load_config();
-	$self->_create_workers();
-	last unless $self->hup;
+        $self->_load_config();
+        $self->_create_workers();
+        last unless $self->hup;
     }
 
     $self->logger->info("Master terminating");
@@ -152,12 +152,12 @@ sub _load_config {
     $self->logger->info("Reading configuration from " . $self->config_file);
 
     my $conf = GRNOC::Config->new(config_file => $self->config_file,
-				       force_array => 1);
+                                       force_array => 1);
 
     $self->_set_simp_config($conf->get('/config/simp')->[0]);
 
     $self->_set_tsds_config($conf->get('/config/tsds')->[0]);
-    
+
     $self->_set_collections($conf->get('/config/collection'));
 
     # Sanity-check some of the collection parameters
@@ -215,11 +215,11 @@ sub _create_workers {
     $running = AnyEvent->condvar;
 
     $SIG{'TERM'} = sub {
-	$self->logger->info('Received SIGTERM.');
-	foreach my $worker (@{$self->children}){
-	    $worker->kill();
-	}
-	exit;
+        $self->logger->info('Received SIGTERM.');
+        foreach my $worker (@{$self->children}){
+            $worker->kill();
+        }
+        exit;
     };
 
     $SIG{'INT'} = sub {
@@ -231,13 +231,13 @@ sub _create_workers {
     };
 
     $SIG{'HUP'} = sub {
-	$self->logger->info('Received SIGHUP.');
-	while(my $worker = pop @{$self->children}){
+        $self->logger->info('Received SIGHUP.');
+        while(my $worker = pop @{$self->children}){
             $worker->kill();
         }
-	
-	$self->_set_hup(1);	
-	$running->send;
+
+        $self->_set_hup(1);
+        $running->send;
     };
 
     $running->recv;
@@ -252,20 +252,20 @@ sub _create_workers_for_one_collection {
     # Divide up hosts in config among number of workers defined in config
     foreach my $host (@{$collection->{'host'}}) {
         next if !defined($host) || (ref($host) ne '');
-	push(@{$hosts_by_worker{$idx}}, $host);
-	$idx++;
-	if ($idx >= $collection->{'workers'}) {
-	    $idx = 0;
-	}
+        push(@{$hosts_by_worker{$idx}}, $host);
+        $idx++;
+        if ($idx >= $collection->{'workers'}) {
+            $idx = 0;
+        }
     }
 
     # Spawn workers
     foreach my $worker_id (keys %hosts_by_worker) {
-	my $worker_name = "$collection->{'composite-name'}_$worker_id";
+        my $worker_name = "$collection->{'composite-name'}_$worker_id";
 
-	$self->_create_worker( name       => $worker_name,
+        $self->_create_worker( name       => $worker_name,
                                collection => $collection,
-			       hosts      => $hosts_by_worker{$worker_id});
+                               hosts      => $hosts_by_worker{$worker_id});
     }
 }
 
@@ -289,6 +289,14 @@ sub _create_worker{
             my $required_vals = $collection->{'required_values'};
             $required_vals = '' if !defined($required_vals);
 
+            my $excludes = $collection->{'exclude'};
+            $excludes = [] if !defined($excludes);
+
+            my @excludes = grep { defined($_->{'var'}) &&
+                                  defined($_->{'pattern'}) &&
+                                  (length($_->{'var'}) > 0) } @$excludes;
+            @excludes = map { "$_->{'var'}=$_->{'pattern'}" } @excludes;
+
             $self->logger->info("Creating Collector for " . $params{'name'});
             my $worker = GRNOC::Simp::TSDS::Worker->new(
                 worker_name => $params{'name'},
@@ -302,6 +310,7 @@ sub _create_worker{
                 filter_name => $collection->{'filter_name'},
                 filter_value => $collection->{'filter_value'},
                 required_value_fields => [ split(',', $required_vals) ],
+                exclude_patterns => \@excludes,
             );
             $worker->run();
         }

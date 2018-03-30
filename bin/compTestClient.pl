@@ -8,12 +8,12 @@ use GRNOC::Log;
 use AnyEvent;
 
 my $client = GRNOC::RabbitMQ::Client->new(   host => "127.0.0.1",
-					     port => 5672,
-					     user => "guest", 
-					     pass => "guest",
-					     exchange => 'Simp',
-					     timeout => 15,
-					     topic => 'Simp.CompData');
+                                             port => 5672,
+                                             user => "guest",
+                                             pass => "guest",
+                                             exchange => 'Simp',
+                                             timeout => 15,
+                                             topic => 'Simp.CompData');
 
 my $results;
 
@@ -33,7 +33,7 @@ my $results;
    #$client->interfaceGbps(ipaddrs => '156.56.6.103');
 #}
 
-#warn Dumper($client->CPU(ipaddrs => '156.56.6.103')); 
+#warn Dumper($client->CPU(ipaddrs => '156.56.6.103'));
 #warn Dumper($client->Temp(ipaddrs => '156.56.6.103'));
 while(1){
   my $start = time;
@@ -48,8 +48,8 @@ while(1){
   my $et = $end - $start;
 
   if ($et == 0){
-	warn "huh\n";
-	next;
+        warn "huh\n";
+        next;
   }
   my $rate = $x / ($et * 1.0);
 
