@@ -17,7 +17,7 @@ use GRNOC::WebService::Regex;
 
 
 ### required attributes ###
-=head1 public attrbibutes
+=head1 public attributes
 
 =over 12
 
@@ -70,7 +70,7 @@ has do_shutdown => ( is => 'rwp',
                      default => 0 );
 
 has rmq_dispatcher => ( is => 'rwp',
-                        default => undef );
+                        default => sub { undef } );
 
 my %_FUNCTIONS; # Used by _function_one_val
 my %_RPN_FUNCS; # Used by _rpn_calc
@@ -155,6 +155,8 @@ sub _start {
     $self->config->{'force_array'} = 1; 
     my $allowed_methods = $self->config->get( '/config/composite' );
 
+    my %predefined_param = map { $_ => 1 } ('node', 'period', 'exclude_regexp');
+
     foreach my $meth (@$allowed_methods){
       my $method_id = $meth->{'id'};
       print "$method_id:\n";
@@ -176,12 +178,18 @@ sub _start {
 				    multiple => 0,
 				    pattern => $GRNOC::WebService::Regex::ANY_NUMBER);
 
+      $method->add_input_parameter( name => 'exclude_regexp',
+				    description => 'a set of var=regexp pairs, where if scan variable var matches the regexp, we exclude it from the results',
+				    required => 0,
+				    multiple => 1,
+				    pattern => '^([^=]+=.*)$');
+
       #--- let xpath do the iteration for us
       my $path = "/config/composite[\@id=\"$method_id\"]/input";
       my $inputs = $self->config->get($path);
       foreach my $input (@$inputs){
         my $input_id = $input->{'id'};
-        next if ($input_id eq 'node') || ($input_id eq 'period');
+        next if $predefined_param{$input_id};
         my $required = 0;
         if(defined $input->{'required'}){$required = 1;}
 
@@ -266,6 +274,8 @@ sub _get{
   #
   # $results{'scan'}{$node}{$var_name} = [ list of OID suffixes ]
   #    * The results from the scan phase (_do_scans and _scan_cb)
+  # $results{'scan-exclude'}{$node}{$oid_suffix} = 1
+  #    * If present, exclude the OID suffix from results for that node
   # $results{'scan-match'}{$node}{$var_name}{$oid_suffix} = $val
   #    * Mapping from (scan-variable name, OID suffix) to value at OID
   # $results{'val'}{$host}{$oid_suffix}{$var_name} = $val
@@ -309,6 +319,13 @@ sub _do_scans{
 
   #--- find the set of required variables
   my $hosts = $params->{'node'}{'value'};
+
+  # find the set of exclude patterns, and group them by var
+  my %exclude_patterns;
+  foreach my $pattern (@{$params->{'exclude_regexp'}{'value'}}){
+      $pattern =~ /^([^=]+)=(.*)$/;
+      push @{$exclude_patterns{$1}}, $2;
+  }
   
   #--- this function will execute multiple scans in "parallel" using the begin / end approach
   #--- we use $cv to signal when all those scans are done
@@ -321,6 +338,7 @@ sub _do_scans{
   # Make sure several root hashes exist
   foreach my $host (@$hosts){
       $results->{'scan'}{$host} = {};
+      $results->{'scan-exclude'}{$host} = {};
       $results->{'scan-match'}{$host} = {};
       $results->{'val'}{$host} = {};
       $results->{'hostvar'}{$host} = {};
@@ -336,10 +354,16 @@ sub _do_scans{
 	  my $var_name = $scan->getAttribute("id");
 	  my $oid      = $scan->getAttribute("oid");
 	  my $param_nm = $scan->getAttribute("var");
+          my $ex_only  = $scan->getAttribute("exclude-only");
+
 	  my $targets;
 	  if(defined($param_nm) && defined($params->{$param_nm})){
 	      $targets = $params->{$param_nm}{"value"};
 	  }
+
+          my $excludes;
+          $excludes = $exclude_patterns{$param_nm} if defined($param_nm) && defined($exclude_patterns{$param_nm});
+
 	  $cv->begin;
 
 	  $self->client->get(
@@ -347,7 +371,7 @@ sub _do_scans{
 	      oidmatch => $oid,
 	      async_callback => sub {
 		  my $data = shift;
-		  $self->_scan_cb($data->{'results'},$hosts,$var_name,$oid,$targets,$results); 
+		  $self->_scan_cb($data->{'results'},$hosts,$var_name,$oid,$targets,$excludes,$results,$ex_only); 
 		  $cv->end;
 	      } );
       }
@@ -356,17 +380,21 @@ sub _do_scans{
 }
 
 sub _scan_cb{
-  my $self        = shift;
-  my $data        = shift;
-  my $hosts       = shift;
-  my $var_name    = shift;
-  my $oid_pattern = shift;
-  my $vals        = shift;
-  my $results     = shift;
+  my $self         = shift;
+  my $data         = shift;
+  my $hosts        = shift;
+  my $var_name     = shift;
+  my $oid_pattern  = shift;
+  my $vals         = shift;
+  my $excludes     = shift;
+  my $results      = shift;
+  my $exclude_only = shift; # if true, don't *add* results, but still possibly *subtract* results
 
   $oid_pattern =~ s/\*.*$//;
   $oid_pattern =  quotemeta($oid_pattern);
-  
+
+  $excludes = [] if !defined($excludes);
+
   foreach my $host (@$hosts){
 
       my @oid_suffixes;
@@ -380,13 +408,19 @@ sub _scan_cb{
           # strip out the wildcard part of the oid
 	  $oid =~ s/^$oid_pattern//;
 
-          if((!$use_val_matches) || (any { $base_value =~ /$_/ } @$vals)){
+          if(( !$exclude_only ) &&
+             ( (!$use_val_matches) || (any { $base_value =~ /$_/ } @$vals) )){
               push @oid_suffixes, $oid;
               $results->{'scan-match'}{$host}{$var_name}{$oid} = $base_value;
           }
+
+          # If the value matches an exclude for this scan, add it to the blacklist
+          if(any { $base_value =~ /$_/ } @$excludes){
+              $results->{'scan-exclude'}{$host}{$oid} = 1;
+          }
       }
 
-      $results->{'scan'}{$host}{$var_name} = \@oid_suffixes;
+      $results->{'scan'}{$host}{$var_name} = \@oid_suffixes if !$exclude_only;
   }
   
   return ;
@@ -612,6 +646,16 @@ sub _do_functions{
         my @fctns    = $xpc->find("./fctn", $val)->get_nodelist;
 
         $self->_function_one_val($val_name, \@fctns, $params, $results);
+    }
+
+    # Finally, filter out OID suffixes that we identified
+    # as "should be excluded" in the scan phase
+    foreach my $host (keys %{$results->{'val'}}){
+        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}){
+            if ($results->{'scan-exclude'}{$host}{$oid_suffix}){
+                delete $results->{'final'}{$host}{$oid_suffix};
+            }
+        }
     }
 
     $cv->end;
