@@ -39,6 +39,8 @@ use GRNOC::Simp::TSDS::Pusher;
 
 =item filter_value
 
+=item exclude_patterns
+
 =item required_value_fields
 
 =back
@@ -71,6 +73,8 @@ has composite_name => (is => 'rwp',
 
 has filter_name => (is => 'rwp');
 has filter_value => (is => 'rwp');
+
+has exclude_patterns => (is => 'rwp', default => sub { [] });
 
 has required_value_fields => (is => 'rwp', default => sub { [] });
 
@@ -207,6 +211,11 @@ sub _load_config {
 		if ($self->filter_name){
 		    $args{$self->filter_name} = $self->filter_value;
 		}
+
+                # to provide some degree of backward compatibility, we only put this field on if we need to:
+                if (scalar(@{$self->exclude_patterns}) > 0) {
+                    $args{'exclude_regexp'} = $self->exclude_patterns;
+                }
 
 		$self->simp_client->$composite(%args);
 	    }
