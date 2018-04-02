@@ -23,6 +23,11 @@ sub build_config {
     my $conf_file = $args{'config_file'};
     my $hosts_dir = $args{'hosts_dir'};
 
+    die 'argument config_file not defined!' if !defined($conf_file);
+    die 'argument hosts_dir not defined!'   if !defined($hosts_dir);
+    die "Config file '$conf_file' not a regular file!"  if ! -f $conf_file;
+    die "Hosts directory '$hosts_dir' not a directory!" if ! -d $hosts_dir;
+
 
     # Config that isn't specific to a group or a host: { redis_host, redis_port, pid_file }
     my %globals;
