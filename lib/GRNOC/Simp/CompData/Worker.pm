@@ -557,6 +557,24 @@ sub _hostvar_cb{
   }
 }
 
+sub _lookup_indicies{
+    my $self = shift;
+    my $oid = shift;
+    my $lut = shift;
+
+    my $var = $lut->{$oid};
+    if(!defined($var)){
+	foreach my $key (keys (%{$lut})){
+	    if($oid =~ /$key\./){
+		$var = $lut->{$key};
+	    }
+	}
+    }
+
+    return $var;
+
+}
+
 sub _val_cb{
   my $self        = shift;
   my $data        = shift;
@@ -570,11 +588,15 @@ sub _val_cb{
       my $val      = $data->{$host}{$oid}{'value'};
       my $val_time = $data->{$host}{$oid}{'time'};
 
-      my $indices = $lut->{$oid};
+      #my $indices = $lut->{$oid};
+      my $indices = $self->_lookup_indicies($oid, $lut);
       next if !defined($indices);
 
       foreach my $index (@$indices){
-          $results->{'val'}{$host}{$index->[0]}{$index->[1]} = $val;
+	  if(!defined($results->{'val'}{$host}{$index->[0]}{$index->[1]})){
+	      $results->{'val'}{$host}{$index->[0]}{$index->[1]} = ();
+	  }
+          push(@{$results->{'val'}{$host}{$index->[0]}{$index->[1]}},$val);
           if(!defined($results->{'val'}{$host}{$index->[0]}{'time'})){
               $results->{'val'}{$host}{$index->[0]}{'time'} = $val_time;
           }
@@ -665,117 +687,172 @@ sub _function_one_val{
 %_FUNCTIONS = (
     # For many of these operations, we take the view that
     # (undef op [anything]) should equal undef, hence line 2
+    'sum' => sub {
+	my ($vals, $operand) = @_;
+	my $new_val = 0;
+	foreach my $val (@$vals){
+	    $new_val += $val;
+	}
+	return $new_val;
+    },
+    'max' => sub {
+	my ($vals, $operand) = @_;
+        my $new_val;
+        foreach my $val (@$vals){
+	    if(!defined($new_val)){
+		$new_val = $val;
+	    }else{
+		if($val > $new_val){
+		    $new_val = $val;
+		}
+	    }
+        }
+        return $new_val;
+    },
+    'min' => sub {
+        my ($vals, $operand) = @_;
+        my $new_val;
+        foreach my $val (@$vals){
+	    if(!defined($new_val)){
+                $new_val = $val;
+            }else{
+                if($val < $new_val){
+                    $new_val = $val;
+                }
+            }
+        }
+        return $new_val;
+    },
     '+' => sub { # addition
-        my ($val, $operand) = @_;
-        return $val if !defined($val);
-        $val + $operand;
+        my ($vals, $operand) = @_;
+	foreach my $val (@$vals){
+	    return $val if !defined($val);
+	    return $val + $operand;
+	}
     },
     '-' => sub { # subtraction
-        my ($val, $operand) = @_;
-        return $val if !defined($val);
-        $val - $operand;
+        my ($vals, $operand) = @_;
+	foreach my $val( @$vals){
+	    return $val if !defined($val);
+	    return $val - $operand;
+	}
     },
     '*' => sub { # multiplication
-        my ($val, $operand) = @_;
-        return $val if !defined($val);
-        $val * $operand;
+        my ($vals, $operand) = @_;
+	foreach my $val (@$vals){
+	    return $val if !defined($val);
+	    return $val * $operand;
+	}
     },
     '/' => sub { # division
-        my ($val, $operand) = @_;
-        return $val if !defined($val);
-        $val / $operand;
+        my ($vals, $operand) = @_;
+	foreach my $val (@$vals){
+	    return $val if !defined($val);
+	    return $val / $operand;
+	}
     },
     '%' => sub { # modulus
-        my ($val, $operand) = @_;
-        return $val if !defined($val);
-        $val % $operand;
+        my ($vals, $operand) = @_;
+	foreach my $val (@$vals){
+	    return $val if !defined($val);
+	    return $val % $operand;
+	}
     },
     'ln' => sub { # base-e logarithm
-        my $val = shift;
-        return $val if !defined($val);
-        eval { log($val); }; # if val==0, we want the result to be undef, so this works just fine
+        my $vals = shift;
+	foreach my $val (@$vals){
+	    return $val if !defined($val);
+	    #eval { log($val); }; # if val==0, we want the result to be undef, so this works just fine
+	}
     },
     'log10' => sub { # base-10 logarithm
-        my $val = shift;
-        return $val if !defined($val);
-        $val = eval { log($val); }; # see ln
-        $val /= log(10) if defined($val);
-        $val;
+        my $vals = shift;
+	foreach my $val (@$vals){
+	    return $val if !defined($val);
+	    $val = eval { log($val); }; # see ln
+	    $val /= log(10) if defined($val);
+	    return $val;
+	}
     },
     'regexp' => sub { # regular-expression match and extract first group
-        my ($val, $operand) = @_;
-        if($val =~ /$operand/){
-            return $1;
-        }
-        $val;
+        my ($vals, $operand) = @_;
+	foreach my $val (@$vals){
+	    if($val =~ /$operand/){
+		return $1;
+	    }
+	    return $val;
+	}
     },
     'replace' => sub { # regular-expression replace
-        my ($val, $operand, $elem) = @_;
-        my $replace_with = $elem->getAttribute("with");
-        $val = Data::Munge::replace($val, $operand, $replace_with);
-        $val;
+        my ($vals, $operand, $elem) = @_;
+	foreach my $val (@$vals){
+	    my $replace_with = $elem->getAttribute("with");
+	    $val = Data::Munge::replace($val, $operand, $replace_with);
+	    return $val;
+	}
     },
     'rpn' => \&_rpn_calc,
 );
 
 sub _rpn_calc{
-    my ($val, $operand, $fctn_elem, $val_set, $results, $host) = @_;
-
-    # As a convenience, we initialize the stack with a copy of $val on it already
-    my @stack = ($val);
-
-    # Split the RPN program's text into tokens (quoted strings,
-    # or sequences of non-space chars beginning with a non-quote):
-    my @prog;
-    my $progtext = $operand;
-    while (length($progtext) > 0){
-        $progtext =~ /^(\s+|[^\'\"][^\s]*|\'([^\'\\]|\\.)*(\'|\\?$)|\"([^\"\\]|\\.)*(\"|\\?$))/;
-        my $x = $1;
-        push @prog, $x if $x !~ /^\s*$/;
-        $progtext = substr $progtext, length($x);
-    }
-
-    my %func_lookup_errors;
-    my @prog_copy = @prog;
-    GRNOC::Log::log_debug('RPN Program: ' . Dumper(\@prog_copy));
-
-    # Now, go through the program, one token at a time:
-    foreach my $token (@prog){
-        # Handle some special cases of tokens:
-        if($token =~ /^[\'\"]/){ # quoted strings
-            # Take off the start and end quotes, including
-            # the handling of unterminated strings:
-            if($token =~ /^\"/) {
-                $token =~ s/^\"(([^\"\\]|\\.)*)[\"\\]?$/$1/;
-            }else{
-                $token =~ s/^\'(([^\'\\]|\\.)*)[\'\\]?$/$1/;
+    my ($vals, $operand, $fctn_elem, $val_set, $results, $host) = @_;
+    foreach my $val (@$vals){
+	# As a convenience, we initialize the stack with a copy of $val on it already
+	my @stack = ($val);
+	
+	# Split the RPN program's text into tokens (quoted strings,
+	# or sequences of non-space chars beginning with a non-quote):
+	my @prog;
+	my $progtext = $operand;
+	while (length($progtext) > 0){
+	    $progtext =~ /^(\s+|[^\'\"][^\s]*|\'([^\'\\]|\\.)*(\'|\\?$)|\"([^\"\\]|\\.)*(\"|\\?$))/;
+	    my $x = $1;
+	    push @prog, $x if $x !~ /^\s*$/;
+	    $progtext = substr $progtext, length($x);
+	}
+	
+	my %func_lookup_errors;
+	my @prog_copy = @prog;
+	GRNOC::Log::log_debug('RPN Program: ' . Dumper(\@prog_copy));
+	
+	# Now, go through the program, one token at a time:
+	foreach my $token (@prog){
+	    # Handle some special cases of tokens:
+	    if($token =~ /^[\'\"]/){ # quoted strings
+		# Take off the start and end quotes, including
+		# the handling of unterminated strings:
+		if($token =~ /^\"/) {
+		    $token =~ s/^\"(([^\"\\]|\\.)*)[\"\\]?$/$1/;
+		}else{
+		    $token =~ s/^\'(([^\'\\]|\\.)*)[\'\\]?$/$1/;
+		}
+		$token =~ s/\\(.)/$1/g; # unescape escapes
+		push @stack, $token;
+	    }elsif($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
+		push @stack, ($token + 0);
+	    }elsif($token =~ /^\$/){ # name of a value associated with the current (host, OID suffix)
+		push @stack, $val_set->{substr $token, 1};
+	    }elsif($token =~ /^\#/){ # host variable
+		push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
+	    }elsif($token eq '@'){ # push hostname
+		push @stack, $host;
+	    }else{ # treat as a function
+		if (!defined($_RPN_FUNCS{$token})){
+		    GRNOC::Log::log_error("RPN function $token not defined!") if !$func_lookup_errors{$token};
+		    $func_lookup_errors{$token} = 1;
+		    next;
             }
-            $token =~ s/\\(.)/$1/g; # unescape escapes
-            push @stack, $token;
-        }elsif($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
-            push @stack, ($token + 0);
-        }elsif($token =~ /^\$/){ # name of a value associated with the current (host, OID suffix)
-            push @stack, $val_set->{substr $token, 1};
-        }elsif($token =~ /^\#/){ # host variable
-            push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
-        }elsif($token eq '@'){ # push hostname
-            push @stack, $host;
-        }else{ # treat as a function
-            if (!defined($_RPN_FUNCS{$token})){
-                GRNOC::Log::log_error("RPN function $token not defined!") if !$func_lookup_errors{$token};
-                $func_lookup_errors{$token} = 1;
-                next;
-            }
-            $_RPN_FUNCS{$token}(\@stack);
-        }
+		$_RPN_FUNCS{$token}(\@stack);
+	    }
+	    
+	    # We copy, as in certain cases Dumper() can affect the elements of values passed to it
+	    my @stack_copy = @stack;
+	    GRNOC::Log::log_debug("Stack, post token '$token': " . Dumper(\@stack_copy));
+	}
 
-        # We copy, as in certain cases Dumper() can affect the elements of values passed to it
-        my @stack_copy = @stack;
-        GRNOC::Log::log_debug("Stack, post token '$token': " . Dumper(\@stack_copy));
+	# Return the top of the stack
+	return pop @stack;
     }
-
-    # Return the top of the stack
-    return pop @stack;
 }
 
 # Turns truthy values to 1, falsy values to 0. Like K&R *intended*.
