@@ -459,7 +459,7 @@ sub _do_vals{
                         my $scan = $results->{'scan'}{$host};
                         foreach my $scan_var (keys %{$scan}){
                             foreach my $oid_suffix (@{$scan->{$scan_var}}){
-                                $val_host->{$oid_suffix}{$id} = $host;
+                                $val_host->{$oid_suffix}{$id} = [$host];
                             }
                         }
                     }
@@ -473,7 +473,7 @@ sub _do_vals{
                     next if !defined($scan_var);
 
                     foreach my $oid_suffix (keys %$scan_var){
-                        $val_host->{$oid_suffix}{$id} = $scan_var->{$oid_suffix};
+                        $val_host->{$oid_suffix}{$id} = [$scan_var->{$oid_suffix}];
                     }
                 }
             }else{ # pull data from Simp
@@ -596,6 +596,9 @@ sub _val_cb{
 	  if(!defined($results->{'val'}{$host}{$index->[0]}{$index->[1]})){
 	      $results->{'val'}{$host}{$index->[0]}{$index->[1]} = ();
 	  }
+	  warn "Index array:" . Dumper($index);
+	  warn Dumper($results->{'val'}{$host}{$index->[0]}{$index->[1]});
+	  warn Dumper($val);
           push(@{$results->{'val'}{$host}{$index->[0]}{$index->[1]}},$val);
           if(!defined($results->{'val'}{$host}{$index->[0]}{'time'})){
               $results->{'val'}{$host}{$index->[0]}{'time'} = $val_time;
@@ -670,6 +673,8 @@ sub _function_one_val{
                 $val = $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
             }
 
+	    $val = $val->[0];
+
             $results->{'final'}{$host}{$oid_suffix}{$val_name} = $val;
         }
     }
@@ -689,11 +694,12 @@ sub _function_one_val{
     # (undef op [anything]) should equal undef, hence line 2
     'sum' => sub {
 	my ($vals, $operand) = @_;
+	warn "Passed in Vals: " . Dumper($vals);
 	my $new_val = 0;
 	foreach my $val (@$vals){
 	    $new_val += $val;
 	}
-	return $new_val;
+	return [$new_val];
     },
     'max' => sub {
 	my ($vals, $operand) = @_;
@@ -707,7 +713,7 @@ sub _function_one_val{
 		}
 	    }
         }
-        return $new_val;
+        return [$new_val];
     },
     'min' => sub {
         my ($vals, $operand) = @_;
@@ -721,47 +727,47 @@ sub _function_one_val{
                 }
             }
         }
-        return $new_val;
+        return [$new_val];
     },
     '+' => sub { # addition
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
-	    return $val if !defined($val);
-	    return $val + $operand;
+	    return [$val] if !defined($val);
+	    return [$val] + $operand;
 	}
     },
     '-' => sub { # subtraction
         my ($vals, $operand) = @_;
 	foreach my $val( @$vals){
-	    return $val if !defined($val);
-	    return $val - $operand;
+	    return [$val] if !defined($val);
+	    return [$val] - $operand;
 	}
     },
     '*' => sub { # multiplication
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
-	    return $val if !defined($val);
-	    return $val * $operand;
+	    return [$val] if !defined($val);
+	    return [$val * $operand];
 	}
     },
     '/' => sub { # division
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
 	    return $val if !defined($val);
-	    return $val / $operand;
+	    return [$val / $operand];
 	}
     },
     '%' => sub { # modulus
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
 	    return $val if !defined($val);
-	    return $val % $operand;
+	    return [$val % $operand];
 	}
     },
     'ln' => sub { # base-e logarithm
         my $vals = shift;
 	foreach my $val (@$vals){
-	    return $val if !defined($val);
+	    return [$val] if !defined($val);
 	    #eval { log($val); }; # if val==0, we want the result to be undef, so this works just fine
 	}
     },
@@ -771,16 +777,16 @@ sub _function_one_val{
 	    return $val if !defined($val);
 	    $val = eval { log($val); }; # see ln
 	    $val /= log(10) if defined($val);
-	    return $val;
+	    return [$val];
 	}
     },
     'regexp' => sub { # regular-expression match and extract first group
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
 	    if($val =~ /$operand/){
-		return $1;
+		return [$1];
 	    }
-	    return $val;
+	    return [$val];
 	}
     },
     'replace' => sub { # regular-expression replace
@@ -788,10 +794,10 @@ sub _function_one_val{
 	foreach my $val (@$vals){
 	    my $replace_with = $elem->getAttribute("with");
 	    $val = Data::Munge::replace($val, $operand, $replace_with);
-	    return $val;
+	    return [$val];
 	}
     },
-    'rpn' => \&_rpn_calc,
+    'rpn' => [\&_rpn_calc],
 );
 
 sub _rpn_calc{
