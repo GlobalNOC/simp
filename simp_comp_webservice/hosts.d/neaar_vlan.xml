@@ -1,5 +1,0 @@
-<config>
-	<host ip="192.203.116.1" community="neaar-peek" node_name="rtr.newy32aoa.neaar.net" snmp_version='2c'>
-		<group name="brocade_vlan"/>
-	</host>
-</config>

@@ -4,8 +4,8 @@ use Time::HiRes qw(usleep gettimeofday tv_interval);
 use GRNOC::WebService;
 use JSON;
 use Data::Dumper;
-use GRNOC::RabbitMQ::Client;
-use AnyEvent;
+#use GRNOC::RabbitMQ::Client;
+#use AnyEvent;
 
 #------ Variables
 my $method_obj;

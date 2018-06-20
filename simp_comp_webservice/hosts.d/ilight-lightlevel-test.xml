@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-
-<config>
-  <host ip="199.8.216.92" community="tstlb" snmp_version="2c" node_name="bbsw.ictc.testlab.grnoc.iu.edu">
-    <group name="mx960_laser"></group>
-  </host>
-</config>
