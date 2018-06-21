@@ -670,7 +670,8 @@ sub _function_one_val{
 
                 # Fetch a commonly-used attribute
                 my $operand = $fctn->getAttribute("value");
-                $val = $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
+                warn "Function: " . $func_id . "\n";
+		$val = $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
             }
 
 	    $val = $val->[0];
@@ -733,14 +734,14 @@ sub _function_one_val{
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
 	    return [$val] if !defined($val);
-	    return [$val] + $operand;
+	    return [$val + $operand];
 	}
     },
     '-' => sub { # subtraction
         my ($vals, $operand) = @_;
 	foreach my $val( @$vals){
 	    return [$val] if !defined($val);
-	    return [$val] - $operand;
+	    return [$val - $operand];
 	}
     },
     '*' => sub { # multiplication
@@ -797,7 +798,7 @@ sub _function_one_val{
 	    return [$val];
 	}
     },
-    'rpn' => [\&_rpn_calc],
+    'rpn' => sub { return [ _rpn_calc(@_) ]; },
 );
 
 sub _rpn_calc{
