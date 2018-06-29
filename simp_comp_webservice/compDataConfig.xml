@@ -1,0 +1,630 @@
+<!-- hostType is used to control what instance to apply 
+     types are designed to act like progressively more specific strings 
+     /vendor/model/codeversion/arbitrary
+     if not set then its a default, setting it to "juniper" gives you 
+     something applicable to all juniper  "juniper/mx"  more specific
+     this is not full proof but just a convention to use between simp
+     and comp, with where we do the setting of hostType is not yet defined
+-->
+
+<config workers="5" >
+    <redis host="127.0.0.1" port="6380"/>
+    <rabbitMQ host="127.0.0.1" port="5672" user="guest" password="guest"/>
+
+    <!-- NEAAR per VLAN brocade device , 7260:160 -->
+    <composite id="brocadeVLAN">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+        <instance id="brocade_vlan" hostType="default">
+            <scan id="tag" oid="1.3.6.1.2.1.17.7.1.4.3.1.1.*" var="descr" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.17.7.1.4.3.1.1.tag" />
+                <val id="inUcast" var="tag" oid="1.3.6.1.4.1.1991.1.1.3.2.8.1.6.tag.*" type="rate" >
+                    <fctn name="sum" />
+                </val>
+                <val id="outUcast" var="tag" oid="1.3.6.1.4.1.1991.1.1.3.2.8.1.9.tag.*" type="rate">
+                    <fctn name="sum" />
+                </val>
+                <val id="input" var="tag" oid="1.3.6.1.4.1.1991.1.1.3.2.8.1.12.tag.*" type="rate">
+                    <fctn name="*" value="8" />
+                    <fctn name="sum" />
+                </val>
+                <val id="output" var="tag" oid="1.3.6.1.4.1.1991.1.1.3.2.8.1.15.tag.*" type="rate">
+                    <fctn name="*" value="8" />
+                    <fctn name="sum" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+    <composite id="mx960_light">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <scan  id="if_"    oid="1.3.6.1.2.1.31.1.1.1.18.*" var="ifAlias" exclude-only="1" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" />
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.1.1.1.5.ifIdx" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.1.1.1.7.ifIdx" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+    <composite id="mx960_light_lane0">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane0" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane0' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.0" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.0" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+    <composite id="mx960_light_lane1">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane1" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane1' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.1" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.1" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+    <composite id="mx960_light_lane2">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane2" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane2' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.2" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.2" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+    <composite id="mx960_light_lane3">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane3" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane3' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.3" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.3" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+    <composite id="mx960_light_lane4">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane4" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane4' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.4" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.4" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+    <composite id="mx960_light_lane5">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane5" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane5' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.5" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.5" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+    <composite id="mx960_light_lane6">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane6" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane6' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.6" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.6" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+    <composite id="mx960_light_lane7">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane7" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane7' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.7" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.7" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+    <composite id="mx960_light_lane8">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane8" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane8' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.8" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.8" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+    <composite id="mx960_light_lane9">
+        <input id="node" required="1"/>
+        <input id="ifName" />
+
+        <instance id="mx960OpticalData_lane9" hostType="default">
+            <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+            <result>
+                <val id="*node" var="node"/>
+                <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx">
+                    <fctn name="replace" value='.*' with='$2-lane9' />
+                </val>
+                <val id="rxpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.6.ifIdx.9" >
+                    <fctn name="/" value="100" />
+                </val>
+                <val id="txpower" oid="1.3.6.1.4.1.2636.3.60.1.2.1.1.8.ifIdx.9" >
+                    <fctn name="/" value="100" />
+                </val>
+            </result>
+        </instance>
+    </composite>
+
+
+    <!-- client (i.e., SFP+) interfaces on an Ekinops PM_10010MP module -->
+    <composite id='ekinops_pm_10010mp_client'>
+        <input id='node' required='1' />
+
+        <instance id='default10Client' hostType='default'>
+            <scan id='idx' oid='1.3.6.1.4.1.20044.58.7.1.1.1.1.*' />
+            <result>
+                <val id='*node' var='node'>
+                    <fctn name='regexp' value='^([^_]*)_.*$' />
+                </val>
+                <val id='*intf' var='idx' oid='1.3.6.1.4.1.20044.58.7.1.1.1.2.idx'>
+                    <fctn name='regexp' value='^([^(]+)\(.*$' />
+                    <fctn name='rpn' value='#slot "/" concat exch concat' />
+                </val>
+
+                <val id='input_bits' type='rate' oid='1.3.6.1.4.1.20044.58.11.2.4.16.1.2.idx'>
+                    <fctn name='*' value='8' />
+                </val>
+                <val id='input_errors' type='rate' oid='1.3.6.1.4.1.20044.58.11.2.4.32.1.2.idx' />
+                <val id='input_packets' type='rate' oid='1.3.6.1.4.1.20044.58.11.2.4.48.1.2.idx' />
+
+                <val id='output_errors' type='rate' oid='1.3.6.1.4.1.20044.58.4.2.96.1.2.idx' />
+
+                <val id='rxpower' oid='1.3.6.1.4.1.20044.58.3.2.64.1.2.idx'> <!-- SFF 8472 units -->
+                    <!-- This OID reports the power in the format provided by SFF 8472:
+               on a linear scale, in units of 0.1 microwatt. We want the power
+               in dBm, so we convert to that as follows: -->
+          <fctn name='log10' />
+          <fctn name='*' value='10' />
+          <fctn name='-' value='40' />
+      </val>
+      <val id='txpower' oid='1.3.6.1.4.1.20044.58.3.2.48.1.2.idx'> <!-- SFF 8472 units -->
+          <fctn name='log10' />
+          <fctn name='*' value='10' />
+          <fctn name='-' value='40' />
+      </val>
+  </result>
+    </instance>
+</composite>
+
+<!-- line (i.e., WAN) interface on an Ekinops PM_10010MP module -->
+  <composite id='ekinops_pm_10010mp_line'>
+      <input id='node' required='1' />
+
+      <instance id='default10Line' hostType='default'>
+          <scan id='idx' oid='1.3.6.1.4.1.20044.58.7.1.2.1.1.*' />
+          <result>
+              <val id='*node' var='node'>
+                  <fctn name='regexp' value='^([^_]*)_.*$' />
+              </val>
+              <val id='*intf' var='idx' oid='1.3.6.1.4.1.20044.58.7.1.2.1.2.idx'>
+                  <fctn name='regexp' value='^([^(]+)\(.*$' />
+                  <fctn name='rpn' value='#slot "/" concat exch concat' />
+              </val>
+
+              <val id='prefec' type='rate' oid='1.3.6.1.4.1.20044.58.4.3.196.1.2.idx' />
+              <val id='postfec' type='rate' oid='1.3.6.1.4.1.20044.58.4.3.192.1.2.idx' />
+
+              <val id='txpower' oid='1.3.6.1.4.1.20044.58.3.3.80.1.2.idx'> <!-- power(dBm) = signed(AV)/100 -->
+                  <!-- This and some other power measurements are 16-bit
+               two's-compliment values cast to an unsigned 16-bit number;
+               converting to the proper range uses a little trickery to
+               avoid conditionals. -->
+          <fctn name='rpn' value='32768 + 65536 % 32768 -' />
+          <!-- -32768 is the special value for "N/A";
+               everything else gets divided by 100 to get dBm -->
+          <fctn name='rpn' value='dup -32768 > exch 100 / _ ifelse' />
+      </val>
+      <val id='rxpower' oid='1.3.6.1.4.1.20044.58.3.3.128.1.2.idx'>
+          <fctn name='rpn' value='32768 + 65536 % 32768 -' />
+          <fctn name='rpn' value='dup -32768 > exch 100 / _ ifelse' />
+      </val>
+  </result>
+    </instance>
+</composite>
+
+<!-- client (i.e., CFP) interface on an Ekinops PM_10001 module -->
+  <composite id='ekinops_pm_10001_client'>
+      <input id='node' required='1' />
+
+      <instance id='default01Client' hostType='default'>
+          <scan id='idx' oid='1.3.6.1.4.1.20044.60.7.1.1.1.1.*' />
+          <result>
+              <val id='*node' var='node'>
+                  <fctn name='regexp' value='^([^_]*)_.*$' />
+              </val>
+              <val id='*intf' var='idx' oid='1.3.6.1.4.1.20044.60.7.1.1.1.2.idx'>
+                  <fctn name='regexp' value='^([^(]+)\(.*$' />
+                  <fctn name='rpn' value='#slot "/" concat exch concat' />
+              </val>
+
+              <val id='txpower' oid='1.3.6.1.4.1.20044.60.3.2.48.1.2.idx'> <!-- SFF 8472 units -->
+                  <fctn name='log10' />
+                  <fctn name='*' value='10' />
+                  <fctn name='-' value='40' />
+              </val>
+              <val id='rxpower' oid='1.3.6.1.4.1.20044.60.3.2.64.1.2.idx'> <!-- SFF 8472 units -->
+                  <fctn name='log10' />
+                  <fctn name='*' value='10' />
+                  <fctn name='-' value='40' />
+              </val>
+
+              <val id='input_bits' type='rate' oid='1.3.6.1.4.1.20044.60.11.2.4.16.1.2.idx'>
+                  <fctn name='*' value='8' />
+              </val>
+              <val id='input_packets' type='rate' oid='1.3.6.1.4.1.20044.60.11.2.4.48.1.2.idx' />
+              <val id='input_errors' type='rate' oid='1.3.6.1.4.1.20044.60.11.2.4.32.1.2.idx' />
+
+              <val id='output_bits' type='rate' oid='1.3.6.1.4.1.20044.60.11.2.4.208.1.2.idx'>
+                  <fctn name='*' value='8' />
+              </val>
+              <val id='output_packets' type='rate' oid='1.3.6.1.4.1.20044.60.11.2.4.240.1.2.idx' />
+              <!--<val id='output_errors' type='rate' oid='1.3.6.1.4.1.20044.60.11.2.4.224.1.2.idx' />-->
+              <val id='output_errors' type='rate' oid='1.3.6.1.4.1.20044.60.4.2.96.1.2.idx' />
+          </result>
+      </instance>
+  </composite>
+
+  <!-- line (i.e., WAN) interface on an Ekinops PM_10001 module -->
+  <composite id='ekinops_pm_10001_line'>
+      <input id='node' required='1' />
+
+      <instance id='default01Line' hostType='default'>
+          <scan id='idx' oid='1.3.6.1.4.1.20044.60.7.1.2.1.1.*' />
+          <result>
+              <val id='*node' var='node'>
+                  <fctn name='regexp' value='^([^_]*)_.*$' />
+              </val>
+              <val id='*intf' var='idx' oid='1.3.6.1.4.1.20044.60.7.1.2.1.2.idx'>
+                  <fctn name='regexp' value='^([^(]+)\(.*$' />
+                  <fctn name='rpn' value='#slot "/" concat exch concat' />
+              </val>
+
+              <val id='txpower' oid='1.3.6.1.4.1.20044.60.3.3.80.1.2.idx'> <!-- power(dBm) = signed(AV)/100 -->
+                  <fctn name='rpn' value='32768 + 65536 % 32768 -' />
+                  <fctn name='rpn' value='dup -32768 > exch 100 / _ ifelse' />
+              </val>
+              <val id='rxpower' oid='1.3.6.1.4.1.20044.60.3.3.128.1.2.idx'>
+                  <fctn name='rpn' value='32768 + 65536 % 32768 -' />
+                  <fctn name='rpn' value='dup -32768 > exch 100 / _ ifelse' />
+              </val>
+
+              <val id='postfec' type='rate' oid='1.3.6.1.4.1.20044.60.4.3.192.1.2.idx' />
+              <val id='prefec' type='rate' oid='1.3.6.1.4.1.20044.60.4.3.196.1.2.idx' />
+          </result>
+      </instance>
+  </composite>
+
+  <composite id="interfaceTestOne">
+      <input id="node" required="1"/>
+      <input id="ifName"/>
+
+      <instance id="cienaNameMunge" hostType="default">
+          <!-- if ifName not provided get all values in the table-->
+          <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+          <result>
+              <val id="*node"   var="ipaddr"/>
+              <!-- <val id="*intf" var="ifName"/> -->
+              <val id="*intf" var="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" >
+                  <fctn name="regexp" value="^.* ([^ ]+)$" />
+              </val>
+              <val id="input"     type="rate"  var="ifIdx"    oid="1.3.6.1.2.1.31.1.1.1.6.ifIdx" >
+                  <fctn name="*" value="8"/>
+              </val>
+              <val id="output"    type="rate" var="ifIdx"   oid="1.3.6.1.2.1.31.1.1.1.10.ifIdx" >
+                  <fctn name="*" value="8"/>
+              </val>
+              <val id="inerror"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.14.ifIdx" />
+              <val id="outerror"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.20.ifIdx" />
+              <val id="inUcast"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.11.ifIdx" />
+              <val id="outUcast"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.17.ifIdx" />
+              <val id="indiscard"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.13.ifIdx" />
+              <val id="outdiscard"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.19.ifIdx" />
+              <val id="status"  var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.8.ifIdx" />
+          </result>
+      </instance>
+  </composite>
+
+  <composite id="interfaces">
+      <input id="node" required="1"/>
+      <input id="ifName"/>
+
+      <instance id="cienaNameMunge" hostType="default">
+          <!-- if ifName not provided get all values in the table-->
+          <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+          <result>
+              <val id="*node"   var="node"/>
+              <!-- <val id="*intf" var="ifName"/> -->
+              <val id="*intf" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" >
+                  <fctn name="regexp" value="^.* ([^ ]+)$" />
+              </val>
+              <val id="input"     type="rate"    oid="1.3.6.1.2.1.31.1.1.1.6.ifIdx" >
+                  <fctn name="*" value="8"/>
+              </val>
+              <val id="output"    type="rate"   oid="1.3.6.1.2.1.31.1.1.1.10.ifIdx" >
+                  <fctn name="*" value="8"/>
+              </val>
+              <val id="inerror"  type="rate"  oid="1.3.6.1.2.1.2.2.1.14.ifIdx" />
+              <val id="outerror"  type="rate"  oid="1.3.6.1.2.1.2.2.1.20.ifIdx" />
+              <val id="inUcast"  type="rate"  oid="1.3.6.1.2.1.2.2.1.11.ifIdx" />
+              <val id="outUcast"  type="rate"  oid="1.3.6.1.2.1.2.2.1.17.ifIdx" />
+              <val id="indiscard"  type="rate"  oid="1.3.6.1.2.1.2.2.1.13.ifIdx" />
+              <val id="outdiscard"  type="rate"  oid="1.3.6.1.2.1.2.2.1.19.ifIdx" />
+              <val id="status"  oid="1.3.6.1.2.1.2.2.1.8.ifIdx" />
+          </result>
+      </instance>
+  </composite>
+
+  <composite id="interfaceCiena">
+      <input id="node" required="1"/>
+      <input id="ifName"/>
+
+      <instance id="genericIfByName" hostType="default">
+          <!-- if ifName not provided get all values in the table-->
+          <scan  id="ifIdx"  oid="1.3.6.1.4.1.1271.2.3.1.2.2.1.1.2.*" var="ifName" />
+
+          <result>
+              <val id="*node"   var="ipaddr" />
+              <val id="chassis" var="chassis" />
+              <val id="*intf" oid="1.3.6.1.4.1.1271.2.3.1.2.2.1.1.2.ifIdx" />
+
+              <val id="input"     type="rate"  oid="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.2.ifIdx" >
+                  <fctn name="*" value="8"/>
+              </val>
+              <val id="output"    type="rate"   oid="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.17.ifIdx" >
+                  <fctn name="*" value="8"/>
+              </val>
+              <val id="inerror"  type="rate"    oid="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.4.ifIdx" />
+              <val id="outerror"  type="rate"   oid="1.3.6.1.4.1.1271.2.3.1.2.3.1.5.1.24.ifIdx" />
+              <val id="inUcast"  type="rate"    oid="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.3.ifIdx" />
+              <val id="outUcast"  type="rate"   oid="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.19.ifIdx" />
+              <val id="indiscard"  type="rate"  oid="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.33.ifIdx" />
+          </result>
+      </instance>
+  </composite>
+
+  <composite id="cwk_interfaces">
+      <input id="node" required="1"/>
+      <input id="ifName"/>
+
+      <instance id="genericIfByName" hostType="default">
+          <!-- if ifName not provided get all values in the table-->
+          <scan  id="ifIdx"  oid="1.3.6.1.2.1.31.1.1.1.1.*" var="ifName" />
+          <result>
+              <val id="*node"   var="ipaddr"/>
+              <!-- <val id="*intf" var="ifName"/> -->
+              <val id="*intf" var="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.1.ifIdx" />
+              <val id="input"     type="rate"  var="ifIdx"    oid="1.3.6.1.2.1.31.1.1.1.6.ifIdx" >
+                  <fctn name="*" value="8"/>
+              </val>
+              <val id="output"    type="rate" var="ifIdx"   oid="1.3.6.1.2.1.31.1.1.1.10.ifIdx" >
+                  <fctn name="*" value="8"/>
+              </val>
+              <val id="inerror"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.14.ifIdx" />
+              <val id="outerror"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.20.ifIdx" />
+              <val id="inUcast"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.11.ifIdx" />
+              <val id="outUcast"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.17.ifIdx" />
+              <val id="indiscard"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.13.ifIdx" />
+              <val id="outdiscard"  type="rate" var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.19.ifIdx" />
+              <val id="status"  var="ifIdx"  oid="1.3.6.1.2.1.2.2.1.8.ifIdx" />
+          </result>
+      </instance>
+  </composite>
+
+  <composite id="CPU">
+      <input id="node" required="1"/>
+      <instance id="jnprCPU" hostType="juniper">
+          <!--- get all values in the juniper hardware table-->
+          <scan  id="compoundHwIdx"  oid="1.3.6.1.4.1.2636.3.1.13.1.5.*" />
+          <result>
+              <val id="host"   var="host"/>
+              <val id="device" oid="1.3.6.1.4.1.2636.3.1.13.1.5.$compoundHwIdx"/>
+              <val id="cpu"   oid="1.3.6.1.4.1.2636.3.1.13.1.8.$compoundHwIdx" />
+              <!-- result returns last 1 min percentage as integer from 0-100 -->
+          </result>
+      </instance>
+
+      <instance id="ciscoCPU" type="CPU" hostType="cisco">
+          <!--- get all values in the cisco util table-->
+          <scan  id="utilIdx"  oid=".1.3.6.1.2.1.47.1.1.1.1.2.*" />
+          <val   id="hwIdx"    oid=".1.3.6.1.2.1.47.1.1.1.1.2.$utilIdx" />
+          <result>
+              <val id="host"   var="host"/>
+              <val id="device" oid=".1.3.6.1.2.1.47.1.1.1.1.7.$hwIdx"/>
+              <val id="cpu"   oid=".1.3.6.1.2.1.47.1.1.1.1.5.$utilIdx" />
+              <!-- result returns last 1 min percentage as integer from 0-100 -->
+          </result>
+      </instance>
+
+      <instance id="genericCPU" type="CPU" hostType="default" >
+          <!--- get all values in the cisco util table-->
+          <scan  id="hwIdx"  oid="1.3.6.1.2.1.25.3.3.*" />
+          <result>
+              <val id="host"   var="host"/>
+              <val id="device" oid="1.3.6.1.2.1.25.3.3.1.$utilIdx"/>
+              <val id="cpu"   oid="1.3.6.1.2.1.25.3.3.2.$utilIdx" />
+              <!-- returns last minute percentage as integer from 0-100 -->
+          </result>
+      </instance>
+
+  </composite>
+
+  <composite id="intAddr">
+      <input id="node" required="1"/>
+      <input id="ifName"/>
+
+      <instance id="genericIfByName" hostType="default">
+          <scan id="intfIdx" oid="1.3.6.1.2.1.4.20.1.2.*" />
+          <result>
+              <val id="host" var="node" />
+              <val id="intf_index" oid="1.3.6.1.2.1.4.20.1.2.intfIdx" />
+              <val id="intf" oid="1.3.6.1.2.1.31.1.1.1.1.intfIdx" />
+              <val id="addr" oid="1.3.6.1.2.1.4.20.1.1.intfIdx" />
+          </result>
+      </instance>
+
+  </composite>
+
+  <composite id="LSP">
+      <input id="node" required="1"/>
+      <input id="lsp_name"/>
+
+      <instance id="" hostType="default">
+          <scan id="lspIdx" oid="1.3.6.1.4.1.2636.3.2.3.1.1.*" var="lsp_name" />
+
+          <result>
+              <val id="host" var="node" />
+              <val id="lspName" oid="1.3.6.1.4.1.2636.3.2.3.1.1.lspIdx" />
+              <val id="state" oid="1.3.6.1.4.1.2636.3.2.3.1.2.lspIdx" />
+              <val id="bps" type='rate' oid="1.3.6.1.4.1.2636.3.2.3.1.3.lspIdx">
+                  <fctn name='*' value='8' />
+              </val>
+              <val id="pps" type='rate' oid="1.3.6.1.4.1.2636.3.2.3.1.4.lspIdx" />
+              <val id="from" oid="1.3.6.1.4.1.2636.3.2.3.1.15.lspIdx" />
+              <val id="to" oid="1.3.6.1.4.1.2636.3.2.3.1.16.lspIdx" />
+              <val id="path_name" oid="1.3.6.1.4.1.2636.3.2.3.1.17.lspIdx" />
+              <val id="route_record" oid="1.3.6.1.4.1.2636.3.2.3.1.20.lspIdx" />
+          </result>
+
+      </instance>
+  </composite>
+
+
+  <composite id="juniper_memory">
+      <input id="node" required="1"/>
+      <input id="name"/>
+
+      <instance id="juniper_mem" hostType="default">
+          <!-- if ifName not provided get all values in the table-->
+          <scan  id="re_index"  oid="1.3.6.1.4.1.2636.3.1.13.1.5.*" var="name" />
+
+          <result>
+              <val id="*node" var="node" />
+              <val id="*name" oid="1.3.6.1.4.1.2636.3.1.13.1.5.re_index" />
+              <val id="memory_used" oid="1.3.6.1.4.1.2636.3.1.13.1.11.re_index" />
+          </result>
+
+      </instance>
+  </composite>
+
+</config>

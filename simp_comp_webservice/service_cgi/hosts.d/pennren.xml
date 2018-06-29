@@ -1,0 +1,227 @@
+<config>
+<!-- ote02.pshy.net.pennren.net, slot 1 -->
+<host ip="10.1.21.12" community="PennREN1" node_name="ote02.pshy.net.pennren.net_1" snmp_version='2c'>
+  <group id="ekinops_360_modules"/>
+    <host_variable name='slot' value='1' />
+    <host_variable name='random' value='hithere_atest' />
+</host>
+
+<!-- ote02.pshy.net.pennren.net, slot 2 -->
+<host ip="10.1.21.12" community="PennREN2" node_name="ote02.pshy.net.pennren.net_2" snmp_version='2c'>
+  <group id="ekinops_360_modules">
+  </group>
+    <host_variable name='slot' value='2' />
+</host>
+
+<!-- ote02.pshy.net.pennren.net, slot 3 -->
+<host ip="10.1.21.12" community="PennREN3" node_name="ote02.pshy.net.pennren.net_3" snmp_version='2c'>
+  <group id="ekinops_360_modules">
+  </group>
+    <host_variable name='slot' value='3' />
+</host>
+
+<!-- ote02.pshy.net.pennren.net, slot 4 -->
+<host ip="10.1.21.12" community="PennREN4" node_name="ote02.pshy.net.pennren.net_4" snmp_version='2c'>
+  <group id="ekinops_360_modules">
+  </group>
+    <host_variable name='slot' value='4' />
+</host>
+
+<!-- ote02.pshy.net.pennren.net, slot 5 -->
+<host ip="10.1.21.12" community="PennREN5" node_name="ote02.pshy.net.pennren.net_5" snmp_version='2c'>
+  <group id="ekinops_360_modules">
+  </group>
+    <host_variable name='slot' value='5' />
+</host>
+
+<!-- ote02.pshy.net.pennren.net slot 6 -->
+<host ip="10.1.21.12" community="PennREN6" node_name="ote02.pshy.net.pennren.net_6" snmp_version='2c'>
+  <group id="ekinops_360_modules">
+  </group>
+    <host_variable name='slot' value='6' />
+</host>
+
+<!-- ote02.pshy.net.pennren.net slot 7 -->
+<host ip="10.1.21.12" community="PennREN7" node_name="ote02.pshy.net.pennren.net_7" snmp_version='2c'>
+  <group id="ekinops_360_modules">
+  </group>
+    <host_variable name='slot' value='7' />
+</host>
+
+<!-- ote02.pshy.net.pennren.net slot 8 -->
+<host ip="10.1.21.12" community="PennREN8" node_name="ote02.pshy.net.pennren.net_8" snmp_version='2c'>
+  <group id="ekinops_360_modules">
+  </group>
+    <host_variable name='slot' value='8' />
+</host>
+
+<!-- ote02.pshy.net.pennren.net slot 9 -->
+<host ip="10.1.21.12" community="PennREN9" node_name="ote02.pshy.net.pennren.net_9" snmp_version='2c'>
+  <group id="ekinops_360_modules">
+  </group>
+    <host_variable name='slot' value='9' />
+</host>
+
+<!-- ote03.wind.net.pennren.net slot 1 -->
+<host ip="10.1.1.13" community="PennREN1" node_name="ote03.wind.net.pennren.net_1" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='1' />
+</host>
+
+<!-- ote03.wind.net.pennren.net slot 2 -->
+<host ip="10.1.1.13" community="PennREN2" node_name="ote03.wind.net.pennren.net_2" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='2' />
+</host>
+
+<!-- ote03.wind.net.pennren.net slot 3 -->
+<host ip="10.1.1.13" community="PennREN3" node_name="ote03.wind.net.pennren.net_3" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='3' />
+</host>
+
+<!-- ote03.wind.net.pennren.net slot 4 -->
+<host ip="10.1.1.13" community="PennREN4" node_name="ote03.wind.net.pennren.net_4" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='4' />
+</host>
+
+<!-- ote03.wind.net.pennren.net slot 5 -->
+<host ip="10.1.1.13" community="PennREN5" node_name="ote03.wind.net.pennren.net_5" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='5' />
+</host>
+
+<!-- ote03.wind.net.pennren.net slot 6 -->
+<host ip="10.1.1.13" community="PennREN6" node_name="ote03.wind.net.pennren.net_6" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='6' />
+</host>
+
+<!-- ote03.wind.net.pennren.net slot 7 -->
+<host ip="10.1.1.13" community="PennREN7" node_name="ote03.wind.net.pennren.net_7" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='7' />
+</host>
+
+<!-- ote03.wind.net.pennren.net slot 8 -->
+<host ip="10.1.1.13" community="PennREN8" node_name="ote03.wind.net.pennren.net_8" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='8' />
+</host>
+
+<!-- ote03.wind.net.pennren.net slot 9 -->
+<host ip="10.1.1.13" community="PennREN9" node_name="ote03.wind.net.pennren.net_9" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='9' />
+</host>
+
+<!-- ote04.psup.net.pennren.net slot 1 -->
+<host ip="10.1.11.15" community="PennREN1" node_name="ote04.psup.net.pennren.net_1" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='1' />
+</host>
+
+<!-- ote04.psup.net.pennren.net slot 2 -->
+<host ip="10.1.11.15" community="PennREN2" node_name="ote04.psup.net.pennren.net_2" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='2' />
+</host>
+
+<!-- ote04.psup.net.pennren.net slot 3 -->
+<host ip="10.1.11.15" community="PennREN3" node_name="ote04.psup.net.pennren.net_3" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='3' />
+</host>
+
+<!-- ote04.psup.net.pennren.net slot 4 -->
+<host ip="10.1.11.15" community="PennREN4" node_name="ote04.psup.net.pennren.net_4" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='4' />
+</host>
+
+<!-- ote04.psup.net.pennren.net slot 5 -->
+<host ip="10.1.11.15" community="PennREN5" node_name="ote04.psup.net.pennren.net_5" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='5' />
+</host>
+
+<!-- ote04.psup.net.pennren.net slot 6 -->
+<host ip="10.1.11.15" community="PennREN6" node_name="ote04.psup.net.pennren.net_6" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='6' />
+</host>
+
+<!-- ote04.psup.net.pennren.net slot 7 -->
+<host ip="10.1.11.15" community="PennREN7" node_name="ote04.psup.net.pennren.net_7" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='7' />
+</host>
+
+<!-- ote04.psup.net.pennren.net slot 8 -->
+<host ip="10.1.11.15" community="PennREN8" node_name="ote04.psup.net.pennren.net_8" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='8' />
+</host>
+
+<!-- ote04.psup.net.pennren.net slot 9 -->
+<host ip="10.1.11.15" community="PennREN9" node_name="ote04.psup.net.pennren.net_9" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='9' />
+</host>
+
+<!-- c200hc.klab.net.pennren.net slot 1 -->
+<host ip="10.1.79.12" community="PennREN1" node_name="c200hc.klab.net.pennren.net_1" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='1' />
+</host>
+
+<!-- c200hc.klab.net.pennren.net slot 2 -->
+<host ip="10.1.79.12" community="PennREN2" node_name="c200hc.klab.net.pennren.net_2" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='2' />
+</host>
+
+<!-- c200hc.klab.net.pennren.net slot 3 -->
+<host ip="10.1.79.12" community="PennREN3" node_name="c200hc.klab.net.pennren.net_3" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='3' />
+</host>
+
+<!-- c200hc.klab.net.pennren.net slot 4 -->
+<host ip="10.1.79.12" community="PennREN4" node_name="c200hc.klab.net.pennren.net_4" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='4' />
+</host>
+
+<!-- c200hc.klab.net.pennren.net slot 5 -->
+<host ip="10.1.79.12" community="PennREN5" node_name="c200hc.klab.net.pennren.net_5" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='5' />
+</host>
+
+<!-- c200hc.klab.net.pennren.net slot 6 -->
+<host ip="10.1.79.12" community="PennREN6" node_name="c200hc.klab.net.pennren.net_6" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='6' />
+</host>
+
+<!-- c200hc.klab.net.pennren.net slot 7 -->
+<host ip="10.1.79.12" community="PennREN7" node_name="c200hc.klab.net.pennren.net_7" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='7' />
+</host>
+
+<!-- c200hc.klab.net.pennren.net slot 8 -->
+<host ip="10.1.79.12" community="PennREN8" node_name="c200hc.klab.net.pennren.net_8" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='8' />
+</host>
+
+<!-- c200hc.klab.net.pennren.net slot 9 -->
+<host ip="10.1.79.12" community="PennREN9" node_name="c200hc.klab.net.pennren.net_9" snmp_version='2c'>
+  <group id="ekinops_360_modules" />
+  <host_variable name='slot' value='9' />
+</host>
+
+</config>

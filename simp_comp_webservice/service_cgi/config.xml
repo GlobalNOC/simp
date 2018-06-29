@@ -1,0 +1,6 @@
+<config>
+  
+	<!-- Default credentials to use for all services / URNs -->
+	<userInfo username="cds-remote-user" password="Umad473@instrum3nt@l" realm="teh realm" />
+
+</config>

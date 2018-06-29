@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>simp</title>
+        <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=News+Cycle:400,700">
+        <link rel="stylesheet" href="assets/css/user.css">
+
+    </head>
+
+    <body onload=loadComposites()> 
+        <nav class="navbar navbar-default">
+            <div class="container">
+                <div class="navbar-header"><a class="navbar-brand" href="index.html">SIMP </a><button class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navcol-1"><span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button></div>
+                <div class="collapse navbar-collapse" id="navcol-1">
+                    <ul class="nav navbar-nav">
+                        <li role="presentation"><a href="composite.html">composite </a></li>
+                        <li role="presentation"><a href="data.html">data </a></li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        <div class="container">
+            <div class="row product">
+                <div class="col-md-8 col-md-offset-0">
+                    <form id = "comp_form" style="margin-top:30px;">
+                        <div class="form-group">
+                            <label class="control-label">
+                                Composite 
+                            </label>
+                            <select id = "comp_dropdown" class="form-control">
+                                <option value="" >Select the composite</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="control-label">
+                                Host 
+                            </label>
+                            <select id = "host_dropdown" class="form-control">
+                                <option value="0">Please select a host</option>
+                                <option value="1" selected="selected">bbsw.ictc.testlab.grnoc.iu.edu</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="row">
+
+                <div class="col-md-12">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="getData()">Submit</button>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="page-header">
+                        <h3>Results </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="row product">
+                <div id="result_elem" class="col-md-12 col-md-offset-0">
+                </div>
+            </div>
+
+            <div class="panel-group" id="accordion">
+            </div> 
+        </div>
+        <footer class="site-footer">
+            <div class="container">
+                <hr>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <h5>SIMP © 2018</h5>
+                    </div>
+                    <div class="col-sm-6 social-icons"></div>
+                </div>
+            </div>
+        </footer>
+        <script src="assets/js/jquery.min.js"></script>
+        <script src="assets/bootstrap/js/bootstrap.min.js"></script>
+        <script type="text/javascript">
+            var url = '../cgi-dir/comp.cgi';
+            function loadComposites() {
+                var myRequest = new XMLHttpRequest();
+                myRequest.responseType = 'json';
+                myRequest.open('GET', url, true);
+                myRequest.onload = function(e) {
+                    var jsonResponse = myRequest.response+'';
+                    var split_response = jsonResponse.split(','); 
+                    var select = document.getElementById("comp_dropdown");
+                    for (var i = 0; i < split_response.length; i++) {
+                        var opt =  split_response[i];
+                        var el = document.createElement("option");
+                        el.textContent = opt;
+                        el.value = opt;
+                        if (opt == "mx960_light_lane0") {
+                            el.selected = "selected";
+                        }
+                        select.appendChild(el);
+                    }
+                }
+                myRequest.send(null);
+            }
+
+            function getData() {
+                var param_str = url +"?";
+                var composite = document.getElementById('comp_dropdown');
+                var host = document.getElementById('host_dropdown'); 
+
+                if (composite.selectedIndex == 0) {
+                    alert ("Please select the composite");
+                    return false;
+                } else if (host.selectedIndex == 0){
+                    alert ("Please select the host");
+                    return false;
+                } else {
+                    param_str += "method=" + composite.options[composite.selectedIndex].text + "&host=" + host.options[host.selectedIndex].text;
+                }
+                var myRequest = new XMLHttpRequest();
+                myRequest.responseType = 'json';
+                myRequest.open('GET', param_str, true);
+                myRequest.onload = function() {
+
+                    var jsonObjStr= JSON.stringify(myRequest.response);
+                    // console.log(myRequest.response); 
+                    var result = myRequest.response.results;
+                    var d = document; 
+                    var collapsible = d.getElementById("accordion");
+                    collapsible.innerHTML = "";
+                    for (var x in result) {
+                         
+                        // console.log(x);
+                        // console.log(myRequest.response.results[x]);
+                        for (var y in result[x]) {
+                            //  console.log(y); 
+                            //  console.log(result[x][y]);
+                            var div1 = d.createElement('div');
+                            div1.setAttribute("class", "panel panel-default");
+
+                            var div2 = d.createElement('div');
+                            div2.setAttribute("class", "panel-heading");
+                            
+                            var title = d.createElement('h4');
+                            title.setAttribute("class", "panel-title");
+
+                            var aTag = d.createElement('a');
+                            aTag.setAttribute("data-toggle", "collapse");
+                            aTag.setAttribute("data-parent", "#accordion");
+                            aTag.setAttribute("href", "#"+y); 
+                            aTag.innerHTML = y;
+
+                            title.appendChild(aTag);
+                            div2.appendChild(title);
+                            div1.appendChild(div2);
+
+                            var div3 = d.createElement('div');
+                            div3.id = y;
+                            div3.setAttribute("class", "panel-collapse collapse");
+
+                            var div4 = d.createElement('div');
+                            div4.setAttribute("class", "panel-body");
+                            var temp_str = "";
+                            for (var key in result[x][y]) {
+                                // if (p.hasOwnProperty(key)) {
+                                // console.log(key + " -> " + result[x][y][key]);
+                                temp_str += key + " = " + result[x][y][key] + "<br>";
+                                 
+                                //  }
+                            }
+                            // div4.innerHTML = JSON.stringify(result[x][y]);
+                            div4.innerHTML = temp_str;
+
+                            div3.appendChild(div4);
+                            div1.appendChild(div3);
+
+                            collapsible.appendChild(div1);
+                        }
+                    }
+
+
+                    // var p = {
+                    //     "p1": "value1",
+                    //     "p2": "value2",
+                    //     "p3": "value3"
+                    // };
+
+                    // for (var key in p) {
+                    //     if (p.hasOwnProperty(key)) {
+                    //         console.log(key + " -> " + p[key]);
+                    //     }
+                    // }
+                    // var jsonResponse = myRequest.responseText+"";
+
+                }
+                myRequest.send();
+            } 
+        </script> 
+    </body>
+
+
+
+
+
+
+</html>
