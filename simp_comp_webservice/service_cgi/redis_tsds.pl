@@ -1,6 +1,4 @@
 #!/usr/bin/perl -w
-print "Content-type: text/html\r\n\r\n";
-
 use Redis;
 use strict;
 use GRNOC::WebService;
@@ -9,22 +7,31 @@ use Data::Dumper;
 require HTTP::Request;
 use GRNOC::WebService::Client;
 use GRNOC::Config;
+use GRNOC::Log;
 
-# Setting up REDIS
-my $redis_host	= "io3.bldc.grnoc.iu.edu";
-my $redis_port	= "6380";
-my $redis=Redis->new(server => $redis_host.":".$redis_port);
 
 # Reading the config file
 my $config	= GRNOC::Config->new(
-				config_file	=> "/var/www/cgi-bin/config.xml",
+				config_file	=> "/etc/grnoc/webservice_client/redis_config.xml",
 				debug => 0,
 				force_array => 0
 				);
 my $info = $config->get("/config");
+
+# Setting logging file
+my $grnoc_log	= GRNOC::Log->new( config => "/etc/grnoc/logs/log.conf", watch => 120 );
+my $logger	= GRNOC::Log->get_logger();
+
+
+# Setting up REDIS
+my $redis_host	= $info->{'redisInfo'}{'host'};
+my $redis_port	= $info->{'redisInfo'}{'port'};
+my $redis=Redis->new(server => $redis_host.":".$redis_port);
+
+# Getting credentials for webservice
 my $USERNAME	= $info->{'userInfo'}{'username'};
 my $PASSWORD	= $info->{'userInfo'}{'password'};
-print $USERNAME;
+
 # Getting the count of objects and keys in REDIS::DB0
 sub get_count{
 	$redis->select(0);
@@ -51,25 +58,25 @@ sub get_count{
 
 # Pushing the data to TSDS using GRNOC::Config
 sub push_data{
+
 	# Getting count from the method above.
 	my %results	= get_count();
 
 	# Making the data frame as required by TSDS	
 	my %meta;
-	$meta{'database'}	= "db0";
+	$meta{'database'}	= $info->{'tsdsInfo'}{'database'};
 	$meta{'host'}		= $redis_host;
 	my %output;
-	$output{'interval'}	= 300;
+	$output{'interval'}	= $info->{'tsdsInfo'}{'interval'};;
 	$output{'time'}		= time();
-	$output{'type'}		= "simp_redis_counts";
+	$output{'type'}		= $info->{'tsdsInfo'}{'type'};;
 	$output{'meta'}		= \%meta;
 	$output{'values'}	= \%results;
 
 	# Hash to JSON
 	my $data	= encode_json \%output;	
 	$data= '['.$data.']';
-	my $url		= 'https://io3.bldc.grnoc.iu.edu/tsds/services/push.cgi';
-	
+	my $url		=$info->{'tsdsInfo'}{'url'};	
 	# Calling Tsds/puch.cgi
 	my $svc = GRNOC::WebService::Client->new(
 					url	=> $url,
@@ -77,7 +84,13 @@ sub push_data{
 					passwd	=> $PASSWORD,
  					usePost	=> 1
 						);
-	my $result = $svc->add_data(data => $data);
+	my $res = $svc->add_data(data => $data);
+   	if(!defined $res){
+	        log_error($svc->get_error());
+	   }
+	else{
+	       log_info(values $res);
+	   }
 }
 
 push_data()
