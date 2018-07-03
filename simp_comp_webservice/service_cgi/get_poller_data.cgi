@@ -1,5 +1,4 @@
 #!/usr/bin/perl -w
-#print "Content-type: text/html\r\n\r\n";
 use strict;
 use Time::HiRes qw(usleep gettimeofday tv_interval);
 use GRNOC::WebService;
@@ -7,8 +6,19 @@ use JSON;
 use Data::Dumper;
 use Redis;
 
+# Reading the config file
+my $config      = GRNOC::Config->new(
+			config_file     => "/etc/grnoc/webservice_client/redis_config.xml",
+			debug => 0,
+			force_array => 0
+				);
+my $info = $config->get("/config");
 
-my $redis=Redis->new(server => "io3.bldc.grnoc.iu.edu:6380");
+# Setting up Redis
+my $redis_host  = $info->{'redisInfo'}{'host'};
+my $redis_port  = $info->{'redisInfo'}{'port'};
+my $redis=Redis->new(server => $redis_host.":".$redis_port);
+
 
 
 sub get_groups{
