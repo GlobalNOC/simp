@@ -10,7 +10,12 @@ use Getopt::Long;
 use GRNOC::Simp::Poller;
 
 sub usage {
-    print "Usage: $0 [--config <file path>]  [--hosts <file path>] [--logging <file path>] [--nofork]\n";
+    my $text = <<"EOM";
+Usage: $0 [--config <file path>]  [--hosts <file path>]
+    [--logging <file path>] [--nofork]
+    [--user <user name>] [--group <group name>]
+EOM
+    print $text;
     exit( 1 );
 }
 
@@ -24,11 +29,15 @@ my $hosts_file  = DEFAULT_HOSTS_FILE;
 my $logging     = DEFAULT_LOGGING_FILE;
 my $nofork;
 my $help;
+my $username;
+my $groupname;
 
 GetOptions( 'config=s'  => \$config_file,
             'hosts=s'   => \$hosts_file,
  	    'logging=s' => \$logging,
 	    'nofork'    => \$nofork,
+	    'user=s'    => \$username,
+	    'group=s'   => \$groupname,
             'help|h|?'  => \$help ) 
 
 or usage();
@@ -40,6 +49,8 @@ my $poller = GRNOC::Simp::Poller->new(
 			config_file    => $config_file,
                         hosts_file     => $hosts_file,
                         logging_file   => $logging,
+                        run_user       => $username,
+                        run_group      => $groupname,
 			daemonize      => !$nofork );
 
 $poller->start();

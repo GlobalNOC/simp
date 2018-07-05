@@ -6,6 +6,7 @@ or otherwise managed semi-idependently. the ids used are only relevant if define
 -->
 
 <config>
+<!--
   <host ip="10.13.1.2" community="come on"> 
     <group id="int"/>
     <group id="bgp"/>
@@ -20,4 +21,5 @@ or otherwise managed semi-idependently. the ids used are only relevant if define
   <host ip="10.13.2.1" community="team"> 
     <group id="mac2ip"/>
   </host>
+-->
 </config>

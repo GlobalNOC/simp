@@ -170,7 +170,7 @@ sub _load_config {
 
     foreach my $file (@files){
 	next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
-	my $conf = GRNOC::Config->new( config_file => $self->hosts_file . "/" . $file,
+	my $conf = GRNOC::Config->new( config_file => $self->tsds_dir . "/" . $file,
                                        force_array => 1);
 	
 	my $collections = $conf->get("/config/collection");
@@ -310,6 +310,14 @@ sub _create_worker{
             my $required_vals = $collection->{'required_values'};
             $required_vals = '' if !defined($required_vals);
 
+            my $excludes = $collection->{'exclude'};
+            $excludes = [] if !defined($excludes);
+
+            my @excludes = grep { defined($_->{'var'}) &&
+                                  defined($_->{'pattern'}) &&
+                                  (length($_->{'var'}) > 0) } @$excludes;
+            @excludes = map { "$_->{'var'}=$_->{'pattern'}" } @excludes;
+
             $self->logger->info("Creating Collector for " . $params{'name'});
             my $worker = GRNOC::Simp::TSDS::Worker->new(
                 worker_name => $params{'name'},
@@ -323,6 +331,7 @@ sub _create_worker{
                 filter_name => $collection->{'filter_name'},
                 filter_value => $collection->{'filter_value'},
                 required_value_fields => [ split(',', $required_vals) ],
+                exclude_patterns => \@excludes,
             );
             $worker->run();
         }
