@@ -170,7 +170,7 @@ sub _load_config {
 	worker_name => $self->worker_name,
 	tsds_config => $self->tsds_config,
     ));
-
+    
     # set interval
     my $interval = $self->interval;
 

@@ -170,7 +170,7 @@ sub _load_config {
 
     foreach my $file (@files){
 	next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
-	my $conf = GRNOC::Config->new( config_file => $self->hosts_file . "/" . $file,
+	my $conf = GRNOC::Config->new( config_file => $self->tsds_dir . "/" . $file,
                                        force_array => 1);
 	
 	my $collections = $conf->get("/config/collection");

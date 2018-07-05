@@ -286,15 +286,16 @@ sub _create_workers {
 
       #--- split hosts between workers
       foreach my $host (@hosts){
-        push(@{$hostsByWorker{$idx}},$host);
-        if(!$var_worker{$host->{'node_name'}}){
-            $var_worker{$host->{'node_name'}} = 1;
-            $varsByWorker{$idx}{$host->{'node_name'}} = 1;
-        }
-        $idx++;
-        if($idx>=$workers) { $idx = 0; }
+	  next if(!defined($host->{'node_name'}));
+	  push(@{$hostsByWorker{$idx}},$host);
+	  if(!$var_worker{$host->{'node_name'}}){
+	      $var_worker{$host->{'node_name'}} = 1;
+	      $varsByWorker{$idx}{$host->{'node_name'}} = 1;
+	  }
+	  $idx++;
+	  if($idx>=$workers) { $idx = 0; }
       }
-
+      
       $self->logger->info( "Creating $workers child processes for group: $name" );     
 
       # keep track of children pids
