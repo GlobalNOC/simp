@@ -29,6 +29,8 @@ use GRNOC::Simp::TSDS::Worker;
 
 =item run_group
 
+=item tsds_dir
+
 =back
 
 =cut
@@ -38,6 +40,7 @@ has pidfile => (is => 'ro', isa => Str, required => 1);
 has daemonize => (is => 'ro', isa => Bool, required => 1);
 has run_user => (is => 'ro', required => 0);
 has run_group => (is => 'ro', required => 0);
+has tsds_dir => (is => 'ro', required => 1, isa => Str, default => "/etc/simp/tsds.d/");
 
 =head2 private attributes
 
@@ -157,8 +160,26 @@ sub _load_config {
     $self->_set_simp_config($conf->get('/config/simp')->[0]);
 
     $self->_set_tsds_config($conf->get('/config/tsds')->[0]);
+
+    #collections are loaded from the tsds.d directory!
+    opendir my $dir, $self->tsds_dir;
+    my @files = readdir $dir;
+    closedir $dir;
     
-    $self->_set_collections($conf->get('/config/collection'));
+    my @collections;
+
+    foreach my $file (@files){
+	next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
+	my $conf = GRNOC::Config->new( config_file => $self->tsds_dir . "/" . $file,
+                                       force_array => 1);
+	
+	my $collections = $conf->get("/config/collection");
+	foreach my $coll (@$collections){
+	    push(@collections,$coll);
+	}
+    }
+
+    $self->_set_collections(\@collections);
 
     # Sanity-check some of the collection parameters
     foreach my $collection (@{$self->collections}) {
