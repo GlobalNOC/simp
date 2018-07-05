@@ -24,8 +24,9 @@ name=simp-data.pl
 exec_file=/usr/bin/$name
 options=""
 username=simp
+group=simp
 lockfile=/var/lock/subsys/$name
-command="$exec_file $options"
+command="$exec_file $options --user ${username} --group ${group}"
 PIDFILE=/var/run/simp_data.pid
 
 start() {
