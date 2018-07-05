@@ -1,0 +1,105 @@
+.breadcrumb {
+  text-align:center;
+  background-color:transparent;
+  border-bottom:1px solid #eee;
+  padding-top:12px;
+  padding-bottom:12px;
+  margin-bottom:40px;
+}
+
+nav.navbar.navbar-default {
+  margin-bottom:0px;
+}
+
+@media (min-width:992px) {
+  .product h2 {
+    margin-top:0;
+  }
+}
+
+.navbar .navbar-brand {
+  font-size:24px;
+  line-height:18px;
+}
+
+.reviewer-name {
+  margin-right:10px;
+}
+
+.site-footer {
+  padding:20px 0;
+  text-align:center;
+}
+
+@media (min-width:768px) {
+  .site-footer h5 {
+    text-align:left;
+  }
+}
+
+.site-footer h5 {
+  color:inherit;
+  font-size:16px;
+}
+
+.site-footer .social-icons a:hover {
+  opacity:1;
+}
+
+.site-footer .social-icons a {
+  display:inline-block;
+  width:32px;
+  border:none;
+  font-size:20px;
+  border-radius:50%;
+  margin:4px;
+  color:#fff;
+  text-align:center;
+  background-color:#798FA5;
+  height:32px;
+  opacity:0.8;
+  line-height:32px;
+}
+
+@media (min-width:768px) {
+  .site-footer .social-icons {
+    text-align:right;
+  }
+}
+
+.btn.write-review {
+  float:right;
+  margin-top:-6px;
+}
+
+.navbar-default .navbar-brand:hover, .navbar-default .navbar-brand:focus {
+  background-color:#041F38;
+  color:#fdfdfd;
+}
+
+.navbar-default .navbar-nav > li > a:hover, .navbar-default .navbar-nav > li > a:focus {
+  background-color:#041F38;
+  color:#fdfdfd;
+}
+
+.page-header {
+  border-bottom:1px solid #718CA4;
+}
+
+.navbar-default .navbar-nav > li > a {
+  color:#fdfdfd;
+}
+
+.navbar-default {
+  background-color:#2A4E6E;
+  border-color:#2A4E6E;
+}
+
+.navbar {
+  border-radius:0px;
+}
+
+.navbar-default .navbar-brand {
+  color:#fdfdfd;
+}
+
