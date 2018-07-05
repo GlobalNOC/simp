@@ -4,7 +4,6 @@ use strict;
 use GRNOC::WebService;
 use JSON;
 use Data::Dumper;
-require HTTP::Request;
 use GRNOC::WebService::Client;
 use GRNOC::Config;
 use GRNOC::Log;
