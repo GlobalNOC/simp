@@ -9,7 +9,7 @@ use Parallel::ForkManager;
 use Proc::Daemon;
 use POSIX qw( setuid setgid );
 
-our $VERSION='1.0.6';
+our $VERSION='1.0.7';
 
 use GRNOC::Config;
 use GRNOC::Log;
