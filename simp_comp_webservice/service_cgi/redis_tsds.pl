@@ -8,7 +8,6 @@ use GRNOC::WebService::Client;
 use GRNOC::Config;
 use GRNOC::Log;
 
-
 # Reading the config file
 my $config	= GRNOC::Config->new(
 				config_file	=> "/etc/grnoc/webservice_client/redis_config.xml",
@@ -84,6 +83,7 @@ sub push_data{
  					usePost	=> 1
 						);
 	my $res = $svc->add_data(data => $data);
+
    	if(!defined $res){
 	        log_error($svc->get_error());
 	   }
