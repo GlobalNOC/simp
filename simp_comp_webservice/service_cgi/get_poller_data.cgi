@@ -5,7 +5,7 @@ use GRNOC::WebService;
 use JSON;
 use Data::Dumper;
 use Redis;
-
+#use Test::More tests => 1;
 # Reading the config file
 my $config      = GRNOC::Config->new(
 			config_file     => "/etc/grnoc/webservice_client/redis_config.xml",
@@ -13,6 +13,7 @@ my $config      = GRNOC::Config->new(
 			force_array => 0
 				);
 my $info = $config->get("/config");
+#ok(defined($config), "Config<<<");
 
 # Setting up Redis
 my $redis_host  = $info->{'redisInfo'}{'host'};
@@ -96,10 +97,14 @@ sub get_timestamp{
 	my %timestamp;
 	while( my ($key) = each (%keys))
 	{
-		my ($local_ip,$group,$worker_id,$timestamp)	= split(",",$key);
+		my ($local_ip,$worker_name,$timestamp)	= split(",",$key);
+		my $group			= $worker_name;
+		$worker_name			=~ s/[^0-9]//g;
+		my $worker_id			=~ s/[^0-9]//g;;
+		$group				=~ s/$worker_name//g;
 		$timestamp{$key}{'ip'}		= $local_ip;
 		$timestamp{$key}{'group'}	= $group;		
-		$timestamp{$key}{'wid'}		= $worker_id;
+		$timestamp{$key}{'wid'}		= $worker_name;
 		$timestamp{$key}{'timestamp'}	= $timestamp;
 
 	}	
@@ -120,7 +125,7 @@ sub get_data{
         my $timestamp   =       $params->{'timestamp'}{'value'};
 
         $redis->select(0);
-        my @data        =       $redis->smembers($ip.",".$group_id.','.$worker_id.','.$timestamp);
+        my @data        =       $redis->smembers($ip.",".$group_id.$worker_id.','.$timestamp);
         my %dict;
         foreach (@data)
         {
@@ -209,3 +214,4 @@ $get_data_method->add_input_parameter(
 my $res3 = $svc->register_method($get_data_method);
 
 my $res_end  = $svc->handle_request();
+
