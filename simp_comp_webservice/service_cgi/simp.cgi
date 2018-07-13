@@ -27,7 +27,8 @@ sub get {
     warn " SIMP: Get "; 
     warn Dumper($host);
     warn Dumper($oid);
-    my $client = GRNOC::RabbitMQ::Client->new(   host => "io3.bldc.grnoc.iu.edu",
+    # my $client = GRNOC::RabbitMQ::Client->new(   host => "io3.bldc.grnoc.iu.edu",
+    my $client = GRNOC::RabbitMQ::Client->new(   host => "127.0.0.1",
         port => 5672,
         user => "guest",
         pass => "guest",
