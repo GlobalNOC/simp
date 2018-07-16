@@ -24,14 +24,14 @@ sub get_initial_data {
 
     $results{'hosts'};
     $results{'groups'};
-    opendir(DIR, "./hosts.d") or die "Error opening the directory";
+    opendir(DIR, "/etc/simp/hosts.d") or die "Error opening the directory";
     my @files = grep(/\.xml$/,readdir(DIR));
     closedir(DIR);
 
     # Iterating over each file in hosts.d folder
     foreach my $file (@files) {
 
-        my $config = GRNOC::Config->new(config_file => "./hosts.d/$file", force_array => 0, debug => 0);
+        my $config = GRNOC::Config->new(config_file => "/etc/simp/hosts.d/$file", force_array => 0, debug => 0);
         my $hosts= $config->get("/config/host");
 
         # Array and hash handling of perl object
@@ -65,9 +65,9 @@ sub get_initial_data {
             }
             my $groups = $config->get("/config/host/group");
 
-            if (ref($groups) eq 'HASH') {
-                warn Dumper("GROUPS HASH 2");
-            }
+            # if (ref($groups) eq 'HASH') {
+            #     warn Dumper("GROUPS HASH 2");
+            # }
             foreach my $group (@$groups){
                 # warn Dumper($group);
                 if (!exists($group_hash{$group->{'id'}})) {
@@ -102,16 +102,16 @@ sub get_hosts {
     $params = shift;
     my $group_param = $params->{'group'}{'value'};
 
-    opendir(DIR, "./hosts.d") or die "Error opening the directory";
+    opendir(DIR, "/etc/simp/hosts.d") or die "Error opening the directory";
     my @files = grep(/\.xml$/,readdir(DIR));
     closedir(DIR);
 
     # Iterating over each file in hosts.d folder
     foreach my $file (@files) {
 
-        my $config = GRNOC::Config->new(config_file => "./hosts.d/$file", force_array => 0, debug => 0);
+        my $config = GRNOC::Config->new(config_file => "/etc/simp/hosts.d/$file", force_array => 0, debug => 0);
         my $hosts= $config->get("/config/host");
-        warn "$file";
+        # warn "$file";
         # Array and hash handling of perl object
         if (ref($hosts) eq 'HASH') {
 
@@ -206,14 +206,14 @@ sub get_groups{
     # }
 
 
-    opendir(DIR, "./hosts.d") or die "Error opening the directory";
+    opendir(DIR, "/etc/simp/hosts.d") or die "Error opening the directory";
     my @files = grep(/\.xml$/,readdir(DIR));
     closedir(DIR);
 
     # Iterating over each file in hosts.d folder
     foreach my $file (@files) {
 
-        my $config = GRNOC::Config->new(config_file => "./hosts.d/$file", force_array => 0, debug => 0);
+        my $config = GRNOC::Config->new(config_file => "/etc/simp/hosts.d/$file", force_array => 0, debug => 0);
         my $hosts= $config->get("/config/host");
         # Array and hash handling of perl object
         if (ref($hosts) eq 'HASH') {
@@ -235,7 +235,7 @@ sub get_groups{
             foreach my $host (@$hosts){
         
                 
-                warn Dumper($host); 
+                # warn Dumper($host); 
                 if ($host->{'ip'} eq $group_param){
                     foreach my $group (@$host{'group'}) {
                         foreach my $key (keys $group) {
@@ -293,7 +293,7 @@ sub get_oids{
     $method_obj = shift;
     $params = shift;
     my $group_param = $params->{'group'}{'value'};
-    my $file = "config.xml";
+    my $file = "/etc/simp/config.xml";
     my $config = GRNOC::Config->new(config_file => $file, force_array => 0, debug => 0);
     my $groups = $config->get("/config/group");
     foreach my $group (@$groups){
