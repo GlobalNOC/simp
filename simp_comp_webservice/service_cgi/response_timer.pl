@@ -21,7 +21,7 @@ my $simp_config;
 #--- Main method
 sub main{
     
-    $config_file = "../response-graph-config.xml";
+    $config_file = "/etc/simp/response-graph-config.xml";
     my $config = GRNOC::Config->new(config_file => $config_file, force_array => 0, debug => 0); 
     
 

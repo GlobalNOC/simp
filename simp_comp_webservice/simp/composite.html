@@ -11,7 +11,7 @@
 
     </head>
 
-    <body onload=loadComposites()> 
+    <body onload=loadComposites()>
         <nav class="navbar navbar-default">
             <div class="container">
                 <div class="navbar-header"><a class="navbar-brand" href="index.html">SIMP </a><button class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navcol-1"><span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button></div>
@@ -19,6 +19,7 @@
                     <ul class="nav navbar-nav">
                         <li role="presentation"><a href="composite.html">composite </a></li>
                         <li role="presentation"><a href="data.html">data </a></li>
+                        <li role="presentation"><a href="redis.html">redis </a></li>
                     </ul>
                 </div>
             </div>
@@ -29,7 +30,7 @@
                     <form id = "comp_form" style="margin-top:30px;">
                         <div class="form-group">
                             <label class="control-label">
-                                Composite 
+                                Composite
                             </label>
                             <select id = "comp_dropdown" class="form-control">
                                 <option value="" >Select the composite</option>
@@ -37,7 +38,7 @@
                         </div>
                         <div class="form-group">
                             <label class="control-label">
-                                Host 
+                                Host
                             </label>
                             <select id = "host_dropdown" class="form-control">
                                 <option value="0">Please select a host</option>
@@ -67,7 +68,7 @@
             </div>
 
             <div class="panel-group" id="accordion">
-            </div> 
+            </div>
         </div>
         <footer class="site-footer">
             <div class="container">
@@ -90,7 +91,7 @@
                 myRequest.open('GET', url, true);
                 myRequest.onload = function(e) {
                     var jsonResponse = myRequest.response+'';
-                    var split_response = jsonResponse.split(','); 
+                    var split_response = jsonResponse.split(',');
                     var select = document.getElementById("comp_dropdown");
                     for (var i = 0; i < split_response.length; i++) {
                         var opt =  split_response[i];
@@ -103,13 +104,13 @@
                         select.appendChild(el);
                     }
                 }
-                myRequest.send(null);
+                myRequest.send();
             }
 
             function getData() {
                 var param_str = url +"?";
                 var composite = document.getElementById('comp_dropdown');
-                var host = document.getElementById('host_dropdown'); 
+                var host = document.getElementById('host_dropdown');
 
                 if (composite.selectedIndex == 0) {
                     alert ("Please select the composite");
@@ -120,37 +121,38 @@
                 } else {
                     param_str += "method=" + composite.options[composite.selectedIndex].text + "&host=" + host.options[host.selectedIndex].text;
                 }
+                console.log(param_str);
                 var myRequest = new XMLHttpRequest();
                 myRequest.responseType = 'json';
                 myRequest.open('GET', param_str, true);
                 myRequest.onload = function() {
 
                     var jsonObjStr= JSON.stringify(myRequest.response);
-                    // console.log(myRequest.response); 
+                    console.log(myRequest.response);
                     var result = myRequest.response.results;
-                    var d = document; 
+                    var d = document;
                     var collapsible = d.getElementById("accordion");
                     collapsible.innerHTML = "";
                     for (var x in result) {
-                         
+
                         // console.log(x);
                         // console.log(myRequest.response.results[x]);
                         for (var y in result[x]) {
-                            //  console.log(y); 
+                            //  console.log(y);
                             //  console.log(result[x][y]);
                             var div1 = d.createElement('div');
                             div1.setAttribute("class", "panel panel-default");
 
                             var div2 = d.createElement('div');
                             div2.setAttribute("class", "panel-heading");
-                            
+
                             var title = d.createElement('h4');
                             title.setAttribute("class", "panel-title");
 
                             var aTag = d.createElement('a');
                             aTag.setAttribute("data-toggle", "collapse");
                             aTag.setAttribute("data-parent", "#accordion");
-                            aTag.setAttribute("href", "#"+y); 
+                            aTag.setAttribute("href", "#"+y);
                             aTag.innerHTML = y;
 
                             title.appendChild(aTag);
@@ -168,7 +170,7 @@
                                 // if (p.hasOwnProperty(key)) {
                                 // console.log(key + " -> " + result[x][y][key]);
                                 temp_str += key + " = " + result[x][y][key] + "<br>";
-                                 
+
                                 //  }
                             }
                             // div4.innerHTML = JSON.stringify(result[x][y]);
@@ -180,25 +182,10 @@
                             collapsible.appendChild(div1);
                         }
                     }
-
-
-                    // var p = {
-                    //     "p1": "value1",
-                    //     "p2": "value2",
-                    //     "p3": "value3"
-                    // };
-
-                    // for (var key in p) {
-                    //     if (p.hasOwnProperty(key)) {
-                    //         console.log(key + " -> " + p[key]);
-                    //     }
-                    // }
-                    // var jsonResponse = myRequest.responseText+"";
-
                 }
                 myRequest.send();
-            } 
-        </script> 
+            }
+        </script>
     </body>
 
 

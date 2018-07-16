@@ -1,5 +1,5 @@
-var url		= "../service_cgi/populate_data.cgi";
-var url_redis	= " ../service_cgi/get_poller_data.cgi";
+var url		= "../cgi-dir/populate_data.cgi";
+var url_redis	= " ../cgi-dir/get_poller_data.cgi";
 var key1	= "";
 var key0	= "";
 

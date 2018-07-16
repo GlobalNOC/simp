@@ -8,7 +8,7 @@ use Redis;
 #use Test::More tests => 1;
 # Reading the config file
 my $config      = GRNOC::Config->new(
-			config_file     => "/etc/grnoc/webservice_client/redis_config.xml",
+			config_file     => "/etc/simp/redis_config.xml",
 			debug => 0,
 			force_array => 0
 				);
@@ -18,6 +18,9 @@ my $info = $config->get("/config");
 # Setting up Redis
 my $redis_host  = $info->{'redisInfo'}{'host'};
 my $redis_port  = $info->{'redisInfo'}{'port'};
+
+
+warn Dumper("$redis_host $redis_port");
 my $redis=Redis->new(server => $redis_host.":".$redis_port);
 
 

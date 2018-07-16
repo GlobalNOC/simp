@@ -13,28 +13,36 @@ my $params;
 my $host;
 my $oid;
 
+
+
+my $config_file = "/etc/simp/simpDataConfig.xml";
+my $config = GRNOC::Config->new(config_file => $config_file, force_array => 0, debug => 0); 
+
+my $rabbit_config = $config->get("/config/rabbitMQ");
+my $client = GRNOC::RabbitMQ::Client->new(   host => $rabbit_config->{'host'},
+    port => $rabbit_config->{'port'},
+    user => $rabbit_config->{'user'},
+    pass => $rabbit_config->{'password'},
+    exchange => 'Simp',
+    timeout => 60,
+    topic => 'Simp.Data');
+
+
 #------ SIMP: Callback
 sub get {
     # if(!defined $host) {
     $method_obj = shift;
     $params = shift;
-    warn Dumper($method_obj); 
-    warn Dumper($params); 
+    # warn Dumper($method_obj); 
+    # warn Dumper($params); 
     $host = $params->{'host'}{'value'}; 
     $oid = $params->{'oid'}{'value'};
 
     # }
-    warn " SIMP: Get "; 
-    warn Dumper($host);
-    warn Dumper($oid);
-    # my $client = GRNOC::RabbitMQ::Client->new(   host => "io3.bldc.grnoc.iu.edu",
-    my $client = GRNOC::RabbitMQ::Client->new(   host => "127.0.0.1",
-        port => 5672,
-        user => "guest",
-        pass => "guest",
-        exchange => 'Simp',
-        timeout => 60,
-        topic => 'Simp.Data');
+    # warn " SIMP: Get "; 
+    # warn Dumper($host);
+    # warn Dumper($oid);
+
     my $results;
     $results = $client->get(
         node     => [$host],
@@ -73,24 +81,16 @@ sub get_rate{
     # if(!defined $host) {
     $method_obj = shift;
     $params = shift;
-    warn Dumper($method_obj); 
-    warn Dumper($params); 
+    # warn Dumper($method_obj); 
+    # warn Dumper($params); 
     $host = $params->{'host'}{'value'}; 
     $oid = $params->{'oid'}{'value'};
     $period = $params->{'period'}{'value'};
     #  }
-    warn " SIMP: Get Rate "; 
-    warn Dumper($host);
-    warn Dumper($oid);
-    warn Dumper($period);
-    my $client = GRNOC::RabbitMQ::Client->new(   host => "io3.bldc.grnoc.iu.edu",
-        port => 5672,
-        user => "guest",
-        pass => "guest",
-        exchange => 'Simp',
-        timeout => 60,
-        topic => 'Simp.Data');
-
+    # warn " SIMP: Get Rate "; 
+    # warn Dumper($host);
+    # warn Dumper($oid);
+    # warn Dumper($period);
     $results = $client->get_rate(
         node     => [$host],
         oidmatch  => [$oid],
