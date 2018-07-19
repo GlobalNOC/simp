@@ -34,19 +34,10 @@ my $client = GRNOC::RabbitMQ::Client->new(   host => $rabbit_config->{'host'},
 #------ callback method
 sub _get{
 
-    # $method_obj = shift;
     my $self= shift;
-    # warn Dumper($self);
     $params = shift;
-    # warn Dumper("Printing params"); 
-    # warn Dumper($params); 
-    $method_obj = $params->{'method'}{'value'};
-    $host = $params->{'host'}{'value'};
-    # warn Dumper($method_obj); 
-    # warn Dumper($host); 
-
-
-    # warn Dumper($client);
+    # $method_obj = $params->{'method'}{'value'};
+    # $host = $params->{'host'}{'value'};
     my $results;
     $results = $client->$method_obj(
         node     => [$host],
@@ -57,28 +48,6 @@ sub _get{
 }
 #------ create methods 
 sub register_methods {
-
-    # $config_file = "/etc/simp/compDataConfig.xml";
-    # my $config = GRNOC::Config->new(config_file => $config_file, force_array => 0, debug => 0); 
-    # # my $client = GRNOC::RabbitMQ::Client->new(   host => "io3.bldc.grnoc.iu.edu",
-    # #     port => 5672,
-    # #     user => "guest",
-    # #     pass => "guest",
-    # #     exchange => 'Simp',
-    # #     timeout => 60,
-    # #     topic => 'Simp.CompData');
-    # #     
-    # my $rabbit_config = $config->get("/config/");
-    # $client = GRNOC::RabbitMQ::Client->new(   host => $rabbit_config->{'host'},
-    #     port => $rabbit_config->{'port'},
-    #     user => $rabbit_config->{'user'},
-    #     pass => $rabbit_config->{'password'},
-    #     exchange => 'Simp',
-    #     timeout => 60,
-    #     topic => 'Simp.CompData');
-
-    # my $file = "compDataConfig.xml"; 
-    # my $config = GRNOC::Config->new(config_file => $file, force_array => 0, debug => 0); 
 
     my $allowed_methods = $config->get("/config/composite");
     foreach my $meth (@$allowed_methods){
