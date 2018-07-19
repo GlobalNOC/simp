@@ -161,15 +161,7 @@ sub _start {
 
 		my $method = GRNOC::RabbitMQ::Method->new(  name => "$method_id",
 				async => 1,
-				callback =>  sub {
-				my $result;
-				my $start = [gettimeofday];
-				$result = $self->_get($method_id,@_);
-				my $end = [gettimeofday];
-				my $resp_time = tv_interval($start, $end);
-				$self->logger->info("REQTIME COMP $resp_time");
-
-				},
+				callback =>  sub { $self->_get($method_id,@_); },
 				description => "retrieve composite simp data of type $method_id, we should add a descr to the config");
 
 		$method->add_input_parameter( name => 'node',
@@ -241,6 +233,7 @@ sub _ping{
 }
 
 sub _get{
+	my $start = [gettimeofday];
 	my $self      = shift;
 	my $composite = shift;
 	my $rpc_ref   = shift;
@@ -295,7 +288,10 @@ sub _get{
 	$cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });
 	$cv[1]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[2]); });
 	$cv[2]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[3]); });
-	$cv[3]->begin(sub { &$success_callback($results{'final'});
+	$cv[3]->begin(sub { my $end = [gettimeofday];
+			my $resp_time = tv_interval($start, $end);
+			$self->logger->info("REQTIME COMP $resp_time");
+			&$success_callback($results{'final'});
 			undef %results;
 			undef $ref;
 			undef $params;
