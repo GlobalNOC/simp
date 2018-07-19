@@ -24,14 +24,14 @@ sub get_initial_data {
 
     $results{'hosts'};
     $results{'groups'};
-    opendir(DIR, "./hosts.d") or die "Error opening the directory";
+    opendir(DIR, "/etc/grnoc/hosts.d") or die "Error opening the directory";
     my @files = grep(/\.xml$/,readdir(DIR));
     closedir(DIR);
 
     # Iterating over each file in hosts.d folder
     foreach my $file (@files) {
 
-        my $config = GRNOC::Config->new(config_file => "./hosts.d/$file", force_array => 0, debug => 0);
+        my $config = GRNOC::Config->new(config_file => "/etc/grnoc/hosts.d/$file", force_array => 0, debug => 0);
         my $hosts= $config->get("/config/host");
 
         # Array and hash handling of perl object
@@ -102,14 +102,14 @@ sub get_hosts {
     $params = shift;
     my $group_param = $params->{'group'}{'value'};
 
-    opendir(DIR, "./hosts.d") or die "Error opening the directory";
+    opendir(DIR, "/etc/grnoc/hosts.d") or die "Error opening the directory";
     my @files = grep(/\.xml$/,readdir(DIR));
     closedir(DIR);
 
     # Iterating over each file in hosts.d folder
     foreach my $file (@files) {
 
-        my $config = GRNOC::Config->new(config_file => "./hosts.d/$file", force_array => 0, debug => 0);
+        my $config = GRNOC::Config->new(config_file => "/etc/grnoc/hosts.d/$file", force_array => 0, debug => 0);
         my $hosts= $config->get("/config/host");
         warn "$file";
         # Array and hash handling of perl object
@@ -206,14 +206,14 @@ sub get_groups{
     # }
 
 
-    opendir(DIR, "./hosts.d") or die "Error opening the directory";
+    opendir(DIR, "/etc/grnoc/hosts.d") or die "Error opening the directory";
     my @files = grep(/\.xml$/,readdir(DIR));
     closedir(DIR);
 
     # Iterating over each file in hosts.d folder
     foreach my $file (@files) {
 
-        my $config = GRNOC::Config->new(config_file => "./hosts.d/$file", force_array => 0, debug => 0);
+        my $config = GRNOC::Config->new(config_file => "/etc/grnoc/hosts.d/$file", force_array => 0, debug => 0);
         my $hosts= $config->get("/config/host");
         # Array and hash handling of perl object
         if (ref($hosts) eq 'HASH') {

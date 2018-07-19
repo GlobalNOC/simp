@@ -58,7 +58,9 @@ sub get_timestamp{
         my $ip=$params->{'ip'}{'value'};
 
         $redis->select(3);
-        my %arr=$redis->hgetall($ip);
+       	my $key_count = $redis->hlen($ip);
+	
+	my %arr=$redis->hgetall($ip);
         my $key;
         my $value;
         my %gids;
@@ -94,25 +96,29 @@ sub get_timestamp{
 	$redis->select(0);
 	# Get all keys in DB0 that contain hostname
         my %keys = $redis->keys("*$hostname*");
-	my %timestamp;
-	while( my ($key) = each (%keys))
-	{
-		my ($local_ip,$worker_name,$timestamp)	= split(",",$key);
-		my $group			= $worker_name;
-		$worker_name			=~ s/[^0-9]//g;
-		my $worker_id			=~ s/[^0-9]//g;;
-		$group				=~ s/$worker_name//g;
-		$timestamp{$key}{'ip'}		= $local_ip;
-		$timestamp{$key}{'group'}	= $group;		
-		$timestamp{$key}{'wid'}		= $worker_name;
-		$timestamp{$key}{'timestamp'}	= $timestamp;
+	if ($key_count > 0) {
+			my %timestamp;
+		while( my ($key) = each (%keys))
+			{
+				my ($local_ip,$worker_name,$timestamp)	= split(",",$key);
+				my $group			= $worker_name;
+				$worker_name			=~ s/[^0-9]//g;
+				my $worker_id			=~ s/[^0-9]//g;;
+				$group				=~ s/$worker_name//g;
+				$timestamp{$key}{'ip'}		= $local_ip;
+				$timestamp{$key}{'group'}	= $group;		
+				$timestamp{$key}{'wid'}		= $worker_name;
+				$timestamp{$key}{'timestamp'}	= $timestamp;
 
-	}	
-        my $json = encode_json \%dict;
-        $results{'groups'}= \%dict;
-        $results{'key0'}=\%db1_op;
-	$results{'timestamps'}=\%timestamp;
-        return \%results;
+			}	
+		my $json = encode_json \%dict;
+		$results{'groups'}= \%dict;
+		$results{'key0'}=\%db1_op;
+		$results{'timestamps'}=\%timestamp;
+		return \%results;
+
+		}
+	return undef;
 }
 
 
