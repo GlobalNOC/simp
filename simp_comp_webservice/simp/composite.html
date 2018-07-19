@@ -11,7 +11,7 @@
 
     </head>
 
-    <body onload=loadComposites()>
+    <body onload=loadPage()>
         <nav class="navbar navbar-default">
             <div class="container">
                 <div class="navbar-header"><a class="navbar-brand" href="index.html">SIMP </a><button class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navcol-1"><span class="sr-only">Toggle navigation</span><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button></div>
@@ -33,7 +33,7 @@
                                 Composite
                             </label>
                             <select id = "comp_dropdown" class="form-control">
-                                <option value="" >Select the composite</option>
+                                <option value="0" >Select the composite</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -42,7 +42,6 @@
                             </label>
                             <select id = "host_dropdown" class="form-control">
                                 <option value="0">Please select a host</option>
-                                <option value="1" selected="selected">bbsw.ictc.testlab.grnoc.iu.edu</option>
                             </select>
                         </div>
                     </form>
@@ -84,12 +83,12 @@
         <script src="assets/js/jquery.min.js"></script>
         <script src="assets/bootstrap/js/bootstrap.min.js"></script>
         <script type="text/javascript">
-            var url = '../cgi-dir/comp.cgi';
-            function loadComposites() {
+            var comp_url = '../cgi-dir/comp.cgi';
+            var host_url = '../cgi-dir/populate_data.cgi';
+            function loadPage() {
                 var myRequest = new XMLHttpRequest();
-                myRequest.responseType = 'json';
-                myRequest.open('GET', url, true);
                 myRequest.onload = function(e) {
+
                     var jsonResponse = myRequest.response+'';
                     var split_response = jsonResponse.split(',');
                     var select = document.getElementById("comp_dropdown");
@@ -104,11 +103,42 @@
                         select.appendChild(el);
                     }
                 }
-                myRequest.send();
+                webservice_call(myRequest, comp_url);
+                
+                var myRequest2 = new XMLHttpRequest();
+                myRequest2.onload = function(e) {
+
+                    console.log("Req 2:"); 
+                    console.log(myRequest2.response);
+
+                    var host_drop = document.getElementById("host_dropdown");
+
+                    var hostObj= myRequest2.response.hosts;
+                    var el = document.createElement("option");
+                    for (var x in hostObj) {
+                        // console.log(hostObj[x]);
+                        var opt = hostObj[x];
+                        var el = document.createElement("option");
+                        el.textContent = opt;
+                        el.value = opt;
+                        if (opt == "199.8.216.92") {
+                            el.selected = "selected";
+                        }
+                        host_drop.appendChild(el);
+                         
+                    }
+                }
+                webservice_call(myRequest2, host_url+'?method=get_initial_data&from=comp');
             }
 
+            function webservice_call(request_object, url) {
+                console.log(url);
+                request_object.responseType = 'json';
+                request_object.open('GET', url, true);
+                request_object.send();
+            }
             function getData() {
-                var param_str = url +"?";
+                var param_str = comp_url +"?";
                 var composite = document.getElementById('comp_dropdown');
                 var host = document.getElementById('host_dropdown');
 
@@ -168,10 +198,10 @@
                             var temp_str = "";
                             for (var key in result[x][y]) {
                                 // if (p.hasOwnProperty(key)) {
-                                // console.log(key + " -> " + result[x][y][key]);
-                                temp_str += key + " = " + result[x][y][key] + "<br>";
+                                    // console.log(key + " -> " + result[x][y][key]);
+                                    temp_str += key + " = " + result[x][y][key] + "<br>";
 
-                                //  }
+                                    //  }
                             }
                             // div4.innerHTML = JSON.stringify(result[x][y]);
                             div4.innerHTML = temp_str;

@@ -12,18 +12,27 @@ my $method_obj;
 my $params;
 my $host;
 my $oid;
-
+my $app;
 
 #------ Callback
 sub get_initial_data {
     my %results;
     my %host_hash;
     my %group_hash;
+    my %composite_hash; 
+    
+    my $hash_key; 
     $method_obj = shift;
     $params = shift;
-
+    $app = $params->{'from'}{'value'};
+    warn Dumper($app);
     $results{'hosts'};
     $results{'groups'};
+    if ($app eq 'simp') {
+        $hash_key = 'ip';
+    } else {
+        $hash_key = 'node_name';
+    }
     opendir(DIR, "/etc/simp/hosts.d") or die "Error opening the directory";
     my @files = grep(/\.xml$/,readdir(DIR));
     closedir(DIR);
@@ -38,52 +47,67 @@ sub get_initial_data {
         if (ref($hosts) eq 'HASH') {
 
             # Add if it does not exists to maintain uniqueness
-            if (!exists($host_hash{$hosts->{'ip'}})) {
-                $host_hash{$hosts->{'ip'}} = 1;
+            if (!exists($host_hash{$hosts->{$hash_key}})) {
+                $host_hash{$hosts->{$hash_key}} = 1;
             }
-            my $groups = $config->get("/config/host/group");
-            # Array and hash handling of perl object
-            if (ref($groups) eq 'HASH'){
-                if (!exists($group_hash{$groups->{'name'}})) {
-                    $group_hash{$groups->{'name'}} = 1;
-                }
-            } else {
-                foreach my $group (@$groups){
-                    # warn Dumper($group);
-                    if (!exists($group_hash{$group->{'name'}})) {
-                        $group_hash{$group->{'name'}} = 1;
+            if ($app eq 'simp') {
+                my $groups = $config->get("/config/host/group");
+                # Array and hash handling of perl object
+                if (ref($groups) eq 'HASH'){
+                    if (!exists($group_hash{$groups->{'name'}})) {
+                        $group_hash{$groups->{'name'}} = 1;
+                    }
+                } else {
+                    foreach my $group (@$groups){
+                        # warn Dumper($group);
+                        if (!exists($group_hash{$group->{'name'}})) {
+                            $group_hash{$group->{'name'}} = 1;
+                        }
                     }
                 }
+
             }
+
         } else  {
             foreach my $host (@$hosts){
-                my $id = $host->{'ip'};
-                if (!exists($host_hash{$host->{'ip'}})) {
-                    $host_hash{$host->{'ip'}} = 1;
+                my $id = $host->{$hash_key};
+                if (!exists($host_hash{$host->{$hash_key}})) {
+                    $host_hash{$host->{$hash_key}} = 1;
                 }
 
             }
-            my $groups = $config->get("/config/host/group");
-
-            # if (ref($groups) eq 'HASH') {
-            #     warn Dumper("GROUPS HASH 2");
-            # }
-            foreach my $group (@$groups){
-                # warn Dumper($group);
-                if (!exists($group_hash{$group->{'id'}})) {
-                    $group_hash{$group->{'id'}} = 1;
+            # Only for simp app 
+            if ($app eq 'simp') {
+                my $groups = $config->get("/config/host/group");
+                foreach my $group (@$groups){
+                    if (!exists($group_hash{$group->{'id'}})) {
+                        $group_hash{$group->{'id'}} = 1;
+                    }
                 }
-            }
+
+            }  
+
         }
     }
 
     $results{'hosts'} = [keys %host_hash];
-    $results{'groups'} = [keys %group_hash];
 
+    if ($app eq 'simp') {
+        $results{'groups'} = [keys %group_hash];
+    }
+    
+    warn Dumper(%results);
     return \%results;
 }
 
 
+
+#------ create methods 
+sub register_methods {
+
+
+
+}
 #------ wrap callback in service method object
 my $get_initial_data = GRNOC::WebService::Method->new(
 
@@ -91,7 +115,12 @@ my $get_initial_data = GRNOC::WebService::Method->new(
     description => "descr",
     callback => \&get_initial_data
 );
-
+#------ SIMP: get_rate define the parameters we will allow into this callback
+$get_initial_data->add_input_parameter (
+    name => 'from',
+    pattern => '^(.*)$', 
+    description => "URL Parameters"
+);
 
 #------ Callback
 sub get_hosts {
@@ -115,7 +144,7 @@ sub get_hosts {
         # Array and hash handling of perl object
         if (ref($hosts) eq 'HASH') {
 
-            foreach my $key (keys $hosts->{'group'}) {
+            foreach my $key (keys %{$hosts->{'group'}}) {
                 if ($key eq 'name') {
                     if ($group_param eq $hosts->{'group'}{$key}) {
                         if (!exists($host_hash{$hosts->{'ip'}})) {
@@ -134,7 +163,7 @@ sub get_hosts {
         } else  {
             foreach my $host (@$hosts){
                 foreach my $group (@$host{'group'}) {
-                    foreach my $key (keys $group) {
+                    foreach my $key (keys %$group) {
                         if ($key eq 'id') {
                             if ($group->{$key} eq $group_param) {
                                 if (!exists($host_hash{$host->{'ip'}})) {
@@ -187,24 +216,6 @@ sub get_groups{
     $method_obj = shift;
     $params = shift;
     my $group_param = $params->{'host'}{'value'};
-    # my $file = "hosts.xml";
-    # my $config = GRNOC::Config->new(config_file => $file, force_array => 0, debug => 0);
-
-    # my $hosts = $config->get("/config/host");
-    # foreach my $host (@$hosts){
-    #     if ($host->{'ip'} eq $host_param) {
-    #         foreach my $group (@$host{'group'}) {
-    #             foreach my $key (keys $group) {
-    #                 if ($key eq 'id') {
-    #                     push @group_array, $group->{$key};
-    #                 } else {
-    #                     push @group_array, $key;
-    #                 }
-    #             }
-    #         }
-    #     }
-    # }
-
 
     opendir(DIR, "/etc/simp/hosts.d") or die "Error opening the directory";
     my @files = grep(/\.xml$/,readdir(DIR));
@@ -219,7 +230,7 @@ sub get_groups{
         if (ref($hosts) eq 'HASH') {
             # warn Dumper($hosts);
             if ($hosts->{'ip'} eq $group_param){
-                foreach my $key (keys $hosts->{'group'}) {
+                foreach my $key (keys %{$hosts->{'group'}}) {
                     if ($key eq 'name') {
                         if (!exists($group_hash{$hosts->{'group'}{$key}})) {
                             $group_hash{$hosts->{'group'}{$key}} = 1;
@@ -233,31 +244,21 @@ sub get_groups{
             }
         } else  {
             foreach my $host (@$hosts){
-        
-                
+
+
                 # warn Dumper($host); 
                 if ($host->{'ip'} eq $group_param){
                     foreach my $group (@$host{'group'}) {
-                        foreach my $key (keys $group) {
-                            
+                        foreach my $key (keys %$group) {
+
                             if ($key eq 'id') {
                                 if (!exists($group_hash{$group->{$key}})) {
                                     $group_hash{$group->{$key}} = 1;
                                 }
-                                # if ($group->{$key} eq $group_param) {
-                                #     if (!exists($host_hash{$host->{'ip'}})) {
-                                #         $host_hash{$host->{'ip'}} = 1;
-                                #     }     
-                                # }
                             } else {
                                 if (!exists($group_hash{$key})) {
                                     $group_hash{$key} = 1;
                                 }
-                                # if ($key eq $group_param){
-                                #     if (!exists($host_hash{$host->{'ip'}})) {
-                                #         $host_hash{$host->{'ip'}} = 1;
-                                #     }
-                                # }
                             }
                         }
                     }
