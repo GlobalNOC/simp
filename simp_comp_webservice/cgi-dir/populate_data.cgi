@@ -28,10 +28,10 @@ sub get_initial_data {
     warn Dumper($app);
     $results{'hosts'};
     $results{'groups'};
-    if ($app eq 'simp') {
-        $hash_key = 'ip';
-    } else {
+    if ($app eq 'comp') {
         $hash_key = 'node_name';
+    } else {
+        $hash_key = 'ip';
     }
     opendir(DIR, "/etc/simp/hosts.d") or die "Error opening the directory";
     my @files = grep(/\.xml$/,readdir(DIR));

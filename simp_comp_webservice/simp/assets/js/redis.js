@@ -25,7 +25,7 @@ function pageLoad(){
 		host_dropdown.appendChild(ele);
 		}
 	}
-	webservice_call(xhttp, url+'?method=get_initial_data');
+	webservice_call(xhttp, url+'?method=get_initial_data&from=redis');
 }
 function webservice_call(request_object, url) {
 	console.log(url);
