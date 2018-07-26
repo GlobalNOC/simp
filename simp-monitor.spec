@@ -53,6 +53,9 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} conf/response-graph-config.xml %{buildroot}/etc/simp/
 %{__install} conf/response-monitor-log.conf %{buildroot}/etc/rsyslog.d/
 %{__install} conf/simp_monitor_http.conf %{buildroot}/etc/httpd/conf.d/
+%{__install} conf/redis_config.xml %{buildroot}/etc/simp/redis_config.xml
+%{__install} conf/redis_log.conf %{buildroot}/etc/simp/redis_log.conf
+%{__install} conf/redis_tsds_cron %{buildroot}/etc/cron.d/redis_tsds_cron
 
 %{__install} cgi-dir/comp.cgi %{buildroot}/var/www/html/cgi-dir/comp.cgi
 %{__install} cgi-dir/get_poller_data.cgi  %{buildroot}/var/www/html/cgi-dir/get_poller_data.cgi
@@ -90,10 +93,13 @@ rm -rf $RPM_BUILD_ROOT
 /var/www/html/simp_monitor/assets/css/user.css
 /var/www/html/simp_monitor/assets/js/jquery.min.js
 /var/www/html/simp_monitor/assets/js/redis.js
+/etc/cron.d/redis_tsds_cron
 %defattr(644,root,root,755)
 %config(noreplace) /etc/simp/response-graph-config.xml
 %config(noreplace) /etc/rsyslog.d/response-monitor-log.conf
 %config(noreplace) /etc/httpd/conf.d/simp_monitor_http.conf
+%config(noreplace) /etc/simp/redis_log.conf
+%config(noreplace) /etc/simp/redis_config.xml
 %doc
 
 %post

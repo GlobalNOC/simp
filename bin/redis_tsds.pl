@@ -17,7 +17,7 @@ my $config	= GRNOC::Config->new(
 my $info = $config->get("/config");
 
 # Setting logging file
-my $grnoc_log	= GRNOC::Log->new( config => "/etc/grnoc/logs/log.conf", watch => 120 );
+my $grnoc_log	= GRNOC::Log->new( config => "/etc/simp/redis_log.conf", watch => 120 );
 my $logger	= GRNOC::Log->get_logger();
 
 
