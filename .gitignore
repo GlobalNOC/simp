@@ -18,3 +18,5 @@
 ~*
 *~
 *.swp
+redis_config.xml
+conf/redis_config.xml
