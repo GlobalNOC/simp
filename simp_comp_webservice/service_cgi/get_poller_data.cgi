@@ -8,7 +8,7 @@ use Redis;
 #use Test::More tests => 1;
 # Reading the config file
 my $config      = GRNOC::Config->new(
-			config_file     => "/etc/grnoc/webservice_client/redis_config.xml",
+			config_file     => "/etc/simp/redis_config.xml",
 			debug => 0,
 			force_array => 0
 				);

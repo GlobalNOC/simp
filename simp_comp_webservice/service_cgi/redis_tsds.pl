@@ -10,14 +10,14 @@ use GRNOC::Log;
 
 # Reading the config file
 my $config	= GRNOC::Config->new(
-				config_file	=> "/etc/grnoc/webservice_client/redis_config.xml",
+				config_file	=> "/etc/simp/redis_config.xml",
 				debug => 0,
 				force_array => 0
 				);
 my $info = $config->get("/config");
 
 # Setting logging file
-my $grnoc_log	= GRNOC::Log->new( config => "/etc/grnoc/logs/log.conf", watch => 120 );
+my $grnoc_log	= GRNOC::Log->new( config => "/etc/simp/redis_log.conf", watch => 120 );
 my $logger	= GRNOC::Log->get_logger();
 
 
