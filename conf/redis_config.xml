@@ -1,0 +1,9 @@
+<config>
+
+  <!-- Default credentials to use for all services / URNs -->
+	<userInfo username="insert here" password="insert a valid password"/>
+ 	<rabbitMQ host="io3.bldc.grnoc.iu.edu" port="5672" user="xyz" password="xyz"/>
+	<redis host="io3.bldc.grnoc.iu.edu" port="6380"/>
+  	<redisInfo host = "io3.bldc.grnoc.iu.edu" port ="6380"/>
+	<tsdsInfo url ='https://io3.bldc.grnoc.iu.edu/tsds/services/push.cgi' database ='db0' interval ='300' type="simp_redis_counts" />
+</config>
