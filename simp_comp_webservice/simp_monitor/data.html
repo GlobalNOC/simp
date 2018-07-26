@@ -19,8 +19,7 @@
                     <ul class="nav navbar-nav">
                         <li role="presentation"><a href="composite.html">composite </a></li>
                         <li role="presentation"><a href="data.html">data </a></li>
-			<li role="presentation"><a href="redis.html">redis </a></li>
-
+                        <li role="presentation"><a href="redis.html">redis </a></li>
                     </ul>
                 </div>
             </div>
@@ -39,22 +38,6 @@
                                 <!-- <option value="1" selected="selected">bbsw.ictc.testlab.grnoc.iu.edu</option> -->
                             </select>
                         </div>
-
-                        <!-- <div class="form-group">
-                            <label class="control-label">
-                            Data Type
-                            </label>
-                            <select id = "type_dropdown" class="form-control" onchange="change_textbox(this)">
-                            <option value="1">Raw</option>
-                            <option value="2">Periodic</option>
-                            </select>
-                            </div>
-
-                            <div class="form-group">
-                            <label for="rate_box">Rate</label>
-                            <input type="text" class="form-control" id="rate_box" onkeypress='validate(event)' >
-                            </div> --> 
-
                     </div>
 
                     <div class="col-md-4 col-md-offset-0">
@@ -151,11 +134,11 @@
         <script src="assets/bootstrap/js/bootstrap.min.js"></script>
         <script type="text/javascript">
 
-            var url = '../cgi-dir/populate_data.cgi';
-            var submit_url = '../cgi-dir/simp.cgi';
+            var url = '/var/www/html/cgi-dir/populate_data.cgi';
+            var submit_url = '/var/www/html/cgi-dir/simp.cgi';
             function loadPage() {
 
-                
+
                 document.getElementById("rate_box").value = "";
                 document.getElementById("rate_box").setAttribute("disabled", true);
                 var myRequest = new XMLHttpRequest();
@@ -207,7 +190,7 @@
                         group_drop.appendChild(el);
                     }
                 }
-                webservice_call(myRequest, url+'?method=get_initial_data');
+                webservice_call(myRequest, url+'?method=get_initial_data&from=simp');
             }
 
             function get_data(control) {
