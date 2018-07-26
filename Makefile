@@ -34,7 +34,7 @@ dist:
 	mkdir -p dist/simp-tsds-$(VERSION)/bin
 	mkdir -p dist/simp-tsds-$(VERSION)/conf
 	mkdir -p dist/simp-monitor-$(VERSION)/cgi-dir
-	mkdir -p dist/simp-monitor-$(VERSION)/simp
+	mkdir -p dist/simp-monitor-$(VERSION)/simp_monitor
 	mkdir -p dist/simp-monitor-$(VERSION)/conf
 	mkdir -p dist/simp-monitor-$(VERSION)/bin
 
@@ -77,7 +77,7 @@ dist:
 	cp -r conf/sysconfig dist/simp-tsds-$(VERSION)/conf/
 
 	cp -r simp_comp_webservice/cgi-dir/* dist/simp-monitor-$(VERSION)/cgi-dir/
-	cp -r simp_comp_webservice/simp/* dist/simp-monitor-$(VERSION)/simp/
+	cp -r simp_comp_webservice/simp_monitor/* dist/simp-monitor-$(VERSION)/simp_monitor/
 
 	cd dist; tar -czvf simp-poller-$(VERSION).tar.gz simp-poller-$(VERSION)/ --exclude .svn --exclude .git
 	cd dist; tar -czvf simp-data-$(VERSION).tar.gz simp-data-$(VERSION)/ --exclude .svn --exclude .git
