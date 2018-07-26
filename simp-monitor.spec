@@ -58,15 +58,15 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} cgi-dir/populate_data.cgi  %{buildroot}/var/www/html/cgi-dir/populate_data.cgi
 %{__install} cgi-dir/simp.cgi  %{buildroot}/var/www/html/cgi-dir/simp.cgi
 
-%{__install} simp/composite.html  %{buildroot}/var/www/html/simp_monitor/composite.html
-%{__install} simp/data.html  %{buildroot}/var/www/html/simp_monitor/data.html
-%{__install} simp/index.html  %{buildroot}/var/www/html/simp_monitor/index.html
-%{__install} simp/redis.html  %{buildroot}/var/www/html/simp_monitor/redis.html
-%{__install} simp/assets/bootstrap/css/bootstrap.min.css  %{buildroot}/var/www/html/simp_monitor/assets/bootstrap/css/bootstrap.min.css
-%{__install} simp/assets/bootstrap/js/bootstrap.min.js  %{buildroot}/var/www/html/simp_monitor/assets/bootstrap/js/bootstrap.min.js
-%{__install} simp/assets/css/user.css  %{buildroot}/var/www/html/simp_monitor/assets/css/user.css
-%{__install} simp/assets/js/jquery.min.js  %{buildroot}/var/www/html/simp_monitor/assets/js/jquery.min.js
-%{__install} simp/assets/js/redis.js  %{buildroot}/var/www/html/simp_monitor/assets/js/redis.js
+%{__install} simp_monitor/composite.html  %{buildroot}/var/www/html/simp_monitor/composite.html
+%{__install} simp_monitor/data.html  %{buildroot}/var/www/html/simp_monitor/data.html
+%{__install} simp_monitor/index.html  %{buildroot}/var/www/html/simp_monitor/index.html
+%{__install} simp_monitor/redis.html  %{buildroot}/var/www/html/simp_monitor/redis.html
+%{__install} simp_monitor/assets/bootstrap/css/bootstrap.min.css  %{buildroot}/var/www/html/simp_monitor/assets/bootstrap/css/bootstrap.min.css
+%{__install} simp_monitor/assets/bootstrap/js/bootstrap.min.js  %{buildroot}/var/www/html/simp_monitor/assets/bootstrap/js/bootstrap.min.js
+%{__install} simp_monitor/assets/css/user.css  %{buildroot}/var/www/html/simp_monitor/assets/css/user.css
+%{__install} simp_monitor/assets/js/jquery.min.js  %{buildroot}/var/www/html/simp_monitor/assets/js/jquery.min.js
+%{__install} simp_monitor/assets/js/redis.js  %{buildroot}/var/www/html/simp_monitor/assets/js/redis.js
 
 %clean
 rm -rf $RPM_BUILD_ROOT
