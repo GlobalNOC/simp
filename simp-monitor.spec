@@ -49,6 +49,7 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %{__install} bin/response_timer.pl %{buildroot}/usr/bin/response_timer.pl
+%{__install} bin/redis_tsds.pl %{buildroot}/usr/bin/redis_tsds.pl
 %{__install} conf/response-graph-config.xml %{buildroot}/etc/simp/
 %{__install} conf/response-monitor-log.conf %{buildroot}/etc/rsyslog.d/
 %{__install} conf/simp_monitor_http.conf %{buildroot}/etc/httpd/conf.d/
@@ -75,6 +76,7 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(755,root,root,755)
 /usr/bin/response_timer.pl
+/usr/bin/redis_tsds.pl
 /var/www/html/cgi-dir/comp.cgi
 /var/www/html/cgi-dir/get_poller_data.cgi
 /var/www/html/cgi-dir/populate_data.cgi
