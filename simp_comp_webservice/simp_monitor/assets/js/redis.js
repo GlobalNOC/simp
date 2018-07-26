@@ -1,5 +1,5 @@
-var url		= "cgi-bin/populate_data.cgi";
-var url_redis	= "cgi-bin/get_poller_data.cgi";
+var url		= "/var/www/html/cgi-dir/populate_data.cgi";
+var url_redis	= "/var/www/html/cgi-dir/get_poller_data.cgi";
 var key1	= "";
 var key0	= "";
 
@@ -25,7 +25,7 @@ function pageLoad(){
 		host_dropdown.appendChild(ele);
 		}
 	}
-	webservice_call(xhttp, url+'?method=get_initial_data');
+	webservice_call(xhttp, url+'?method=get_initial_data&from=redis');
 }
 function webservice_call(request_object, url) {
 	console.log(url);
