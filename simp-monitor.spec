@@ -104,6 +104,6 @@ rm -rf $RPM_BUILD_ROOT
 %doc
 
 %post
-mkfifo /var/log/response_pipe
+mkfifo /var/log/simp_monitor_pipe
 %changelog
 
