@@ -42,8 +42,6 @@ dist:
 	cp -r lib/GRNOC/Simp/Data* dist/simp-data-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/Comp* dist/simp-comp-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/TSDS* dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
-	cp -r simp_comp_webservice/service_cgi/*.cgi dist/simp-monitor-$(VERSION)/lib/GRNOC/Simp
-	cp -r simp_comp_webservice/simp/* dist/simp-monitor-$(VERSION)/lib/GRNOC/Simp/web/
 	cp -r bin/simp-comp.pl dist/simp-comp-$(VERSION)/bin/
 	cp -r bin/simp-data.pl dist/simp-data-$(VERSION)/bin/
 	cp -r bin/simp-poller.pl dist/simp-poller-$(VERSION)/bin/
@@ -61,7 +59,6 @@ dist:
 	cp -r conf/logging.conf dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/simp-poller.init dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/hosts.d/* dist/simp-poller-$(VERSION)/conf/hosts.d/
-	cp -r conf/hosts.d/* dist/simp-monitor-$(VERSION)/conf/hosts.d/
 	cp -r conf/simp-tsds.xml dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/simp-tsds.init dist/simp-tsds-$(VERSION)/conf/
