@@ -25,33 +25,7 @@ my $redis=Redis->new(server => $redis_host.":".$redis_port);
 
 
 
-sub get_groups{
-	
-	my $method_obj	= shift;
-	my $params	= shift;
-	my %results;
-	my $ip	= $params->{'ip'}{'value'};
-	my %gids; #Creating a hash map for storing only unique group_names 
-	my @output;
-	$redis->select(3);
 
-
-	my %arr	= $redis->hgetall($ip);
-	
-	#Get Group Name, interval from redis
-	while (my($key,$value)	= each(%arr))
-	{
-		my($group_name,$interval)	= split(",",$value);
-		$gids{$group_name}		= 1;
-	}
-	while(my $temp = each(%gids))
-	{
-		push @output, $temp;
-	}
-	$results{'groups'} = \@output;;
-	return \%results;
-
-}
 
 sub get_timestamp{
 
@@ -62,7 +36,6 @@ sub get_timestamp{
 
         $redis->select(3);
        	my $key_count = $redis->hlen($ip);
-	
 	my %arr=$redis->hgetall($ip);
         my $key;
         my $value;
@@ -89,17 +62,25 @@ sub get_timestamp{
 		
                 $dict{$group_name}=\@ts;
                 $redis->select(1);
-	        my ($node_name,$group,$number,$time)=split(",",$redis->get($ip.",".$group_name.",".$pid));
+		my ($node_name,$worker_name,$time)=split(",",$redis->get($ip.",".$group_name.",".$pid));
 		$db1_op{$group_name}{'node'}	= $node_name;
+		$worker_name                    =~ s/[^0-9]//g;
+		my $worker_id                   =~ s/[^0-9]//g;
+		my $group                          =~ s/$worker_name//g;
 		$db1_op{$group_name}{'group'}	= $group;
-		$db1_op{$group_name}{'wid'}	= $number;
+		$db1_op{$group_name}{'wid'}	= $worker_name;
 		$db1_op{$group_name}{'time'}	= $time;
 		$hostname			= $node_name;
+		
 	}
+
+
+
 	$redis->select(0);
 	# Get all keys in DB0 that contain hostname
         my %keys = $redis->keys("*$hostname*");
-	if ($key_count > 0) {
+	my $debug = $hostname;
+	if ($key_count > 0 and defined($hostname)) {
 			my %timestamp;
 		while( my ($key) = each (%keys))
 			{
@@ -118,12 +99,56 @@ sub get_timestamp{
 		$results{'groups'}= \%dict;
 		$results{'key0'}=\%db1_op;
 		$results{'timestamps'}=\%timestamp;
+		$results{'debug'} = $debug;
 		return \%results;
 
 		}
-	return undef;
+
+	$results{'debug'} = "no hostname found";
+	my %keys = $redis->keys("*opt.trrh.ilight.net*");
+	$results{'test'} = \%keys;
+	return \%results;
 }
 
+sub get_timestamp_hostname{
+        my $mthod_obj = shift;
+        my $params    = shift;
+
+        my $ip=$params->{'ip'}{'value'};
+	my %results;
+        $redis->select(3);
+        #my $key_count = $redis->hlen($ip);
+        #my %arr=$redis->hgetall($ip);
+        my $key;
+        my $value;
+        my %gids;
+        my %poll_ids;
+        my %results;
+        my $count=1;
+        my %dict;
+        my $hostname = $ip; # Get the hostname from ip using db 1i
+ 	$redis->select(0);	
+        my %keys = $redis->keys("*$ip*");
+        my $debug = $hostname;
+        if (defined($hostname)) {
+                        my %timestamp;
+                while( my ($key) = each (%keys))
+                        {
+                                my ($local_ip,$worker_name,$timestamp)  = split(",",$key);
+                                my $group                       = $worker_name;
+                                $worker_name                    =~ s/[^0-9]//g;
+                                my $worker_id                   =~ s/[^0-9]//g;;
+                                $group                          =~ s/$worker_name//g;
+                                $timestamp{$key}{'ip'}          = $local_ip;
+                                $timestamp{$key}{'group'}       = $group;
+                                $timestamp{$key}{'wid'}         = $worker_name;
+                                $timestamp{$key}{'timestamp'}   = $timestamp;
+
+                        }
+                $results{'timestamps'}=\%timestamp;
+                return \%results;
+	}
+}
 
 sub get_data{
         my $method_obj  = shift;
@@ -149,23 +174,8 @@ sub get_data{
 }
 
 
-my $get_groups_method	= GRNOC::WebService::Method->new(
-							name		=> 'get_groups',
-							description	=> 'Get groups given the ip address',
-							callback	=> \&get_groups
-						);
-
-$get_groups_method->add_input_parameter(
-						name		=>'ip',
-						pattern		=> '((\d*\D*)*)$',
-						required	=> 1,
-						description	=> 'ip-address'				
-					);
-
-
 my $svc	= GRNOC::WebService::Dispatcher->new();
 
-my $res	= $svc->register_method($get_groups_method);
 
 my $get_timestamp =GRNOC::WebService::Method->new(
 						name		=> "get_timestamp",
@@ -221,6 +231,22 @@ $get_data_method->add_input_parameter(
                                 description     => "timestamp"
                         );
 my $res3 = $svc->register_method($get_data_method);
+
+my $get_timestamp_hostname =GRNOC::WebService::Method->new(
+                                                name            => "get_timestamp_hostname",
+                                                description     => "fetches timestamp given the hostname",
+                                                callback        => \&get_timestamp_hostname
+                                        );
+
+$get_timestamp_hostname->add_input_parameter(
+                                                name            => "ip",
+                                                pattern         => '((\d*\D*)*)$',
+                                                required        => 1,
+                                                description     => 'ip address'
+                                );
+
+
+my $res4 = $svc->register_method($get_timestamp_hostname);
 
 my $res_end  = $svc->handle_request();
 

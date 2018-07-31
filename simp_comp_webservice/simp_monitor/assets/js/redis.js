@@ -2,7 +2,6 @@ var url		= "/var/www/html/cgi-dir/populate_data.cgi";
 var url_redis	= "/var/www/html/cgi-dir/get_poller_data.cgi";
 var key1	= "";
 var key0	= "";
-
 function pageLoad(){
 	var host_dropdown	= document.getElementById("host-dropdown");
 	var xhttp		= new XMLHttpRequest();
@@ -25,7 +24,7 @@ function pageLoad(){
 		host_dropdown.appendChild(ele);
 		}
 	}
-	webservice_call(xhttp, url+'?method=get_initial_data&from=redis');
+	webservice_call(xhttp, url+'?method=get_initial_data&from=comp');
 }
 function webservice_call(request_object, url) {
 	console.log(url);
@@ -89,7 +88,7 @@ function get_timestamps(){
 		var table	= document.createElement("table");
 		table.marginLeft= "0px";
 		table.setAttribute("class","table table-hover");
-
+			
 		var row		= table.insertRow(0);
 		var col1	= row.insertCell(0);
 		col1.innerHTML	= "Host Name";
@@ -109,14 +108,13 @@ function get_timestamps(){
 		col4.setAttribute("align","center");
 
 		table_container.appendChild(table);
-		
 		for ( x in timestamps){
 			var ip 		= timestamps[x]['ip'];
 			var group	= timestamps[x]['group'];
 			var worker_id	= timestamps[x]['wid'];
 			var timestamp	= timestamps[x]['timestamp'];
-			var row         = table.insertRow(1);
-			row.onclick	= function() {get_data(ip,group,worker_id,timestamp)};
+			row         = table.insertRow(1);
+			row.setAttribute('onclick',"(function() {get_data('"+ip+"','"+group+"','"+worker_id+"','"+timestamp+"');})()");
 			var col1        = row.insertCell(0);
 			col1.innerHTML  = ip;
 			col1.setAttribute("align","center");
@@ -129,11 +127,11 @@ function get_timestamps(){
 			var col4        = row.insertCell(3);
 			col4.setAttribute("align","center");
 			col4.innerHTML  = timestamp;
-	}
-		
+		}
 	}	
-	 webservice_call(xhttp, url_redis+"?method=get_timestamp&ip="+host_drop.value);
+	webservice_call(xhttp, url_redis+"?method=get_timestamp_hostname&ip="+host_drop.value);
 }
+
 function get_data(ip,group,worker_id,timestamp){
  console.log(ip);
 console.log(group);
