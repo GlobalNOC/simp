@@ -5,7 +5,19 @@ var key0	= "";
 function pageLoad(){
 	var host_dropdown	= document.getElementById("host-dropdown");
 	var xhttp		= new XMLHttpRequest();
-	
+
+
+	// Sort the list	
+	$(host_dropdown).click(function(){
+		 // choose target dropdown
+		    var select = $(host_dropdown);
+		     select.html(select.find('option').sort(function(x, y) {
+		         // to change to descending order switch "<" for ">"
+		          return $(x).text() > $(y).text() ? 1 : -1;
+		      }));
+	});
+
+
 	xhttp.onload		=function(){
 	console.log(xhttp.response);
 	host_dropdown.innerHTML = "";
@@ -188,4 +200,16 @@ console.log(timestamp);
 	webservice_call(xhttp,url_redis+"?method=get_data&ip="+ip+"&group_name="+group+"&worker_id="+worker_id+"&timestamp="+timestamp);		
 	
 }
+function sortDropdownList(ddl){
+    console.log("inside sortDropdown");
+    var options = [].slice.apply(ddl.options, [0]);
+    ddl.innerHTML = "";
+    var sorted = options.sort(function(a,b){     
+       return +(a.innerText) - +(b.innerText);
+    });
 
+    for(var i = 0; i < sorted.length; i++){
+      ddl.options.add(sorted[i]);
+    }  
+
+}
