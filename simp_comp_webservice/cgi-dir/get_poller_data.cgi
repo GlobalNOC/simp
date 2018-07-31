@@ -20,7 +20,7 @@ my $redis_host  = $info->{'redisInfo'}{'host'};
 my $redis_port  = $info->{'redisInfo'}{'port'};
 
 
-warn Dumper("$redis_host $redis_port");
+
 my $redis=Redis->new(server => $redis_host.":".$redis_port);
 
 
@@ -117,8 +117,6 @@ sub get_timestamp_hostname{
         my $ip=$params->{'ip'}{'value'};
 	my %results;
         $redis->select(3);
-        #my $key_count = $redis->hlen($ip);
-        #my %arr=$redis->hgetall($ip);
         my $key;
         my $value;
         my %gids;
@@ -133,15 +131,14 @@ sub get_timestamp_hostname{
         if (defined($hostname)) {
                         my %timestamp;
                 while( my ($key) = each (%keys))
-                        {
+                        {	warn Dumper($key);
                                 my ($local_ip,$worker_name,$timestamp)  = split(",",$key);
                                 my $group                       = $worker_name;
-                                $worker_name                    =~ s/[^0-9]//g;
-                                my $worker_id                   =~ s/[^0-9]//g;;
-                                $group                          =~ s/$worker_name//g;
+				my $test			= $worker_name;
+				$test				=~ s/[0-9]+$//g;
                                 $timestamp{$key}{'ip'}          = $local_ip;
-                                $timestamp{$key}{'group'}       = $group;
-                                $timestamp{$key}{'wid'}         = $worker_name;
+                                $timestamp{$key}{'group'}       = $test;
+                                $timestamp{$key}{'wid'}         = $&;
                                 $timestamp{$key}{'timestamp'}   = $timestamp;
 
                         }
