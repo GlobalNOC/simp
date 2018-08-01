@@ -4,7 +4,7 @@
         user='rabbitMQ_user' password='rabbitMQ_password' />
     
     <!-- Defines path for the name pipe for log parsing -->
-    <pipe fifofile="path_to_fifo_file" />
+    <pipe fifofile="path_to_simp_monitor_pipe" />
     
     <!-- Defines how to connect to TSDS for publishing metrics -->
     <tsds url='tsds_push_url'

@@ -36,7 +36,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}/usr/bin
 %{__install} -d -p %{buildroot}/etc/simp
 %{__install} -d -p %{buildroot}/etc/rsyslog.d
-# %{__install} -d -p %{buildroot}/var/www/html
+%{__install} -d -p %{buildroot}/etc/cron.d
 %{__install} -d -p %{buildroot}/var/log
 %{__install} -d -p %{buildroot}/etc/httpd/conf.d
 
@@ -50,6 +50,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %{__install} bin/response_timer.pl %{buildroot}/usr/bin/response_timer.pl
 %{__install} bin/redis_tsds.pl %{buildroot}/usr/bin/redis_tsds.pl
+
 %{__install} conf/response-graph-config.xml %{buildroot}/etc/simp/
 %{__install} conf/response-monitor-log.conf %{buildroot}/etc/rsyslog.d/
 %{__install} conf/simp_monitor_http.conf %{buildroot}/etc/httpd/conf.d/
@@ -93,8 +94,8 @@ rm -rf $RPM_BUILD_ROOT
 /var/www/html/simp_monitor/assets/css/user.css
 /var/www/html/simp_monitor/assets/js/jquery.min.js
 /var/www/html/simp_monitor/assets/js/redis.js
-/etc/cron.d/redis_tsds_cron
 %defattr(644,root,root,755)
+/etc/cron.d/redis_tsds_cron
 %config(noreplace) /etc/simp/response-graph-config.xml
 %config(noreplace) /etc/rsyslog.d/response-monitor-log.conf
 %config(noreplace) /etc/httpd/conf.d/simp_monitor_http.conf
@@ -103,6 +104,6 @@ rm -rf $RPM_BUILD_ROOT
 %doc
 
 %post
-mkfifo /var/log/response_pipe
+mkfifo /var/log/simp_monitor_pipe
 %changelog
 

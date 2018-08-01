@@ -88,7 +88,7 @@ sub push_data{
 	        log_error($svc->get_error());
 	   }
 	else{
-	       log_info(values $res);
+	       log_info(values %$res);
 	   }
 }
 
