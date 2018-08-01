@@ -137,7 +137,7 @@ function get_timestamps(){
 			col3.innerHTML  = worker_id;
 			var col4        = row.insertCell(3);
 			col4.setAttribute("align","center");
-			col4.innerHTML  = timestamp;
+			col4.innerHTML  = convert(timestamp);
 		}
 	}	
 	webservice_call(xhttp, url_redis+"?method=get_timestamp_hostname&ip="+host_drop.value);
