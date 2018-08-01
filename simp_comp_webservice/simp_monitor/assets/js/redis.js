@@ -1,5 +1,5 @@
-var url		= "/var/www/html/cgi-dir/populate_data.cgi";
-var url_redis	= "/var/www/html/cgi-dir/get_poller_data.cgi";
+var url		= "../cgi-dir/populate_data.cgi";
+var url_redis	= "../cgi-dir/get_poller_data.cgi";
 var key1	= "";
 var key0	= "";
 function pageLoad(){
@@ -40,42 +40,41 @@ function pageLoad(){
 	});
 }
 function webservice_call(request_object, url) {
-	console.log(url);
-	request_object.responseType = 'json';
-	request_object.open('GET', url, true);
-	request_object.send();
+    console.log(url);
+    request_object.responseType = 'json';
+    request_object.open('GET', url, true);
+    request_object.send();
 }
 function get_host_value(){
 
-	 document.getElementById("test").innerHTML=document.getElementById("host-dropdown").value;
+    document.getElementById("test").innerHTML=document.getElementById("host-dropdown").value;
 }
 function getGroup(){
-	
-	var host_drop	= document.getElementById("host-dropdown");
-	var group_drop	= document.getElementById("group-dropdown");
-	var xhttp	= new XMLHttpRequest();
-	xhttp.onload	=function(){
-		console.log(xhttp.response);
-		group_drop.innerHTML	= "";
-		
-		var el	= document.createElement("option");
-		el.textContent	= "Please select a group";
-		el.value	=0;
-		group_drop.append(el);
-		
-		var  groupObj	= xhttp.response.groups;
-		for (var x in groupObj){
-			var group_name	= groupObj[x];
-			var ele	= document.createElement("option");
-			ele.textContent	= group_name;
-			ele.value	= group_name;
-			group_drop.append(ele);
-		}
-	}
-	webservice_call(xhttp, url_redis+"?method=get_groups&ip="+host_drop.value);
+
+    var host_drop	= document.getElementById("host-dropdown");
+    var group_drop	= document.getElementById("group-dropdown");
+    var xhttp	= new XMLHttpRequest();
+    xhttp.onload	=function(){
+        console.log(xhttp.response);
+        group_drop.innerHTML	= "";
+
+        var el	= document.createElement("option");
+        el.textContent	= "Please select a group";
+        el.value	=0;
+        group_drop.append(el);
+
+        var  groupObj	= xhttp.response.groups;
+        for (var x in groupObj){
+            var group_name	= groupObj[x];
+            var ele	= document.createElement("option");
+            ele.textContent	= group_name;
+            ele.value	= group_name;
+            group_drop.append(ele);
+        }
+    }
+    webservice_call(xhttp, url_redis+"?method=get_groups&ip="+host_drop.value);
 }
 function get_timestamps(){
-	
 	var table_container	= document.getElementById("table-container");
 	var host_drop		= document.getElementById("host-dropdown");
 	var xhttp		= new XMLHttpRequest();
@@ -139,14 +138,14 @@ function get_timestamps(){
 			col3.innerHTML  = worker_id;
 			var col4        = row.insertCell(3);
 			col4.setAttribute("align","center");
-			col4.innerHTML  = timestamp;
+			col4.innerHTML  = convert(timestamp);
 		}
 	}	
 	webservice_call(xhttp, url_redis+"?method=get_timestamp_hostname&ip="+host_drop.value);
 }
 
 function get_data(ip,group,worker_id,timestamp){
- console.log(ip);
+console.log(ip);
 console.log(group);
 console.log(worker_id);
 console.log(timestamp);	
@@ -199,6 +198,5 @@ console.log(timestamp);
 		
 	}
 	webservice_call(xhttp,url_redis+"?method=get_data&ip="+ip+"&group_name="+group+"&worker_id="+worker_id+"&timestamp="+timestamp);		
-	
 }
 
