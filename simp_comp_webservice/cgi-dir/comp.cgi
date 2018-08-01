@@ -36,8 +36,8 @@ sub _get{
 
     my $self= shift;
     $params = shift;
-    # $method_obj = $params->{'method'}{'value'};
-    # $host = $params->{'host'}{'value'};
+    $method_obj = $params->{'method'}{'value'};
+    $host = $params->{'host'}{'value'};
     my $results;
     $results = $client->$method_obj(
         node     => [$host],
