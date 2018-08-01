@@ -127,8 +127,9 @@ sub get_timestamp_hostname{
         my $hostname = $ip; # Get the hostname from ip using db 1i
  	$redis->select(0);	
         my %keys = $redis->keys("*$ip*");
-        my $debug = $hostname;
-        if (defined($hostname)) {
+	my $keys = %keys;
+	# warn Dumper($keys);
+        if (defined($hostname and $keys > 0)) {
                         my %timestamp;
                 while( my ($key) = each (%keys))
                         {	
