@@ -131,7 +131,7 @@ sub get_timestamp_hostname{
         if (defined($hostname)) {
                         my %timestamp;
                 while( my ($key) = each (%keys))
-                        {	warn Dumper($key);
+                        {	
                                 my ($local_ip,$worker_name,$timestamp)  = split(",",$key);
                                 my $group                       = $worker_name;
 				my $test			= $worker_name;
