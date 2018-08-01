@@ -87,3 +87,4 @@ dist:
 	cd dist; tar -czvf simp-comp-$(VERSION).tar.gz simp-comp-$(VERSION)/ --exclude .svn --exclude .git
 	cd dist; tar -czvf simp-tsds-$(VERSION).tar.gz simp-tsds-$(VERSION)/ --exclude .svn --exclude .git
 	cd dist; tar -czvf simp-monitor-$(VERSION).tar.gz simp-monitor-$(VERSION)/ --exclude .svn --exclude .git
+
