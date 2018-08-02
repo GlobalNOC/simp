@@ -1,11 +1,8 @@
 #!/usr/bin/perl
 use strict;
-use Time::HiRes qw(usleep gettimeofday tv_interval);
 use GRNOC::WebService;
-use JSON;
 use Data::Dumper;
 use GRNOC::RabbitMQ::Client;
-use AnyEvent;
 use GRNOC::Config;
 
 # warn "----- ENTRY POINT -----";
@@ -20,7 +17,6 @@ my $config = GRNOC::Config->new(config_file => $config_file, force_array => 0, d
 my $rabbit_config = $config->get("/config/rabbitMQ");
 
 my $client = GRNOC::RabbitMQ::Client->new(   host => $rabbit_config->{'host'},
-# my $client = GRNOC::RabbitMQ::Client->new(   host => "io3.bldc.grnoc.iu.edu",
     port => $rabbit_config->{'port'},
     user => $rabbit_config->{'user'},
     pass => $rabbit_config->{'password'},
