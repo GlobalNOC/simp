@@ -2,7 +2,6 @@
 use Redis;
 use strict;
 use GRNOC::WebService;
-use JSON;
 use Data::Dumper;
 use GRNOC::WebService::Client;
 use GRNOC::Config;
@@ -11,20 +10,21 @@ use GRNOC::Log;
 # Reading the config file
 my $config	= GRNOC::Config->new(
 				config_file	=> "/etc/simp/redis_config.xml",
-				debug => 0,
-				force_array => 0
+				debug 		=> 0,
+				force_array 	=> 0
 				);
+
 my $info = $config->get("/config");
 
 # Setting logging file
-my $grnoc_log	= GRNOC::Log->new( config => "/etc/simp/redis_log.conf", watch => 120 );
+my $grnoc_log	= GRNOC::Log->new( config 	=> "/etc/simp/redis_log.conf", watch => 120 );
 my $logger	= GRNOC::Log->get_logger();
 
 
 # Setting up REDIS
 my $redis_host	= $info->{'redisInfo'}{'host'};
 my $redis_port	= $info->{'redisInfo'}{'port'};
-my $redis=Redis->new(server => $redis_host.":".$redis_port);
+my $redis	= Redis->new(server => $redis_host.":".$redis_port);
 
 # Getting credentials for webservice
 my $USERNAME	= $info->{'userInfo'}{'username'};
@@ -43,8 +43,8 @@ sub get_count{
         foreach(@keys){
                 if (index($_, ",") != -1){
 			$total_obj      += $redis->scard($_);
-				}
-			}
+		}
+	}
 
 	my $mthod_obj = shift;
 	my $params    = shift;
@@ -73,16 +73,17 @@ sub push_data{
 
 	# Hash to JSON
 	my $data	= encode_json \%output;	
-	$data= '['.$data.']';
-	my $url		=$info->{'tsdsInfo'}{'url'};	
+	$data		= '['.$data.']';
+	my $url		= $info->{'tsdsInfo'}{'url'};	
+
 	# Calling Tsds/puch.cgi
-	my $svc = GRNOC::WebService::Client->new(
+	my $svc 	= GRNOC::WebService::Client->new(
 					url	=> $url,
 					uid	=> $USERNAME,
 					passwd	=> $PASSWORD,
  					usePost	=> 1
 						);
-	my $res = $svc->add_data(data => $data);
+	my $res 	= $svc->add_data(data => $data);
 
    	if(!defined $res){
 	        log_error($svc->get_error());
