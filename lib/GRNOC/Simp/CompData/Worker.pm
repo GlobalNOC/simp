@@ -241,6 +241,7 @@ sub _ping{
 }
 
 sub _get{
+  my $start = [gettimeofday];
   my $self      = shift;
   my $composite = shift;
   my $rpc_ref   = shift;
@@ -297,7 +298,10 @@ sub _get{
   $cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });
   $cv[1]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[2]); });
   $cv[2]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[3]); });
-  $cv[3]->begin(sub { &$success_callback($results{'final'});
+  $cv[3]->begin(sub { my $end = [gettimeofday];
+	              my $resp_time = tv_interval($start, $end);
+	              $self->logger->info("REQTIME COMP $resp_time");
+		      &$success_callback($results{'final'});
 		      undef %results;
 		      undef $ref;
 		      undef $params;
