@@ -1,11 +1,8 @@
 #!/usr/bin/perl
 use strict;
-use Time::HiRes qw(usleep gettimeofday tv_interval);
 use GRNOC::WebService;
-use JSON;
 use Data::Dumper;
 use GRNOC::RabbitMQ::Client;
-use AnyEvent;
 
 #------ Variables
 my $method_obj;
@@ -19,9 +16,9 @@ sub get_initial_data {
     my %results;
     my %host_hash;
     my %group_hash;
-    my %composite_hash; 
-    
-    my $hash_key; 
+    my %composite_hash;
+
+    my $hash_key;
     $method_obj = shift;
     $params = shift;
     $app = $params->{'from'}{'value'};
@@ -76,7 +73,7 @@ sub get_initial_data {
                 }
 
             }
-            # Only for simp app 
+            # Only for simp app
             if ($app eq 'simp') {
                 my $groups = $config->get("/config/host/group");
                 foreach my $group (@$groups){
@@ -85,7 +82,7 @@ sub get_initial_data {
                     }
                 }
 
-            }  
+            }
 
         }
     }
@@ -95,14 +92,14 @@ sub get_initial_data {
     if ($app eq 'simp') {
         $results{'groups'} = [keys %group_hash];
     }
-    
+
     warn Dumper(%results);
     return \%results;
 }
 
 
 
-#------ create methods 
+#------ create methods
 sub register_methods {
 
 
@@ -118,7 +115,7 @@ my $get_initial_data = GRNOC::WebService::Method->new(
 #------ SIMP: get_rate define the parameters we will allow into this callback
 $get_initial_data->add_input_parameter (
     name => 'from',
-    pattern => '^(.*)$', 
+    pattern => '^(.*)$',
     description => "URL Parameters"
 );
 
@@ -158,7 +155,7 @@ sub get_hosts {
                         }
                     }
                 }
-            } 
+            }
 
         } else  {
             foreach my $host (@$hosts){
@@ -168,7 +165,7 @@ sub get_hosts {
                             if ($group->{$key} eq $group_param) {
                                 if (!exists($host_hash{$host->{'ip'}})) {
                                     $host_hash{$host->{'ip'}} = 1;
-                                }     
+                                }
                             }
                         } else {
                             if ($key eq $group_param){
@@ -240,13 +237,13 @@ sub get_groups{
                             $group_hash{$key} = 1;
                         }
                     }
-                } 
+                }
             }
         } else  {
             foreach my $host (@$hosts){
 
 
-                # warn Dumper($host); 
+                # warn Dumper($host);
                 if ($host->{'ip'} eq $group_param){
                     foreach my $group (@$host{'group'}) {
                         foreach my $key (keys %$group) {
@@ -262,7 +259,7 @@ sub get_groups{
                             }
                         }
                     }
-                } 
+                }
             }
         }
     }
