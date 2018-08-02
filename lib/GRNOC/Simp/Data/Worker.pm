@@ -158,12 +158,22 @@ sub _start {
 
     my $method = GRNOC::RabbitMQ::Method->new(	name => "get",
 						callback =>  sub {
+								   my $result;
 								   my ($method_ref,$params) = @_; 
+								   warn Dumper("Method_ref : $method_ref");
+								   warn Dumper("Params: $params");
 								   my $time = time();
 								   if(defined($params->{'time'}{'value'})){
-								       $time = $params->{'time'}{'value'};
+								   $time = $params->{'time'}{'value'};
 								   }
-								   return $self->_get($time,$params); 
+								   
+								   my $start;
+								   $start = [gettimeofday];
+								   $result = $self->_get($time,$params); 
+								   my $end = [gettimeofday];
+								   my $resp_time = tv_interval($start, $end);
+								   $self->logger->info("REQTIME SIMP $resp_time");
+								   return $result; 
 								 },
 						description => "function to pull SNMP data out of cache");
 
@@ -192,7 +202,13 @@ sub _start {
     $method = GRNOC::RabbitMQ::Method->new(  name => "get_rate",
                                              callback =>  sub {
 							        my ($method_ref,$params) = @_; 
-								return $self->_get_rate($params);
+								my $result;
+								my $start = [gettimeofday];
+								$result = $self->_get_rate($params);
+								my $end = [gettimeofday];
+								my $resp_time = tv_interval($start, $end);
+								$self->logger->info("REQTIME SIMP $resp_time");
+								return $result;
 							  },
                                              description => "function to pull SNMP data out of cache and calculate the rate");
     
