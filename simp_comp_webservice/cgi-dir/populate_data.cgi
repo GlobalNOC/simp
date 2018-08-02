@@ -22,7 +22,7 @@ sub get_initial_data {
     $method_obj = shift;
     $params = shift;
     $app = $params->{'from'}{'value'};
-    warn Dumper($app);
+#    warn Dumper($app);
     $results{'hosts'};
     $results{'groups'};
     if ($app eq 'comp') {
