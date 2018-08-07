@@ -13,7 +13,6 @@ use constant THRESHOLD => 1e-9;
 
 sub check_response {
     my ($request_num, $actual_response, $expected_results) = @_;
-
     ok(defined($actual_response), "request $request_num: we got back a response");
     ok(!defined($actual_response->{'error'}) && !defined($actual_response->{'error_text'}),
        "request $request_num: didn't get an error message");
@@ -36,14 +35,12 @@ my $client = GRNOC::RabbitMQ::Client->new(
     port     => 5673,
     user     => 'guest',
     pass     => 'guest',
-    timeout  => 3,
+    timeout  => 10,
     exchange => 'Simp',
     topic    => 'Simp.CompData',
 );
 
 ok(defined($client), 'RabbitMQ client could be constructed');
-
-
 
 # Request 1: simple test of scans and unprocessed gauge values
 my $response = $client->test1(
@@ -63,7 +60,7 @@ check_response(1, $response,
           'outRawCounter' => 9000120,
           'time' => 100124,
         },
-      },
+     },
     }
 );
 
