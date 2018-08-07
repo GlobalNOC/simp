@@ -854,6 +854,7 @@ sub _function_one_val{
 
 sub _rpn_calc{
     my ($vals, $operand, $fctn_elem, $val_set, $results, $host) = @_;
+    warn "RPN CALC: " . Dumper($vals, $val_set);
     foreach my $val (@$vals){
 	# As a convenience, we initialize the stack with a copy of $val on it already
 	my @stack = ($val);
@@ -889,7 +890,7 @@ sub _rpn_calc{
 	    }elsif($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
 		push @stack, ($token + 0);
 	    }elsif($token =~ /^\$/){ # name of a value associated with the current (host, OID suffix)
-		push @stack, $val_set->{substr $token, 1};
+		push @stack, $val_set->{substr $token, 1}->[0];
 	    }elsif($token =~ /^\#/){ # host variable
 		push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
 	    }elsif($token eq '@'){ # push hostname
