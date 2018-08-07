@@ -18,12 +18,12 @@ sub rpn_calc {
 
 # Some sample data
 my $val_set = {
-    'a'   => 23,
-    'abc' => 'zyx',
-    '2a'  => 99,
-    'a2c' => 98,
-    'bb'  => 97,
-    'example.org' => 'wrong',
+    'a'   => [23],
+    'abc' => ['zyx'],
+    '2a'  => [99],
+    'a2c' => [98],
+    'bb'  => [97],
+    'example.org' => ['wrong'],
 };
 my $results_test = {
   val => {

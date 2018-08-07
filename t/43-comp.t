@@ -42,8 +42,6 @@ my $client = GRNOC::RabbitMQ::Client->new(
 
 ok(defined($client), 'RabbitMQ client could be constructed');
 
-
-
 # Request 1: simple test of scans and unprocessed gauge values
 my $response = $client->test1(
     node => 'a.example.net'
