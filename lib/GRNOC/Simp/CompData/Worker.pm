@@ -720,8 +720,9 @@ sub _function_one_val{
                 my $operand = $fctn->getAttribute("value");
                 warn "Function: " . $func_id . "\n";
 		$val = $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
+		warn "VAL: " . Dumper($val);
             }
-
+	    
 	    $val = $val->[0];
 
             $results->{'final'}{$host}{$oid_suffix}{$val_name} = $val;
@@ -802,14 +803,14 @@ sub _function_one_val{
     '/' => sub { # division
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
-	    return $val if !defined($val);
+	    return [$val] if !defined($val);
 	    return [$val / $operand];
 	}
     },
     '%' => sub { # modulus
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
-	    return $val if !defined($val);
+	    return [$val] if !defined($val);
 	    return [$val % $operand];
 	}
     },
@@ -817,13 +818,15 @@ sub _function_one_val{
         my $vals = shift;
 	foreach my $val (@$vals){
 	    return [$val] if !defined($val);
-	    #eval { log($val); }; # if val==0, we want the result to be undef, so this works just fine
+	    return [] if $val == 0;
+	    eval { $val = log($val); }; # if val==0, we want the result to be undef, so this works just fine
+	    return [$val];
 	}
     },
     'log10' => sub { # base-10 logarithm
         my $vals = shift;
 	foreach my $val (@$vals){
-	    return $val if !defined($val);
+	    return [$val] if !defined($val);
 	    $val = eval { log($val); }; # see ln
 	    $val /= log(10) if defined($val);
 	    return [$val];
