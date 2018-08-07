@@ -241,6 +241,7 @@ sub _ping{
 }
 
 sub _get{
+  my $start = [gettimeofday];
   my $self      = shift;
   my $composite = shift;
   my $rpc_ref   = shift;
@@ -297,7 +298,10 @@ sub _get{
   $cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });
   $cv[1]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[2]); });
   $cv[2]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[3]); });
-  $cv[3]->begin(sub { &$success_callback($results{'final'});
+  $cv[3]->begin(sub { my $end = [gettimeofday];
+	              my $resp_time = tv_interval($start, $end);
+	              $self->logger->info("REQTIME COMP $resp_time");
+		      &$success_callback($results{'final'});
 		      undef %results;
 		      undef $ref;
 		      undef $params;
@@ -716,8 +720,9 @@ sub _function_one_val{
                 my $operand = $fctn->getAttribute("value");
                 warn "Function: " . $func_id . "\n";
 		$val = $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
+		warn "VAL: " . Dumper($val);
             }
-
+	    
 	    $val = $val->[0];
 
             $results->{'final'}{$host}{$oid_suffix}{$val_name} = $val;
@@ -798,14 +803,14 @@ sub _function_one_val{
     '/' => sub { # division
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
-	    return $val if !defined($val);
+	    return [$val] if !defined($val);
 	    return [$val / $operand];
 	}
     },
     '%' => sub { # modulus
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
-	    return $val if !defined($val);
+	    return [$val] if !defined($val);
 	    return [$val % $operand];
 	}
     },
@@ -813,13 +818,15 @@ sub _function_one_val{
         my $vals = shift;
 	foreach my $val (@$vals){
 	    return [$val] if !defined($val);
-	    #eval { log($val); }; # if val==0, we want the result to be undef, so this works just fine
+	    return [] if $val == 0;
+	    eval { $val = log($val); }; # if val==0, we want the result to be undef, so this works just fine
+	    return [$val];
 	}
     },
     'log10' => sub { # base-10 logarithm
         my $vals = shift;
 	foreach my $val (@$vals){
-	    return $val if !defined($val);
+	    return [$val] if !defined($val);
 	    $val = eval { log($val); }; # see ln
 	    $val /= log(10) if defined($val);
 	    return [$val];
@@ -847,6 +854,7 @@ sub _function_one_val{
 
 sub _rpn_calc{
     my ($vals, $operand, $fctn_elem, $val_set, $results, $host) = @_;
+    warn "RPN CALC: " . Dumper($vals, $val_set);
     foreach my $val (@$vals){
 	# As a convenience, we initialize the stack with a copy of $val on it already
 	my @stack = ($val);
@@ -882,7 +890,7 @@ sub _rpn_calc{
 	    }elsif($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
 		push @stack, ($token + 0);
 	    }elsif($token =~ /^\$/){ # name of a value associated with the current (host, OID suffix)
-		push @stack, $val_set->{substr $token, 1};
+		push @stack, $val_set->{substr $token, 1}->[0];
 	    }elsif($token =~ /^\#/){ # host variable
 		push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
 	    }elsif($token eq '@'){ # push hostname

@@ -1,0 +1,13 @@
+<config>
+    <!-- Defines how to connect to RabbitMQ for Simp/Comp as well as collector Master/Worker IPC -->
+    <simp host='rabbitMQ_host' port='rabbitMQ_port'
+        user='rabbitMQ_user' password='rabbitMQ_password' />
+    
+    <!-- Defines path for the name pipe for log parsing -->
+    <pipe fifofile="path_to_simp_monitor_pipe" />
+    
+    <!-- Defines how to connect to TSDS for publishing metrics -->
+    <tsds url='tsds_push_url'
+        user='tsds_username' password='tsds_password' refresh='60' />
+
+</config>
