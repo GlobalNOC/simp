@@ -310,7 +310,7 @@ sub _poll_cb{
     } catch {
 	$redis->select(0);
 	$self->logger->error($self->worker_name. " $id Error in hset for data: $_" );
-    }
+    };
     AnyEvent->now_update;
 }
 
