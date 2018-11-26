@@ -5,7 +5,7 @@ use warnings;
 
 use Log::Log4perl;
 use Moo;
-use Types::Standard qw(Str Bool);
+use Types::Standard qw(Str Bool Int);
 use Proc::Daemon;
 use AnyEvent::Subprocess;
 use POSIX qw(setuid setgid);
@@ -71,6 +71,7 @@ has collections => (is => 'rwp', default => sub { [] });
 has worker_client => (is => 'rwp');
 has children => (is => 'rwp', default => sub {[]});
 has hup => (is => 'rwp', default => 0);
+has stagger_interval => (is => 'rwp', required => 0, default => 5, isa => Int);
 
 my $running;
 
@@ -161,6 +162,15 @@ sub _load_config {
 
     $self->_set_tsds_config($conf->get('/config/tsds')->[0]);
 
+    $self->logger->info("Setting config.d dir to " .  $self->tsds_dir);
+
+    my $stagger = $conf->get('/config/stagger');
+    if ($stagger){
+	$stagger = $stagger->[0];
+	$self->logger->debug("Setting stagger interval to $stagger");
+	$self->_set_stagger_interval($stagger);
+    }
+
     #collections are loaded from the tsds.d directory!
     opendir my $dir, $self->tsds_dir;
     my @files = readdir $dir;
@@ -170,10 +180,15 @@ sub _load_config {
 
     foreach my $file (@files){
 	next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
+
+	$self->logger->info("Reading .d file " . $self->tsds_dir . "$file");
 	my $conf = GRNOC::Config->new( config_file => $self->tsds_dir . "/" . $file,
                                        force_array => 1);
 	
 	my $collections = $conf->get("/config/collection");
+
+	$self->logger->info("Adding " . scalar(@$collections) . " collections");
+
 	foreach my $coll (@$collections){
 	    push(@collections,$coll);
 	}
@@ -283,6 +298,9 @@ sub _create_workers_for_one_collection {
     # Spawn workers
     foreach my $worker_id (keys %hosts_by_worker) {
 	my $worker_name = "$collection->{'composite-name'}_$worker_id";
+
+	$self->logger->info("Staggering creation of worker by " . $self->stagger_interval . "sec...");
+	sleep($self->stagger_interval);
 
 	$self->_create_worker( name       => $worker_name,
                                collection => $collection,
