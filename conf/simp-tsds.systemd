@@ -3,9 +3,9 @@ Description=SIMP Collector
 After=syslog.target network.target
 
 [Service]
-ExecStart=/usr/sbin/simp-collector --config /etc/simp/collector/config.xml --logging /etc/simp/collector/logging.conf --pidfile /var/run/simp-collector.pid --user simp-collector --group simp-collector
+ExecStart=/usr/bin/simp-tsds.pl --config /etc/simp/simp-tsds.xml --logging /etc/simp/simp_tsds_logging.conf --pidfile /var/run/simp-tsds.pid --user simp --group simp
 Type=forking
-PIDFile=/var/run/simp-collector.pid
+PIDFile=/var/run/simp-tsds.pid
 
 [Install]
 WantedBy=multi-user.target
