@@ -7,4 +7,7 @@
     <tsds url='https://localhost/path/to/api'
         user='username' password='password' />
 
+    <!-- How many seconds to stagger the creation of children to spread load -->
+    <stagger>5</stagger>
+
 </config>
