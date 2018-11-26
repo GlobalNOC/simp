@@ -16,6 +16,7 @@ my $conf_file = '/etc/simp/simp-tsds.xml';
 my $logging_file = '/etc/simp/simp_tsds_logging.conf';
 my $pidfile = '/var/run/simp-tsds.pid';
 my $nofork = 0;
+my $dir = '/etc/simp/tsds.d';
 my $run_group;
 my $run_user;
 my $help;
@@ -27,6 +28,7 @@ GetOptions(
     'nofork' => \$nofork,
     'group=s' => \$run_group,
     'user=s' => \$run_user,
+    'dir=s' => \$dir,
     'help|h|?' => \$help,
 );
 
@@ -38,6 +40,7 @@ Log::Log4perl::init($logging_file);
      config_file => $conf_file,
      pidfile => $pidfile,
      daemonize => !$nofork,
+     tsds_dir => $dir,
      run_user => $run_user,
      run_group => $run_group
     );
