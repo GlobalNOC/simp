@@ -60,6 +60,8 @@ has tsds_dir => (is => 'ro', required => 1, isa => Str, default => "/etc/simp/ts
 
 =item hup
 
+=item stagger_interval
+
 =back
 
 =cut
