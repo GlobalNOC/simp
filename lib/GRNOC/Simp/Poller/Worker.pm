@@ -225,7 +225,8 @@ sub _poll_cb{
     my $id        = $self->group_name;
     my $timestamp = $req_time;
     my $ip        = $host->{'ip'};
-
+    my $node_name = $host->{'node_name'};
+    my $poll_id   = $host->{'poll_id'};
 
     if(defined($context_id)){
         delete $host->{'pending_replies'}->{$main_oid . "," . $context_id};
@@ -233,27 +234,31 @@ sub _poll_cb{
         delete $host->{'pending_replies'}->{$main_oid};
     }    
 
+    my @values;
+
+    # It's possible we didn't get anything back from this OID for some reason, but we still need
+    # to advance the "pending_replies" since we did complete the action
     if(!defined $data){
 	my $error = $session->error();
 	$self->logger->error("Host/Context ID: $host->{'node_name'} " . (defined($context_id) ? $context_id : '[no context ID]'));
 	$self->logger->error("$id failed     $reqstr");
 	$self->logger->error("Error: $error");
-	return;
     }
-
-    my @values;
-
-    for my $oid (keys %$data){
-	push(@values, "$oid," .  $data->{$oid});
+    else {
+	for my $oid (keys %$data){
+	    push(@values, "$oid," .  $data->{$oid});
+	}
     }
 
     my $expires = $timestamp + $self->retention;
 
+    my $group_poll_interval = $self->group_name . "," . $self->poll_interval;
+
     try {
 
 	$redis->select(0);
-	my $key = $host->{'node_name'} . "," . $self->worker_name . ",$timestamp";
-	$redis->sadd($key, @values);
+	my $key = $node_name . "," . $self->worker_name . ",$timestamp";
+	$redis->sadd($key, @values) if (@values);
 	
 	if(scalar(keys %{$host->{'pending_replies'}}) == 0){
 	    #$self->logger->error("Received all responses!");
@@ -261,18 +266,26 @@ sub _poll_cb{
 	    
 	    #our poll_id to time lookup
 	    $redis->select(1);
-	    $redis->set($host->{'node_name'} . "," . $self->group_name . "," . $host->{'poll_id'}, $key);
-	    $redis->set($ip . "," . $self->group_name . "," . $host->{'poll_id'}, $key);
+
+	    my $node_base_key       = $node_name . "," . $self->group_name;
+	    my $ip_base_key         = $ip . "," . $self->group_name;
+	    my $poll_timestamp_val  = $poll_id . "," . $timestamp;
+
+	    my $node_name_key = $node_base_key . "," . $poll_id;
+	    my $ip_key        = $ip_base_key . "," . $poll_id;
+
+	    $redis->set($node_name_key, $key);
+	    $redis->set($ip_key, $key);
 	    #and expire
-	    $redis->expireat($host->{'node_name'} . "," . $self->group_name . "," . $host->{'poll_id'}, $expires);
-	    $redis->expireat($ip . "," . $self->group_name . "," . $host->{'poll_id'},$expires);
+	    $redis->expireat($node_name_key, $expires);
+	    $redis->expireat($ip_key, $expires);
 	    
             $redis->select(0);
 	    #$self->logger->error(Dumper($host->{'group'}{$self->group_name}));
 
-	    if($self->var_hosts()->{$host->{'node_name'}} && defined($host->{'host_variable'})){
+	    if($self->var_hosts()->{$node_name} && defined($host->{'host_variable'})){
 
-                $self->logger->debug("Adding host variables for $host->{'node_name'}");
+                $self->logger->debug("Adding host variables for $node_name");
 
 		my %add_values = %{$host->{'host_variable'}};
 		foreach my $name (keys %add_values){
@@ -284,25 +297,27 @@ sub _poll_cb{
 		}
 
 		$redis->select(3);
-		$redis->hset($host->{'node_name'}, "vars", $self->group_name . "," . $self->poll_interval);
-		$redis->hset($ip, "vars", $self->group_name . "," . $self->poll_interval);
+		$redis->hset($node_name, "vars", $group_poll_interval);
+		$redis->hset($ip, "vars", $group_poll_interval);
 	    }
 
 	    #and the current poll_id lookup
-	    $redis->select(2);
-	    $redis->set($host->{'node_name'} . "," . $self->group_name, $host->{'poll_id'} . "," . $timestamp);
-	    $redis->set($ip . "," . $self->group_name, $host->{'poll_id'} . "," . $timestamp);
-	    #and expire
-	    $redis->expireat($host->{'node_name'} . "," . $self->group_name, $expires);
-	    $redis->expireat($ip . "," . $self->group_name, $expires);
 
+	    $redis->select(2);
+	    $redis->set($node_base_key , $poll_timestamp_val);
+	    $redis->set($ip_base_key, $poll_timestamp_val);
+	    #and expire
+	    $redis->expireat($node_base_key, $expires);
+	    $redis->expireat($ip_base_key, $expires);
+
+	    # increment the actual reference instead of local var
 	    $host->{'poll_id'}++;
 	}
 
 	
 	$redis->select(3);
-	$redis->hset($host->{'node_name'}, $main_oid, $self->group_name . "," . $self->poll_interval);
-	$redis->hset($ip, $main_oid, $self->group_name . "," . $self->poll_interval);
+	$redis->hset($node_name, $main_oid, $group_poll_interval);
+	$redis->hset($ip, $main_oid, $group_poll_interval);
 
 	#change back to the primary db...
 	$redis->select(0);
