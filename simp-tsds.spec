@@ -29,7 +29,6 @@ Requires: perl(GRNOC::Log)
 
 %define execdir /usr/bin
 %define configdir /etc/simp
-%define initdir /etc/rc.d/init.d
 %define sysconfdir /etc/sysconfig
 
 %description
@@ -48,7 +47,6 @@ This program pulls SNMP-derived data from Simp and publishes it to TSDS.
 rm -rf $RPM_BUILD_ROOT
 %__mkdir -p -m 0775 $RPM_BUILD_ROOT%{execdir}
 %__mkdir -p -m 0775 $RPM_BUILD_ROOT%{configdir}
-%__mkdir -p -m 0775 $RPM_BUILD_ROOT%{initdir}
 %__mkdir -p -m 0775 $RPM_BUILD_ROOT%{sysconfdir}
 %__mkdir -p -m 0775 $RPM_BUILD_ROOT%{perl_vendorlib}/GRNOC/Simp/TSDS
 %__install bin/simp-tsds.pl $RPM_BUILD_ROOT/%{execdir}/
@@ -59,7 +57,6 @@ rm -rf $RPM_BUILD_ROOT
 %__install conf/simp-tsds.systemd $RPM_BUILD_ROOT/etc/systemd/system/simp-tsds.service
 %else
 %__install conf/sysconfig $RPM_BUILD_ROOT/%{sysconfdir}/simp-tsds
-%__install conf/simp-tsds.init $RPM_BUILD_ROOT/%{initdir}/simp-tsds
 %endif
 %__install lib/GRNOC/Simp/TSDS.pm $RPM_BUILD_ROOT/%{perl_vendorlib}/GRNOC/Simp/
 %__install lib/GRNOC/Simp/TSDS/Master.pm $RPM_BUILD_ROOT/%{perl_vendorlib}/GRNOC/Simp/TSDS/
@@ -80,7 +77,6 @@ rm -rf $RPM_BUILD_ROOT
 %if 0%{?rhel} == 7
 %attr(644,root,root) /etc/systemd/system/simp-tsds.service
 %else
-%attr(755,root,root) %config %{initdir}/simp-tsds
 %config(noreplace) %{sysconfdir}/simp-tsds
 %endif
 %{perl_vendorlib}/GRNOC/Simp/TSDS.pm
