@@ -90,6 +90,8 @@ has logger => ( is => 'rwp' );
 has children => ( is => 'rwp',
                   default => sub { [] } );
 
+has do_reload => ( is => 'rwp', default => 0 );
+
 =head2 BUILD 
 
 =cut
@@ -157,24 +159,6 @@ sub start {
 
     $self->logger->info( 'Starting.' );
 
-    $self->logger->debug( 'Setting up signal handlers.' );
-
-    # setup signal handlers
-    $SIG{'TERM'} = sub {
-
-        $self->logger->info( 'Received SIG TERM.' );
-        $self->stop();
-    };
-
-    $SIG{'HUP'} = sub {
-
-        $self->logger->info( 'Received SIG HUP.' );
-        $self->stop();
-        # create and store the host portion of the config
-        $self->_process_hosts_config();
-        $self->_create_workers();
-    };
-
     # need to daemonize
     if ( $self->daemonize ) {
 
@@ -190,46 +174,70 @@ sub start {
 
         my $pid = $daemon->Init();
 
-        # in child/daemon process
-        if ( !$pid ) {
+        # jump out of parent
+        return if ( $pid );
             
-            $self->logger->debug( 'Created daemon process.' );
-            
-            # change process name
-            $0 = "simpPoller";
-
-            # figure out what user/group (if any) to change to
-            my $user_name  = $self->run_user;
-            my $group_name = $self->run_group;
-
-            if (defined($group_name)) {
-                my $gid = getgrnam($group_name);
-                $self->_log_err_then_exit("Unable to get GID for group '$group_name'") if !defined($gid);
-
-                $! = 0;
-                setgid($gid);
-                $self->_log_err_then_exit("Unable to set GID to $gid ($group_name)") if $! != 0;
-            }
-
-            if (defined($user_name)) {
-                my $uid = getpwnam($user_name);
-                $self->_log_err_then_exit("Unable to get UID for user '$user_name'") if !defined($uid);
-
-                $! = 0;
-                setuid($uid);
-                $self->_log_err_then_exit("Unable to set UID to $uid ($user_name)") if $! != 0;
-            }
-
-            $self->_create_workers();
-        }
+	$self->logger->debug( 'Created daemon process.' );
+	
+	# change process name
+	$0 = "simpPoller";
+	
+	# figure out what user/group (if any) to change to
+	my $user_name  = $self->run_user;
+	my $group_name = $self->run_group;
+	
+	if (defined($group_name)) {
+	    my $gid = getgrnam($group_name);
+	    $self->_log_err_then_exit("Unable to get GID for group '$group_name'") if !defined($gid);
+	    
+	    $! = 0;
+	    setgid($gid);
+	    $self->_log_err_then_exit("Unable to set GID to $gid ($group_name)") if $! != 0;
+	}
+	
+	if (defined($user_name)) {
+	    my $uid = getpwnam($user_name);
+	    $self->_log_err_then_exit("Unable to get UID for user '$user_name'") if !defined($uid);
+	    
+	    $! = 0;
+	    setuid($uid);
+	    $self->_log_err_then_exit("Unable to set UID to $uid ($user_name)") if $! != 0;
+	}
+        
     }
 
     # dont need to daemonize
     else {
 
         $self->logger->debug( 'Running in foreground.' );
+    }
 
+
+    $self->logger->debug( 'Setting up signal handlers.' );
+
+    # setup signal handlers
+    $SIG{'TERM'} = sub {
+
+        $self->logger->info( 'Received SIG TERM.' );
+        $self->stop();
+    };
+
+    $SIG{'HUP'} = sub {
+
+        $self->logger->info( 'Received SIG HUP.' );
+	$self->_set_do_reload(1);
+        $self->stop();
+        # create and store the host portion of the config
+    };
+
+    while (1){
+	$self->logger->info( 'Main loop, running process_hosts_config');
+        $self->_process_hosts_config();
+	$self->logger->info( 'Main loop, running create_workers');
         $self->_create_workers();
+
+	last if (! $self->do_reload);
+	$self->_set_do_reload(0);
     }
 
     return 1;
@@ -258,11 +266,8 @@ sub stop {
 
     $self->logger->debug( 'Stopping child worker processes ' . join( ' ', @pids ) . '.' );
 
+    # Kill children, then wait for them to finish exiting
     my $res = kill( 'TERM', @pids );
-
-    $self->_set_children([]);
-
-
 }
 
 #-------- end of multprocess boilerplate
@@ -283,9 +288,9 @@ sub _create_workers {
 	next if($group->{'active'} == 0);
 	$total_workers += $group->{'workers'};
     }
-
-    my $forker = Parallel::ForkManager->new( $total_workers + 2);
     
+    my $forker = Parallel::ForkManager->new( $total_workers );
+
     #--- create workers for each group
     foreach my $group (@$groups){
       #--- ignore the group if it isnt active
@@ -340,29 +345,25 @@ sub _create_workers {
       $self->logger->info( "Creating $workers child processes for group: $name" );     
 
       # keep track of children pids
-      $forker->run_on_start( sub {
-
-        my ( $pid ) = @_;
-
-        $self->logger->debug( "Child worker process $pid created." );
-
-        push( @{$self->children}, $pid );
-      } );
-
-      # keep track of children pids
       $forker->run_on_finish( sub {
-
+	  
 	  my ( $pid ) = @_;
 	  
-	  $self->logger->error( "Child worker process $pid has died." );
+	  $self->logger->error( "Child worker process $pid has died." );	  
 	  
-	  
-			      } );
+      });
       
       
       # create workers
       for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
-	  $forker->start() and next;
+	  my $pid = $forker->start();
+
+	  # We're still in the parent if so
+	  if ($pid){
+	      $self->logger->debug( "Child worker process $pid created." );	      
+	      push( @{$self->children}, $pid );
+	      next;
+	  }
 	  
 	  # create worker in this process
 	  my $worker = GRNOC::Simp::Poller::Worker->new( instance      => $worker_id,
@@ -379,22 +380,23 @@ sub _create_workers {
 	      );
 	
         # this should only return if we tell it to stop via TERM signal etc.
-        $worker->start();
-
-        # exit child process
-        $forker->finish();
+	  $worker->start();
+	  
+	  $self->logger->info("worker->start has finished for $$");
+	  
+	  # exit child process
+	  $forker->finish();
       }
-
-    } 
-
-    $self->logger->debug( 'Waiting for all child worker processes to exit.' );
-
-    # wait for all children to return
+      
+    }
+    
+    $self->logger->info( 'Waiting for all child worker processes to exit.' );
+    
     $forker->wait_all_children();
-
+    
     $self->_set_children( [] );
-
-    $self->logger->debug( 'All child workers have exited.' );
+    
+    $self->logger->info( 'All child workers have exited.' );
 }
 
 1;
