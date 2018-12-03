@@ -77,6 +77,8 @@ has run_group => ( is => 'ro',
 
 =item children
 
+=item do_reload
+
 =back
 
 =cut
