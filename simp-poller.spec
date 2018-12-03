@@ -45,8 +45,8 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller
 %{__install} -d -p %{buildroot}/etc/simp/hosts.d
-%{__install} -d -p %{buildroot}/etc/init.d
 %{__install} -d -p %{buildroot}/usr/bin/
+%{__install} -d -p %{buildroot}/etc/systemd/system/
 
 %{__install} lib/GRNOC/Simp/Poller.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller.pm
 %{__install} lib/GRNOC/Simp/Poller/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
@@ -54,7 +54,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} conf/config.xml %{buildroot}/etc/simp/
 %{__install} conf/logging.conf %{buildroot}/etc/simp/poller_logging.conf
 %{__install} conf/hosts.d/*.xml %{buildroot}/etc/simp/hosts.d/
-%{__install} conf/simp-poller.init %{buildroot}/etc/init.d/simp-poller
+%{__install} conf/simp-poller.systemd %{buildroot}/etc/systemd/system/simp-poller.service
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -65,7 +65,7 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
 %defattr(755,root,root,755)
 /usr/bin/simp-poller.pl
-/etc/init.d/simp-poller
+/etc/systemd/system/simp-poller.service
 %defattr(644,root,root,755)
 %config(noreplace) /etc/simp/config.xml
 %config(noreplace) /etc/simp/hosts.d/hosts.xml

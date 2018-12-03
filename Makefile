@@ -57,7 +57,7 @@ dist:
 	cp -r conf/simp_data.init dist/simp-data-$(VERSION)/conf/
 	cp -r conf/config.xml dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-poller-$(VERSION)/conf/
-	cp -r conf/simp-poller.init dist/simp-poller-$(VERSION)/conf/
+	cp -r conf/simp-poller.systemd dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/hosts.d/* dist/simp-poller-$(VERSION)/conf/hosts.d/
 	cp -r conf/simp-tsds.xml dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-tsds-$(VERSION)/conf/

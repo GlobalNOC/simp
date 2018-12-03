@@ -7,5 +7,7 @@ ExecStart=/usr/bin/simp-tsds.pl --config /etc/simp/simp-tsds.xml --logging /etc/
 Type=forking
 PIDFile=/var/run/simp-tsds.pid
 
+ExecReload=/bin/kill -HUP $MAINPID
+
 [Install]
 WantedBy=multi-user.target
