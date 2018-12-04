@@ -270,11 +270,15 @@ sub _create_workers {
 
     $SIG{'HUP'} = sub {
 	$self->logger->info('Received SIGHUP.');
+	$self->_set_hup(1);	
 	while(my $worker = pop @{$self->children}){
             $worker->kill();
+	    my $pid = $worker->child_pid();
+	    $self->logger->info("Waiting for $pid to exit...");
+	    waitpid($pid, 0);
+	    $self->logger->info("Child $pid has exited.");
         }
-	
-	$self->_set_hup(1);	
+       
 	$running->send;
     };
 
@@ -319,9 +323,12 @@ sub _create_worker{
     my $init_proc = AnyEvent::Subprocess->new(
         on_completion => sub {
             $self->logger->error("Child " . $params{'name'} . " has died");
-            #do something to restart
-            #pop the worker off the queue
-            $self->_create_worker( %params );
+	    # This auto restarts a worker in the event of a problem
+	    # except if we're in a HUP situation where we don't since
+	    # we're going to call create workers again
+	    if (! $self->hup()){
+		$self->_create_worker( %params );
+	    }
         },
         code => sub {
             use GRNOC::Log;
