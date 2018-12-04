@@ -1,4 +1,20 @@
+## SIMP 1.0.10  
+Dec 4 2018
+
+### Features:
+
+ * Updated all processes to use systemd style process management instead of init.d
+
+ * Added "reload" capability to simp-poller and simp-tsds to allow for processes to stay up but reinitialize their configuration.
+
+### Bug Fixes:
+ 
+ * Fixed issue where for classes with multiple OIDs to poll would never complete if one or more OIDs did not return successfully.
+
+
+
 ## SIMP 1.0.9
+Nov 29 2018
 
 ### Features:
 
