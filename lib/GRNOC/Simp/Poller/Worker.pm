@@ -373,6 +373,7 @@ sub _connect_to_snmp{
 		    -translate        => [-octetstring => 0],
 		    -username         => $host->{'username'},
 		    -nonblocking      => 1,
+		    -retries          => 5
 		    );
 		
 		if(!defined($snmp)){
@@ -390,6 +391,7 @@ sub _connect_to_snmp{
 			-translate        => [-octetstring => 0],
 			-username         => $host->{'username'},
 			-nonblocking      => 1,
+			-retries          => 5
 			);
 		    
 		    if(!defined($snmp)){
