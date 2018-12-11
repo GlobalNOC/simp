@@ -21,6 +21,7 @@ Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 Requires: perl-Moo
 Requires: perl-Net-SNMP
+Requires: perl-Net-SNMP-XS
 Requires: perl-Parallel-ForkManager
 Requires: perl(POSIX)
 Requires: perl-Redis >= 1.991
