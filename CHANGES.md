@@ -1,3 +1,21 @@
+## SIMP 1.0.11
+Dec 11 2018
+
+### Features:
+
+ * Multiple performance enhancements. All SNMP queries now have limited retries.
+
+ * SNMP queries to the same host are now spaced out from one another by 1s to help avoid causing large request and CPU bursts.
+
+ * Net::SNMP::XS is used in place of Net::SNMP for much better performance parsing SNMP responses, particularly in large cases.
+
+ * Default tunings applied to AnyEvent::SNMP settings, particularly the MAX_OUTSTANDING value. This should provide a more consistent
+startup behavior vs behavior after running for a while and that value having been autotuned. This may be a good config option
+in the future.
+
+ * Some minor code refactor to remove copypasta.
+
+
 ## SIMP 1.0.10  
 Dec 4 2018
 
