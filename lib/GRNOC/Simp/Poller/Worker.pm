@@ -6,9 +6,12 @@ use Data::Dumper;
 use Moo;
 use AnyEvent;
 use AnyEvent::SNMP;
-use Net::SNMP;
+use Net::SNMP::XS; # Faster than non-XS
 use Redis;
 
+
+# raised from 64, default value
+$AnyEvent::SNMP::MAX_RECVQUEUE = 128;
 
 ### required attributes ###
 =head1 public attributes
@@ -123,7 +126,7 @@ has main_cv => (is => 'rwp');
 sub start {
     
     my ( $self ) = @_;
-    
+
     $self->_set_worker_name($self->group_name . $self->instance);
 
     my $logger = GRNOC::Log->get_logger($self->worker_name);
@@ -181,6 +184,12 @@ sub start {
     $self->_connect_to_snmp();
 
     $self->logger->debug($self->worker_name . ' var_hosts: "' . (join '", "', (keys %{$self->var_hosts})) . '"');
+
+    
+    # Start AnyEvent::SNMP's max outstanding requests window equal to the total
+    # number of requests this process will be making. AnyEvent::SNMP will scale from there
+    # as it observes bottlenecks
+    AnyEvent::SNMP::set_max_outstanding(@{$self->hosts()} * @{$self->oids()});  
 
     $self->{'collector_timer'} = AnyEvent->timer( after => 10,
 						  interval => $self->poll_interval,
@@ -345,6 +354,7 @@ sub _connect_to_snmp{
 		-maxmsgsize       => 65535,
 		-translate        => [-octetstring => 0],
 		-nonblocking      => 1,
+		-retries          => 5
 	    );
 
 	    if(!defined($snmp)){
@@ -424,29 +434,47 @@ sub _collect_data{
     my $timestamp     = time;
     $self->logger->debug($self->worker_name. " start poll cycle" );
 
+    $self->logger->debug($self->worker_name . " " . $self->group_name . " with " . scalar(@$hosts) . " hosts and " . scalar(@$oids) . " oids per hosts, max outstanding scaled to " . $AnyEvent::SNMP::MAX_OUTSTANDING, " queue is " . $AnyEvent::SNMP::MIN_RECVQUEUE . " to " . $AnyEvent::SNMP::MAX_RECVQUEUE);
+
+
     for my $host (@$hosts){
 
+	# used to stagger each request to a specific host, spread load
+	# This does mean you can't collect more OID bases than your interval
+	my $delay = 0;
+
+	my $node_name = $host->{'node_name'};
+
 	if(scalar(keys %{$host->{'pending_replies'}}) > 0){
-	    $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $host->{'node_name'} . " in poll cycle for group: " . $self->group_name);
+	    $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $node_name . " in poll cycle for group: " . $self->group_name . " remaining oids = " . Dumper($host->{'pending_replies'}));
 	    next;
 	}
 
+	my $snmp_session  = $self->{'snmp'}{$node_name};
+	my $snmp_contexts = $host->{'group'}{$self->group_name}{'context_id'};
+
+	if(!defined($snmp_session)){
+	    $self->logger->error("No SNMP session defined for $node_name");
+	    next;
+	}	
+
 	for my $oid (@$oids){
-	    if(!defined($self->{'snmp'}{$host->{'node_name'}})){
-		$self->logger->error("No SNMP session defined for " . $host->{'node_name'});
-		next;
-	    }
+
 	    my $reqstr = " $oid -> $host->{'ip'} ($host->{'node_name'})";
+	    
 	    $self->logger->debug($self->worker_name ." requesting ". $reqstr);
+	    
 	    #--- iterate through the the provided set of base OIDs to collect
 	    my $res;
 
-	    if($host->{'snmp_version'} eq '2c'){
+	    # v3 no context and v2c work the same way
+	    if($host->{'snmp_version'} eq '2c' || ! defined($snmp_contexts)){
 		$host->{'pending_replies'}->{$oid} = 1;
-		$res = $self->{'snmp'}{$host->{'node_name'}}->get_table(
-		    -baseoid      => $oid,
-		    -maxrepetitions => $self->max_reps,
-		    -callback     => sub{ 
+		$res = $snmp_session->get_table(
+		    -baseoid         => $oid,
+		    -maxrepetitions  => $self->max_reps,
+		    -delay           => $delay++,
+		    -callback        => sub{ 
 			my $session = shift;
 			$self->_poll_cb( host => $host,
 					 timestamp => $timestamp,
@@ -455,43 +483,46 @@ sub _collect_data{
 					 session => $session);
 		    }
 		    );
-	    }else{
-		#for each context engine specified for the group
-		if(!defined($host->{'group'}{$self->group_name}{'context_id'})){
-		    $host->{'pending_replies'}->{$oid} = 1;
-		    $res = $self->{'snmp'}{$host->{'node_name'}}->get_table(
-			-baseoid      => $oid,
-			-maxrepetitions => $self->max_reps,
-			-callback     => sub{
+
+		if (! $res){
+		    $self->logger->error($self->group_name . "  Unable to issue get_table : " . $snmp_session->error());
+		}
+	    }
+
+	    # v3 contexts
+	    elsif (defined $snmp_contexts){
+		# for each context engine specified for the group, also use the context
+		# specific snmp_session established in _connect_to_snmp
+		foreach my $ctxEngine (@$snmp_contexts){
+		    $host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
+		    $res = $snmp_session->{$ctxEngine}->get_table(
+			-baseoid         => $oid,
+			-maxrepetitions  => $self->max_reps,
+			-contextengineid => $ctxEngine,
+			-delay           => $delay++,
+			-callback        => sub{
 			    my $session = shift;
 			    $self->_poll_cb( host => $host,
 					     timestamp => $timestamp,
 					     reqstr => $reqstr,
 					     oid => $oid,
+					     context_id => $ctxEngine,
 					     session => $session);
 			}
 			);
-		    
-		}else{
-		    foreach my $ctxEngine (@{$host->{'group'}{$self->group_name}{'context_id'}}){
-			$host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
-			$res = $self->{'snmp'}{$host->{'node_name'}}{$ctxEngine}->get_table(
-			    -baseoid      => $oid,
-			    -maxrepetitions => $self->max_reps,
-			    -contextengineid => $ctxEngine,
-			    -callback     => sub{
-				my $session = shift;
-				$self->_poll_cb( host => $host,
-						 timestamp => $timestamp,
-						 reqstr => $reqstr,
-						 oid => $oid,
-						 context_id => $ctxEngine,
-						 session => $session);
-			    }
-			    );
+
+		    if (! $res){
+			$self->logger->error($self->group_name . "  Unable to issue get_table with context $ctxEngine : " . $snmp_session->{$ctxEngine}->error());
 		    }
+
 		}
 	    }
+
+	    # shouldn't get here, this could be misconfig?
+	    else {
+		$self->logger->error("Error collecting data - unsupport configuration for $node_name " . $self->group_name);
+	    }    
+
 	}
     }
 }
