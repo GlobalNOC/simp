@@ -10,7 +10,7 @@ use Data::Dumper;
 use GRNOC::Simp::TSDS;
 use GRNOC::WebService::Client;
 
-use constant MAX_TSDS_MESSAGES => 20;
+use constant MAX_TSDS_MESSAGES => 50;
 use constant SERVICE_CACHE_FILE => "/etc/grnoc/name-service-cacher/name-service.xml";
 
 =head2 public attributes
