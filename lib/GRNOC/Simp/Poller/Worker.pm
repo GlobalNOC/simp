@@ -210,8 +210,11 @@ sub start {
     $self->logger->debug( $self->worker_name . ' Starting SNMP Poll loop.' );
 
     $self->_connect_to_snmp();
-
-    $self->logger->debug($self->worker_name . ' var_hosts: "' . (join '", "', (keys %{$self->var_hosts})) . '"');
+    if (! $self->var_hosts ) {
+        $self->logger->debug("No hosts found for $self->worker_name");
+    } else {
+        $self->logger->debug($self->worker_name . ' var_hosts: "' . (join '", "', (keys %{$self->var_hosts})) . '"');
+    }
 
     # Start AnyEvent::SNMP's max outstanding requests window equal to the total
     # number of requests this process will be making. AnyEvent::SNMP will scale from there
@@ -269,21 +272,32 @@ sub _poll_cb {
     my $ip          = $host->{'ip'};
     my $node_name   = $host->{'node_name'};
     my $poll_id     = $host->{'poll_id'};
-
+    
+    $self->logger->debug("_poll_cb running for: $main_oid");
     if ( defined($context_id) ) {
         delete $host->{'pending_replies'}->{$main_oid . "," . $context_id};
     } else {
         delete $host->{'pending_replies'}->{$main_oid};
+
     }
 
     my @values;
-
     # It's possible we didn't get anything back from this OID for some reason, but we still need
     # to advance the "pending_replies" since we did complete the action
-    if( !defined $data ) {
+    if ( !defined $data ) {
+
+        # OID with no data added to hash of failed OIDs
+        $host->{'failed_oids'}{$main_oid} = {
+            error       => "OID_DATA_ERR: No data was returned for $main_oid",
+            poll_id     => $host->{'poll_id'},
+            location    => $self->config->{'config_file'},
+            group       => $self->group_name,
+            timestamp   => time()
+        };
+
         my $error = $session->error();
         $self->logger->error("Host/Context ID: $host->{'node_name'} " . (defined($context_id) ? $context_id : '[no context ID]'));
-        $self->logger->error("$id failed     $reqstr");
+        $self->logger->error("Group \"$id\" failed: $reqstr");
         $self->logger->error("Error: $error");
 
     } else {
@@ -304,7 +318,7 @@ sub _poll_cb {
 
         $redis->sadd($key, @values) if (@values);
 
-        if ( scalar(keys %{$host->{'pending_replies'}}) == 0 ) {
+        if ( scalar(keys %{$host->{'pending_replies'}}) < 1 ) {
 
             #$self->logger->error("Received all responses!");
             $redis->expireat($key, $expires);
@@ -479,6 +493,7 @@ sub _connect_to_snmp {
 
         $host->{'poll_id'} = $host_poll_id;
         $host->{'pending_replies'} = {};
+        $host->{'failed_oids'} = {};
 
         $self->logger->debug($self->worker_name . " assigned host " . $host->{'node_name'});
     }
@@ -493,7 +508,7 @@ sub _collect_data {
     my $oids          = $self->oids;
     my $timestamp     = time;
 
-    $self->logger->debug($self->worker_name. " start poll cycle" );
+    $self->logger->debug("----  START OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----" );
 
     $self->logger->debug($self->worker_name . " " . $self->group_name . " with " . scalar(@$hosts) . " hosts and " . scalar(@$oids) . " oids per hosts, max outstanding scaled to " . $AnyEvent::SNMP::MAX_OUTSTANDING, " queue is " . $AnyEvent::SNMP::MIN_RECVQUEUE . " to " . $AnyEvent::SNMP::MAX_RECVQUEUE);
 
@@ -504,7 +519,7 @@ sub _collect_data {
         my $delay = 0;
 
         my $node_name = $host->{'node_name'};
-
+        # Log error and skip collections for the host if it has an OID key in pending response with a val of 1
         if ( scalar(keys %{$host->{'pending_replies'}}) > 0 ) {
             $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $node_name . " in poll cycle for group: " . $self->group_name . " remaining oids = " . Dumper($host->{'pending_replies'}));
             next;
@@ -517,18 +532,28 @@ sub _collect_data {
             $self->logger->error("No SNMP session defined for $node_name");
             next;
         }
-
+        
         for my $oid (@$oids) {
+            
+
+            # Skip over an OID if it is failing
+            if ( exists $host->{'failed_oids'}->{$oid} ) {
+
+                # Log the error, skip the rest of this loop iteration
+                $self->logger->error($host->{'failed_oids'}->{$oid}->{'error'});
+                next;
+            }
 
             my $reqstr = " $oid -> $host->{'ip'} ($host->{'node_name'})";
-            $self->logger->debug($self->worker_name ." requesting ". $reqstr); 
+            #$self->logger->debug($self->worker_name ." requesting ". $reqstr); 
 
             # Iterate through the the provided set of base OIDs to collect
             my $res;
+            my $res_err = "Unable to issue get_table for group \"" . $self->group_name . "\"";
 
             # V3 without Context and V2C (They work the same way)
             if ( $host->{'snmp_version'} eq '2c' || ! defined($snmp_contexts) ) {
-                $host->{'pending_replies'}->{$oid} = 1;
+                $self->logger->debug($self->worker_name . " requesting " . $reqstr);
                 $res = $snmp_session->get_table(
                     -baseoid         => $oid,
                     -maxrepetitions  => $self->max_reps,
@@ -546,7 +571,20 @@ sub _collect_data {
                 );
 
                 if ( ! $res ) {
-                    $self->logger->error($self->group_name . "  Unable to issue get_table : " . $snmp_session->error());
+                    # Add oid and info to failed_oids if it failed during request
+                    $host->{'failed_oids'}{$oid} = {
+                        error       => "OID_REQUEST_ERR: Request for $oid failed!",
+                        poll_id     => $host->{'poll_id'},
+                        location    => $self->config->{'config_file'},
+                        group       => $self->group_name,
+                        timestamp   => time()
+                    };
+                    
+                    $self->logger->error("$res_err: " . $snmp_session->error());
+
+                } else {
+                    # Add to pending replies if request is successful
+                    $host->{'pending_replies'}->{$oid} = 1;
                 }
 
             # V3 with Context
@@ -570,21 +608,39 @@ sub _collect_data {
                                 context_id  => $ctxEngine,
                                 session     => $session
                             );
+                            $self->logger->debug("Created _poll_cb for $oid");
                         }
                     );
 
                     if (! $res) {
-                        $self->logger->error($self->group_name . "  Unable to issue get_table with context $ctxEngine : " . $snmp_session->{$ctxEngine}->error());
-                    }
+                        # Add oid and info to failed_oids if it failed during request
+                        $host->{'failed_oids'}{$oid} = {
+                            error       => "OID_REQUEST_ERR: Request for $oid with context $ctxEngine failed!",
+                            poll_id     => $host->{'poll_id'},
+                            location    => $self->config->{'config_file'},
+                            group       => $self->group_name,
+                            timestamp   => time()
+                        };
+
+                        $self->logger->error("$res_err with context $ctxEngine: " . $snmp_session->{$ctxEngine}->error());
+
+                    } else {
+                        # Add to pending replies if request is successful
+                        $host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
+                    } 
 
                 }
 
             # Shouldn't get here, this could be misconfig?
             } else {
-                $self->logger->error("Error collecting data - unsupport configuration for $node_name " . $self->group_name);
+                $self->logger->error("Error collecting data - unsupported configuration for $node_name " . $self->group_name);
             }
+
         }
+        
+        $self->logger->debug(Dumper($host));
     }
+    $self->logger->debug("----  END OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----" );
 }
 
 1;
