@@ -2,6 +2,7 @@ package GRNOC::Simp::Poller;
 
 use strict;
 use warnings;
+use File::Path 'rmtree';
 use Data::Dumper;
 use Moo;
 use Types::Standard qw( Str Bool );
@@ -25,9 +26,11 @@ use GRNOC::Simp::Poller::Worker;
 
 =item config_file
 
-=item hosts_file
-
 =item logging_file
+
+=item hosts_dir
+
+=item status_dir
 
 =item daemonize
 
@@ -45,13 +48,19 @@ has config_file => (
     required => 1
 );
 
-has hosts_file => ( 
+has logging_file => (
     is => 'ro',
     isa => Str,
     required => 1
 );
 
-has logging_file => (
+has hosts_dir => (
+    is => 'ro',
+    isa => Str,
+    required => 1
+);
+
+has status_dir => (
     is => 'ro',
     isa => Str,
     required => 1
@@ -87,6 +96,8 @@ has run_group => (
 
 =item logger
 
+=item status_path
+
 =item children
 
 =item do_reload
@@ -99,11 +110,11 @@ has config => (
     is => 'rwp'
 );
 
-has hosts  => (
+has logger => (
     is => 'rwp'
 );
 
-has logger => (
+has hosts  => (
     is => 'rwp'
 );
 
@@ -138,6 +149,18 @@ sub BUILD {
 
     $self->_process_hosts_config();
 
+    # Set status_dir to path in the configs, if defined and is a dir
+    my $status_dir = $self->config->get('/config/poller_status')->[0]->{'dir'};
+
+    if ( defined $status_dir && -d $status_dir) {
+        $self->status_dir = $status_dir;
+        $self->logger->debug("Found poller_status dir in config, using: " . $self->status_dir);
+
+    # Use default if not defined in configs, or invalid
+    } else {
+        $self->logger->debug("No valid poller_status dir defined in config, using: " . $self->status_dir);
+    }
+
     return $self;
 }
 
@@ -151,12 +174,12 @@ sub BUILD {
 sub _process_hosts_config {
 
     my $self = shift;
-    $self->logger->debug("BEGIN processing hosts config");
+    $self->logger->debug("BEGIN processing hosts_dir from config");
 
     # Open hosts.d/ and get array of files within, recursively
-    opendir my $dir, $self->hosts_file;
+    opendir my $dir, $self->hosts_dir;
     my @files = readdir $dir;
-    $self->logger->debug("Files in hosts config dir: " . Dumper(\@files));
+    $self->logger->debug("Files in hosts_dir: " . Dumper(\@files));
     closedir $dir;
 
     my @hosts;
@@ -166,10 +189,10 @@ sub _process_hosts_config {
 
         next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
 
-        $self->logger->debug("Creating hosts conf path: " . $self->hosts_file . "/" . $file);
+        $self->logger->debug("Creating hosts_dir config path: " . $self->hosts_dir . $file);
 
         my $conf = GRNOC::Config->new(
-            config_file => $self->hosts_file . "/" . $file,
+            config_file => $self->hosts_dir . $file,
             force_array => 1
         );
 
@@ -177,13 +200,51 @@ sub _process_hosts_config {
 
         foreach my $raw (@$rawhosts) {
             push(@hosts, $raw);
-            $self->logger->debug("Host \"$raw\" added to \@hosts");
+            $self->logger->debug("Host \"$raw->{node_name}\" added to \@hosts");
+
+            # Check if status dir for each host exists, or create it.
+            my $mon_dir = $self->status_dir . $raw->{node_name} . '/';
+            unless (-e $mon_dir or system("mkdir -m 0744 -p $mon_dir") == 0) {
+                $self->logger->error("Could not find or create dir for monitoring data: $mon_dir");
+            } else {
+                $self->logger->debug("Found or created status dir for $raw->{node_name} successfully");
+            }
         }
     }
+   
+    # Once status dirs for configured hosts have been made...
+    # Remove any dirs that are not included in configurations
+    for my $node_path ( glob($self->status_dir . '*') ) {
+
+        my $flag_removal = 1;
+        my $node_name = (split(/\//, $node_path))[-1];
+
+        for my $raw_host ( @hosts ) {
+            if ( $raw_host->{node_name} eq $node_name ) {
+                $flag_removal = 0;
+                last;
+            }
+        }
+        
+        if ( $flag_removal ) {
+            $self->logger->debug("$node_path was flagged for removal");
+            # This needs many constraints, but works as is
+            unless( rmtree([$node_path]) ) {
+                $self->logger->error("Attempted to remove $node_path, but failed!");
+            } else {
+                $self->logger->debug("Successfully removed $node_path");
+            }
+        }
+
+    }
+          
 
     $self->_set_hosts(\@hosts);
-    $self->logger->debug("FINISHED processing hosts config");
+    $self->logger->debug("FINISHED processing hosts_dir from config");
 }
+
+
+
 
 
 =head2 start
@@ -420,6 +481,7 @@ sub _create_workers {
                 poll_interval   => $poll_interval,
                 retention       => $retention,
                 logger          => $self->logger,
+                status_dir      => $self->status_dir,
                 max_reps        => $max_reps,
                 snmp_timeout    => $snmp_timeout,
                 var_hosts       => $varsByWorker{$worker_id} || {}

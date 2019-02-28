@@ -8,6 +8,7 @@ use AnyEvent;
 use AnyEvent::SNMP;
 use Net::SNMP::XS; # Faster than non-XS
 use Redis;
+use JSON;
 
 # Raised from 64, Default value
 $AnyEvent::SNMP::MAX_RECVQUEUE = 128;
@@ -26,6 +27,9 @@ $AnyEvent::SNMP::MAX_RECVQUEUE = 128;
 =item logger
 
 =item hosts
+
+#ADDED
+=item status
 
 =item oids
 
@@ -58,6 +62,11 @@ has logger => (
 );
 
 has hosts => (
+    is => 'ro',
+    required => 1
+);
+
+has status_dir => (
     is => 'ro',
     required => 1
 );
@@ -273,7 +282,7 @@ sub _poll_cb {
     my $node_name   = $host->{'node_name'};
     my $poll_id     = $host->{'poll_id'};
     
-    $self->logger->debug("_poll_cb running for: $main_oid");
+    $self->logger->debug("_poll_cb running for $node_name: $main_oid");
     if ( defined($context_id) ) {
         delete $host->{'pending_replies'}->{$main_oid . "," . $context_id};
     } else {
@@ -288,10 +297,7 @@ sub _poll_cb {
 
         # OID with no data added to hash of failed OIDs
         $host->{'failed_oids'}{$main_oid} = {
-            error       => "OID_DATA_ERR: No data was returned for $main_oid",
-            poll_id     => $host->{'poll_id'},
-            location    => $self->config->{'config_file'},
-            group       => $self->group_name,
+            error       => "OID_DATA_ERROR",
             timestamp   => time()
         };
 
@@ -400,12 +406,20 @@ sub _connect_to_snmp {
     my $hosts = $self->hosts;
 
     # Build the SNMP object for each host of interest
-    foreach my $host(@$hosts) {
+    foreach my $host ( @$hosts ) {
 
         my ($snmp,$error);
+        $host->{snmp_errors} = {};
 
         # SNMP V2C
         if ( !defined($host->{'snmp_version'}) || $host->{'snmp_version'} eq '2c' ) {
+            
+            # Send an error if v2c and missing a community
+            if ( !$host->{community} ) {
+                $self->logger->error("SNMP is v2c, but no community is defined for $host->{node_name}!");
+                $host->{snmp_errors}{community} = time;
+            }
+
             ($snmp, $error) = Net::SNMP->session(
                 -hostname         => $host->{'ip'},
                 -community        => $host->{'community'},
@@ -416,10 +430,6 @@ sub _connect_to_snmp {
                 -nonblocking      => 1,
                 -retries          => 5
             );
-
-            if ( !defined($snmp) ) {
-                $self->logger->error("Error creating SNMP Session: " . $error);
-            }
 
             $self->{'snmp'}{$host->{'node_name'}} = $snmp;
 
@@ -439,10 +449,6 @@ sub _connect_to_snmp {
                     -retries          => 5
                 );
 
-                if ( !defined($snmp) ) {
-                    $self->logger->error("Error creating SNMP Session: " . $error);
-                }
-
                 $self->{'snmp'}{$host->{'node_name'}} = $snmp;
 
             } else {
@@ -460,17 +466,20 @@ sub _connect_to_snmp {
                         -retries          => 5
                     );
 
-                    if( !defined($snmp) ) {
-                        $self->logger->error("Error creating SNMP Session: " . $error);
-                    }
-
                     $self->{'snmp'}{$host->{'node_name'}}{$ctxEngine} = $snmp;
                 }
             }
 
-        # SNMP Invalid
+            # Send an error if the SNMP session wasn't created
+            if ( !$snmp ) {
+                $self->logger->error("Error creating SNMP Session: $error");
+                $host->{snmp_errors}{session} = time;
+            }
+
+        # Send an error if the SNMP version is invalid
         } else {
             $self->logger->error("Invalid SNMP Version for SIMP");
+            $host->{snmp_errors}{version} = time;
         }
 
         my $host_poll_id;
@@ -489,6 +498,7 @@ sub _connect_to_snmp {
             $self->redis->select(0);
             $host_poll_id = 0;
             $self->logger->error("Error fetching the current poll cycle id from redis: $_");
+            $host->{snmp_errors}{redis} = time; 
         };
 
         $host->{'poll_id'} = $host_poll_id;
@@ -497,6 +507,51 @@ sub _connect_to_snmp {
 
         $self->logger->debug($self->worker_name . " assigned host " . $host->{'node_name'});
     }
+}
+
+
+sub _write_mon_data {
+
+    my $self = shift;
+    my $host_data = $self->hosts; # Reference to array of host data hashes
+    
+    for my $host ( @$host_data ) {
+        
+        # Set dir for writing status files to status_dir defined in simp-poller.pl
+        my $mon_dir = $self->status_dir . $host->{node_name} . '/';
+
+        # Checks if $mon_dir exists or creates it
+        unless (-e $mon_dir) {
+            # Note: If the dir can't be accessed due to permissions, it will die
+            $self->logger->error("Could not find dir for monitoring data: $mon_dir");
+            return # Exit this subroutine if failed
+        }
+
+        # Add filename to the path for writing
+        $mon_dir .= $self->group_name . "_status.json";
+       
+        my %mon_data = (
+            timestamp   => time(),
+            failed_oids => $host->{failed_oids} ? $host->{failed_oids} : '',
+            snmp_errors => $host->{snmp_errors} ? $host->{snmp_errors} : '',
+            config      => $self->config->{config_file},
+            interval    => $self->poll_interval
+        );
+        $self->logger->debug(Dumper(\%mon_data));
+        
+        $self->logger->debug("Writing status file $mon_dir"); 
+
+        # Write out the status file
+        open(my $fh, '>:encoding(UTF-8)', $mon_dir) or die $self->logger->error("Could not open " . $mon_dir);
+
+           print $fh JSON->new->pretty->encode(\%mon_data);
+
+        close($fh) or warn $self->logger->error("Could not close " . $mon_dir);
+
+        $self->logger->debug("Writing completed for status file $mon_dir");
+
+    }
+    
 }
 
 
@@ -573,10 +628,7 @@ sub _collect_data {
                 if ( ! $res ) {
                     # Add oid and info to failed_oids if it failed during request
                     $host->{'failed_oids'}{$oid} = {
-                        error       => "OID_REQUEST_ERR: Request for $oid failed!",
-                        poll_id     => $host->{'poll_id'},
-                        location    => $self->config->{'config_file'},
-                        group       => $self->group_name,
+                        error       => "OID_REQUEST_ERROR",
                         timestamp   => time()
                     };
                     
@@ -615,10 +667,7 @@ sub _collect_data {
                     if (! $res) {
                         # Add oid and info to failed_oids if it failed during request
                         $host->{'failed_oids'}{$oid} = {
-                            error       => "OID_REQUEST_ERR: Request for $oid with context $ctxEngine failed!",
-                            poll_id     => $host->{'poll_id'},
-                            location    => $self->config->{'config_file'},
-                            group       => $self->group_name,
+                            error       => "OID_REQUEST_ERR",
                             timestamp   => time()
                         };
 
@@ -640,7 +689,12 @@ sub _collect_data {
         
         $self->logger->debug(Dumper($host));
     }
+
+    _write_mon_data($self);
     $self->logger->debug("----  END OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----" );
+    
+    
+    
 }
 
 1;
