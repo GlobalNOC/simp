@@ -48,6 +48,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}/etc/simp/hosts.d
 %{__install} -d -p %{buildroot}/usr/bin/
 %{__install} -d -p %{buildroot}/etc/systemd/system/
+%{__install} -d -p %{buildroot}/var/lib/simp/poller/
 
 %{__install} lib/GRNOC/Simp/Poller.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller.pm
 %{__install} lib/GRNOC/Simp/Poller/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
