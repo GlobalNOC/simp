@@ -339,7 +339,7 @@ sub _get {
 
     my @cv = map { AnyEvent->condvar; } (0..3);
 
-    $cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });i
+    $cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });
     $cv[1]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[2]); });
     $cv[2]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[3]); });
     $cv[3]->begin(sub { 
