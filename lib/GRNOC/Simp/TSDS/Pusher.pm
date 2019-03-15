@@ -53,7 +53,7 @@ sub BUILD {
 			     # urn => $self->tsds_config->{'urn'},
 			     uid => $self->tsds_config->{'user'},
 			     passwd => $self->tsds_config->{'password'},
-			     # realm => $self->tsds_config->{'realm'},
+			     realm => $self->tsds_config->{'realm'},
 			     # service_cache_file => SERVICE_CACHE_FILE,
 			     usePost => 1
 			 ));
