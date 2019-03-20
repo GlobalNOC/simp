@@ -396,37 +396,40 @@ sub _do_scans {
     }
     $self->logger->debug( Dumper($results) );  
 
-    foreach my $instance ($xrefs->get_nodelist) {
-        my $instance_id = $instance->getAttribute("id");
-        #--- get the list of scans to perform
-        my $scanres = $xpc->find("./scan",$instance);
-        $self->logger->debug("Scans Detected in Config:\n" . Dumper($scanres->get_nodelist));
+    foreach my $composite ($xrefs->get_nodelist) {
 
-        foreach my $scan ($scanres->get_nodelist) {
+        #--- Get the name of the composite we're scanning as an ID
+        my $composite_id = $composite->getAttribute("id");
+
+        #--- Get <scan> elements from config for oids to scan
+        my $scans = $xpc->find("./scan",$composite);
+        $self->logger->debug("Scans Detected in Config:\n" . Dumper($scans->get_nodelist));
+
+        foreach my $scan ($scans->get_nodelist) {
             # Example Scan: <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.18.*" var="ifAlias" />
-	        my $var_name = $scan->getAttribute("id");
+
+	        my $scan_id  = $scan->getAttribute("id");
 	        my $oid      = $scan->getAttribute("oid");
-	        my $param_nm = $scan->getAttribute("var");
+	        my $scan_var = $scan->getAttribute("var");
             my $ex_only  = $scan->getAttribute("exclude-only");
 
-            $self->logger->debug("\n\nSCAN VARS:\n\tvar_name: $var_name\n\toid: $oid\n\tparam_nm: $param_nm\n\tex_only: $ex_only\n\n");
+            $self->logger->debug("\n\nSCAN VARS:\n\tScan ID: $scan_id\n\tOID: $oid\n\tScan var: $scan_var\n\tex_only: $ex_only\n\n");
 
 	        my $targets;
-	        if ( defined($param_nm) && defined($params->{$param_nm}) ) {
-                $targets = $params->{$param_nm}{"value"};
+	        if ( defined($scan_var) && defined($params->{$scan_var}) ) {
+                $targets = $params->{$scan_var}{"value"};
             }
 
-            my $excludes;
-            $excludes = $exclude_patterns{$param_nm} if defined($param_nm) && defined($exclude_patterns{$param_nm});
+            my $excludes = $exclude_patterns{$scan_var} if defined($scan_var) && defined($exclude_patterns{$scan_var});
 
             $cv->begin;
 
             $self->client->get(
-                node => $hosts, 
-                oidmatch => $oid,
-                async_callback => sub {
+                node            => $hosts, 
+                oidmatch        => $oid,
+                async_callback  => sub {
     	            my $data = shift;
-                    $self->_scan_cb($data->{'results'},$hosts,$var_name,$oid,$targets,$excludes,$results,$ex_only); 
+                    $self->_scan_cb($data->{'results'},$hosts,$scan_id,$oid,$targets,$excludes,$results,$ex_only); 
                     $cv->end;
 	            }
             );
@@ -473,7 +476,7 @@ sub _scan_cb {
             }
 
             # If the value matches an exclude for this scan, add it to the blacklist
-            if(any { $base_value =~ /$_/ } @$excludes){
+            if (any { $base_value =~ /$_/ } @$excludes) {
                 $results->{'scan-exclude'}{$host}{$oid} = 1;
             }
         }
