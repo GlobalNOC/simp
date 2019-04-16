@@ -344,7 +344,7 @@ sub _get {
     $cv[1]->begin(sub { $self->_digest_scans($ref, $params, \%results, $cv[2]); });
     $cv[2]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[3]); });
     $cv[3]->begin(sub { $self->_digest_vals($ref, $params, \%results, $cv[4]); });
-    #$cv[4]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[5]); });
+    $cv[4]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[5]); });
     $cv[5]->begin(sub { 
         my $end = [gettimeofday];
 	    my $resp_time = tv_interval($start, $end);
@@ -427,14 +427,11 @@ sub _trim_tree {
 
         if ( $key eq 'value' || $key eq 'time' ) { next; }
 
-        $self->logger->debug("_trim_trees checking key: $key");
-
         # Check if the key from val exists as a key in the map
         if ( exists $map_tree->{$key} ) {
 
             # If the existing value points to another hash
             if ( ref($val_tree->{$key}) eq ref({}) && ref($map_tree->{$key}) eq ref({}) ) {
-                $self->logger->debug("Recursing through next level of val & map trees for key: $key");
                 $self->_trim_tree($val_tree->{$key}, $map_tree->{$key});
             } 
         }
@@ -550,7 +547,6 @@ sub _translate_oids {
     # Add the vals to %trans
     $trans{vals} = \%vals;
 
-    $self->logger->debug(Dumper(\%trans));
     return \%trans;
 }
 
@@ -562,6 +558,8 @@ sub _do_scans {
     my $params     = shift; # parameters to request
     my $results    = shift; # request-global $results hash
     my $cv         = shift; # assumes that it's been begin()'ed with a callback
+
+    $self->logger->debug("Running _do_scans");
 
     # Get the array of hosts from params
     my $hosts = $params->{'node'}{'value'};
@@ -649,7 +647,6 @@ sub _do_scans {
                 oidmatch        => $scan_oid,
                 async_callback  => sub { 
                     my $data = shift;
-                    $self->logger->debug(Dumper($data));
                     $self->_scan_cb($data->{'results'},$hosts,$results,\%scan_attr);
                     $cv->end;
                 }
@@ -657,6 +654,7 @@ sub _do_scans {
         }
     }
     $cv->end;
+    $self->logger->debug("Completed _do_scans\n" . Dumper($results));
 }
 
 
@@ -675,7 +673,15 @@ sub _scan_cb {
     my $excludes     = $scan_attr->{excludes};
     my $exclude_only = $scan_attr->{ex_only}; # True = Add no results, but possibly blacklist OID values
 
+
+    $self->logger->debug("Running _scan_cb for $scan_id");
+
     for my $host (@$hosts) {
+
+        if ( !$data->{$host} ) {
+            $self->logger->error("No scan data retrieved for $host");
+            next;
+        }
         
         # Track the OIDs we want after exclusions and targets are factored in
         my @oids;
@@ -708,18 +714,13 @@ sub _scan_cb {
         # Add the data for the scan to results if we're not excluding the host
         if ( !$exclude_only && @oids ) {
             
-            #$self->logger->debug("Translating OIDS for scan: $scan_id"); 
             # Translate the OIDs into a data hash for processing from the data returned by polling the OID base
             my $oid_data = $self->_translate_oids(\@oids, $data->{$host}, $scan_map, 'scan');
 
-
-            #$results->{scan}{$host}{$scan_id}{oids} = \@oids;
-            #$results->{scan}{$host}{$scan_id}{data} = $data->{$host};
-            #$results->{scan}{$host}{$scan_id}{map}  = $scan_map;
             $results->{scan}{$host}{$scan_id} = $oid_data;
-            #$results->{scan}{$host}{$scan_id}{scan_map} = $scan_map;
         }
     }
+    $self->logger->debug("Finished running _scan_cb for $scan_id");
     return;
 }
 
@@ -728,7 +729,7 @@ sub _scan_cb {
 sub _digest_scans {
 
     my $self       = shift;
-    my $composites = shift; # Top-level XML element for CompData instance
+    my $composites = shift;
     my $params     = shift; # Parameters to request
     my $results    = shift; # Request-global $results hash
     my $cv         = shift; # Assumes that it's been begin()'ed with a callback
@@ -736,7 +737,7 @@ sub _digest_scans {
     # Get the array of hosts from params
     my $hosts = $params->{'node'}{'value'};
 
-    $self->logger->debug("Results for _process_scans:\n" . Dumper($results));
+    $self->logger->debug("Digesting combined scans");
 
     for my $host ( @$hosts ) {
 
@@ -748,12 +749,15 @@ sub _digest_scans {
         my @meta_legend;
         my $meta_scan;
 
+        # THIS SECTION IS FRAGILE AND SHOULD BE REBUILT
+        # Flatten recursively, in line with new recursive metionds
+        # Construct the base oid tree in results for scan and val
+
         # Use the results of the scan if it is the only scan;
         if ( scalar(keys %{$scans}) < 2 ) {
             $results->{scan}{$host} = values %{$results->{scan}{$host}};
             next;
         }
-
         # Otherwise, combine and flatten dependent scan results for the host
         else {
 
@@ -794,7 +798,7 @@ sub _digest_scans {
         $combined_scan{vals}    = \%combined_vals;
         $results->{scan}{$host} = \%combined_scan;
     }
-    $self->logger->debug("Combined scans:\n" . Dumper($results->{scan}));
+    $self->logger->debug("Finished digesting scans:\n" . Dumper($results->{scan}));
     $cv->end;
 }
 
@@ -807,6 +811,8 @@ sub _do_vals {
     my $results      = shift; # Request-global $results hash
     my $cv           = shift; # Assumes that it's been begin()'ed with a callback
     
+    $self->logger->debug("Running _do_vals");
+
     # Get the set of required variables
     my $hosts = $params->{'node'}{'value'};
     
@@ -909,7 +915,7 @@ sub _do_vals {
                 $val_map->{id} = $val_attr{id};
 
                 # Set the position of the trunk of the val OID
-                my $trunk   = $val_map->{trunk};
+                my $trunk = $val_map->{trunk};
 
                 # Set the base val OID to request from roots to trunk
                 my $oid_base = join '.', @{$val_map->{split_oid}}[0..$trunk];
@@ -956,8 +962,7 @@ sub _do_vals {
     }       # End $instance for loop
 
     $cv->end;
-    $self->logger->debug("Ended CV for vals section!");
-    $self->logger->debug(Dumper($results->{val})); 
+    $self->logger->debug("Finished running _do_vals");
 }
 
 
@@ -967,6 +972,8 @@ sub _hostvar_cb {
     my $data    = shift;
     my $results = shift;
 
+    $self->logger->debug("Running _hostvar_cb");
+
     foreach my $host (keys %$data) {
         foreach my $oid (keys %{$data->{$host}}) {
             my $val = $data->{$host}{$oid}{'value'};
@@ -975,6 +982,8 @@ sub _hostvar_cb {
             $results->{'hostvar'}{$host}{$oid} = $val;
         }
     }
+
+    $self->logger->debug("Finished running _hostvar_cb");
 }
 
 
@@ -1008,11 +1017,11 @@ sub _val_cb {
 
     # Get the translated data for the val using the wanted OIDs
     my $val_data = $self->_translate_oids(\@oids, $data->{$host}, $val_map);
-
-    $self->logger->debug(Dumper($val_data));
+    $self->logger->debug("Translated raw val data into data tree");
 
     # Check translated data, removing leaves and branches that were not wanted
     $val_data = $self->_trim_tree($val_data->{vals}, $scan_data->{vals});
+    $self->logger->debug("Trimmed unwanted vals");
 
     # Add the translated, cleaned data to to the val results for the host, at the val_id
     $results->{val}{$host}{$val_map->{id}} = $val_data;
@@ -1021,31 +1030,30 @@ sub _val_cb {
 }
 
 # Adds all value leaves of a val_tree to the data_tree's hash leaves
-sub _grow_tree {
+sub _build_data {
     my $self      = shift;
     my $val_id    = shift;
     my $val_tree  = shift;
     my $data_tree = shift;
 
-    $self->logger->debug("_grow_tree checking values for $val_id in:\n" . Dumper($data_tree));
+    # Check if our data tree reference is a leaf on the tree
+    if ( ref($data_tree) eq ref({}) && (!keys $data_tree || exists $data_tree->{time}) ) {
 
-    if ( (! keys $data_tree && ref($data_tree) eq ref({})) || exists $data_tree->{time} ) {
-        $self->logger->debug("Passed in data tree is a data leaf");
+        # Ensure that we have a value to add to the leaf
         if ( exists $val_tree->{value} ) {
+
+            # Set the value for the val
             $data_tree->{$val_id} = $val_tree->{value};
-            $self->logger->debug("Setting the value for the data leaf");
+
+            # Set time once per leaf
             if ( !exists $data_tree->{time} ) {
                 $data_tree->{time} = $val_tree->{time};
             }
         }
         return;
     }
-            
-
     # Loop over the all the relevant keys of the data tree
     for my $key ( keys %{$data_tree} ) {
-
-        $self->logger->debug("$val_id: Checking key $key");
 
         # The data values haven't been reached yet
         if ( !exists $val_tree->{time} && !exists $val_tree->{value} ) {
@@ -1053,72 +1061,78 @@ sub _grow_tree {
             # Check that the val_tree follows the path along the data tree
             if ( exists $val_tree->{$key} ) {
 
-                $self->logger->debug("Going deeper into both trees for $key to: $val_tree->{$key}<->$data_tree->{$key}");
-
                 # Recurse with the new key in both hashes
-                $self->_grow_tree($val_id, $val_tree->{$key}, $data_tree->{$key});
+                $self->_build_data($val_id, $val_tree->{$key}, $data_tree->{$key});
             }
         }
         # The data values have been reached
         else {
-
-            $self->logger->debug("Have data values");
-            # Key is pointing to an empty result data hash
-            if ( ref($data_tree->{$key}) eq ref({}) && !keys $data_tree->{$key} ) {
-                $self->logger->debug("Found empty data hash in data_tree at $key, adding values:");
-                # Assign the data for the val, setting time with the first val
-                $data_tree->{$key}{time}    = $val_tree->{time};
-                $data_tree->{$key}{$val_id} = $val_tree->{value};
-                $self->logger->debug(Dumper($data_tree->{$key}));
-            }
-            # Check if any keys at the next level go deeper
-            elsif ( !exists $data_tree->{time} ) { #any { ref($_) eq ref({}) } (keys %{$data_tree->{$key}}) ) {
-                # Recurse deeper into data_tree, keeping the val_tree on level with its vals
-                $self->logger->debug("data_tree has more branches/leaves at $key, recursing for vals:\n" . Dumper($val_tree));
-                $self->_grow_tree($val_id, $val_tree, $data_tree->{$key});
-            }
-            # If we've hit the values and the last data_tree branch with levels
-            else {
-                # Assign the data for the val
-                $self->logger->debug("Hit final leaf of data_tree at $key, assigning it $val_tree->{value}");
-                $data_tree->{$key}{$val_id} = $val_tree->{value};
-            }
+            $self->_build_data($val_id, $val_tree, $data_tree->{$key});
         }
     }
     return;
 }
 
-# Digests the val data into data output after all callbacks have completed
+# Pushes all leaves of a data tree to an output array
+sub _extract_data {
+    my $self      = shift;
+    my $data_tree = shift;
+    my $output    = shift;
+
+    for my $key (keys %{$data_tree}) {
+        if (exists $data_tree->{$key}{time}) {
+            push @{$output}, $data_tree->{$key};
+        }
+        else {
+            $self->_extract_data($data_tree->{$key}, $output);
+        }
+    }
+}
+
+
+# Digests the val data and transforms it into an array of data objects after all callbacks complete
 sub _digest_vals {
 
     my $self       = shift;
-    my $composites = shift; # Top-level XML element for CompData instance
+    my $composites = shift;
     my $params     = shift; # Parameters to request
     my $results    = shift; # Request-global $results hash
     my $cv         = shift; # Assumes that it's been begin()'ed with a callback
 
-    $self->logger->debug("Data passed to _digest_vals:\n" . Dumper($results));
+    $self->logger->debug("Digesting vals");
 
     # Get the array of hosts from params
     my $hosts = $params->{'node'}{'value'};
 
     for my $host ( @$hosts ) {
 
-        # Create a data hash for the host vals from its scan vals tree
-        my %data_tree = %{clone($results->{scan}{$host}{vals})};
+        if (! $results->{scan}{$host} ) {
+            $self->logger->error("No vals were returned for $host");
+            next;
+        }
+
+        # Clone the scan tree to use while building the val data
+        my %val_tree = %{clone($results->{scan}{$host}{vals})};
         
         # Get the vals polled for the host
         my $vals = $results->{val}{$host};
 
-        for my $val ( keys %{$vals} ) {
-            $self->logger->debug("\n\n\nNow adding data values for $val to the data tree");
-            $self->_grow_tree($val, $vals->{$val}, \%data_tree);
-            #last; #do one for testing;
+        # Add the data for all vals to the appropriate leaves of val_tree
+        for my $val_id ( keys %{$vals} ) {
+            $self->logger->debug("Building data for $val_id");
+            $self->_build_data($val_id, $vals->{$val_id}, \%val_tree);
         }
+        $self->logger->debug("Finished building val data");
 
-        $results->{val}{$host} = \%data_tree;
+        # Construct the final, flattened data array from the completed val_tree
+        my @val_data;
+        $self->_extract_data(\%val_tree, \@val_data);
+        $self->logger->debug("Extracted val data objects for $host");
+
+        # Set the results for val for the host to the data
+        $results->{val}{$host} = \@val_data;
     }
-    $self->logger->debug(Dumper($results));
+    $self->logger->debug("Finished digesting vals");
     $cv->end;
 }
 
@@ -1126,87 +1140,79 @@ sub _digest_vals {
 # Applies functions to values gathered by _do_vals
 sub _do_functions {
 
-    my $self    = shift;
-    my $xrefs   = shift; # top-level XML element for CompData instance
-    my $params  = shift; # parameters to request
-    my $results = shift; # request-global $results hash
-    my $cv      = shift; # assumes that it's been begin()'ed with a callback
+    my $self       = shift;
+    my $composites = shift; # top-level XML element for CompData instance
+    my $params     = shift; # parameters to request
+    my $results    = shift; # request-global $results hash
+    my $cv         = shift; # assumes that it's been begin()'ed with a callback
 
-    #$self->logger->debug(Dumper($results));
+    $self->logger->debug("Applying functions to the val data");
 
     my $now = time;
 
-    # First off, by default, we pass through the 'time' value, as it has special
-    # significance for clients:
-    foreach my $host (keys %{$results->{'val'}}) {
-        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}) {
-            my $tm = $results->{'val'}{$host}{$oid_suffix}{'time'};
-            $tm = $now if !defined($tm);
-            $results->{'final'}{$host}{$oid_suffix}{'time'} = $tm;
+    # Create a hash, mapping functions to their val IDs
+    my %f_map;
+    my $xpc = XML::LibXML::XPathContext->new($self->config->{doc});
+    my $val_elems = $xpc->find("./result/val", $composites->get_nodelist);
+    for my $val_elem ($val_elems->get_nodelist) {
+        my $val_id = $val_elem->getAttribute('id');
+        my @fctns  = $xpc->find('./fctn', $val_elem)->get_nodelist;
+        if ( @fctns ) {
+            $f_map{$val_id} = \@fctns;
         }
     }
 
-    my $xpc = XML::LibXML::XPathContext->new($self->config->{'doc'});
+    $self->logger->debug("Created function map:\n" . Dumper(\%f_map));
 
-    my $vals = $xpc->find("./result/val", $xrefs->get_nodelist);
-    foreach my $val ($vals->get_nodelist) {
-        my $val_name = $val->getAttribute("id");
-        my @fctns    = $xpc->find("./fctn", $val)->get_nodelist;
-        $self->_function_one_val($val_name, \@fctns, $params, $results);
-    }
+    # Iterate over the data array for each host
+    for my $host (keys %{$results->{'val'}}) {
 
-    # Finally, filter out OID suffixes that we identified
-    # as "should be excluded" in the scan phase
-    foreach my $host (keys %{$results->{'val'}}) {
-        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}) {
-            if ($results->{'scan-exclude'}{$host}{$oid_suffix}) {
-                delete $results->{'final'}{$host}{$oid_suffix};
+        if ( !%f_map ) { last; }
+
+        # Initialise the final data array for the host
+        $results->{final}{$host} = [];
+
+        # Ensure all data objects have a time
+        for my $data ( @{$results->{val}{$host}} ) {
+            if ( !exists $data->{time} ) {
+                $data->{time} = $now;
             }
         }
-    }
 
-    $cv->end;
-}
+        # Apply functions for each val with functions
+        for my $val_id (keys %f_map) {
 
+            my $fctn_run_warn = 0;
 
-# Run functions for one of the <val>s defined for this instance
-sub _function_one_val {
+            # Check each data object for the val with functions
+            for my $data ( @{$results->{val}{$host}} ) {
 
-    my $self     = shift;
-    my $val_name = shift; # name of the value to apply functions to
-    my $fctns    = shift; # list of <fctn> elements
-    my $params   = shift;
-    my $results  = shift;
+                if ( exists $data->{$val_id} ) {
 
-    my $have_run_warning = 0;
+                    for my $fctn ( @{$f_map{$val_id}} ) {
 
-    # Iterate over all (host, OID suffix) pairs in the retrieved values
-    foreach my $host (keys %{$results->{'val'}}) {
-        foreach my $oid_suffix (keys %{$results->{'val'}{$host}}) {
-            my $val_set = $results->{'val'}{$host}{$oid_suffix};
-            my $val = $val_set->{$val_name};
+                        my $fid = $fctn->getAttribute('name');
 
-            # Apply all functions defined for the value to it, in order:
-            foreach my $fctn (@$fctns) {
-                my $func_id = $fctn->getAttribute('name');
-                if (!defined($_FUNCTIONS{$func_id})) {
-                    $self->logger->error("Unknown function name \"$func_id\" for val \"$val_name\"!") if !$have_run_warning;
-                    $have_run_warning = 1;
-                    $val = undef;
-                    last;
+                        if ( !defined($_FUNCTIONS{$fid}) ) {
+                            if ( !$fctn_run_warn ) {
+                                $self->logger->error("Unknown function name \"$fid\" for val \"$val_id\"!");
+                            }
+                            $fctn_run_warn   = 1;
+                            $data->{$val_id} = undef;
+                            last;
+                        }
+
+                        my $operand = $fctn->getAttribute("value");
+                        my $val     = $_FUNCTIONS{$fid}([$data->{$val_id}], $operand, $fctn, $data, $results, $host);
+                        $data->{$val_id} = $val->[0];
+                    }
                 }
-
-                # Fetch a commonly-used attribute
-                my $operand = $fctn->getAttribute("value");
-                warn "Function: " . $func_id . "\n";
-		        $val = $_FUNCTIONS{$func_id}($val, $operand, $fctn, $val_set, $results, $host);
-		        warn "VAL: " . Dumper($val);
             }
-	    
-	        $val = $val->[0];
-            $results->{'final'}{$host}{$oid_suffix}{$val_name} = $val;
         }
+        $results->{final}{$host} = $results->{val}{$host};
     }
+    $self->logger->debug("Finished applying functions to the data");
+    $cv->end;
 }
 
 
