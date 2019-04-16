@@ -362,58 +362,6 @@ sub _get {
 }
 
 
-# Helper function for _map_oid that will nest oid vars within their dependent vars (vars to the left)
-sub _nest_oid_vars {
-    my $self     = shift;
-    my $var_data = shift;
-
-    # Ensure input was OID var array
-    if ( ref($var_data) eq ref([]) ) {
-
-        # The final hash of nested vars and vals to return
-        my %var_nest; 
-
-        # Loop through the data
-        for (my $i = $#$var_data; $i >= 0; $i--) {
-
-            # Get our var name and it's index from the data
-            my $var = $var_data->[$i][0];
-            my $idx = $var_data->[$i][1];
-
-            # Set first assignment if it's the rightmost OID var
-            if (! %var_nest ) {
-                %var_nest = ( 
-                    name => $var,
-                    idx  => $idx
-                );
-            }
-
-            # Otherwise, set the current var to hold its value and the last var etc
-            else {
-                # Build our new hash in a temporary hash
-                my %temp = (
-                    name => $var,
-                    idx  => $idx,
-                    var  => {%var_nest}
-                );
-
-                # Swap the hashes and end the loop
-                %var_nest = %temp;
-            }
-            $self->logger->debug(Dumper(\%var_nest));
-        }
-        $self->logger->debug("Final Hash:\n" . Dumper(\%var_nest));
-
-        # Return reference to the final hash
-        return \%var_nest;
-
-    } else {
-        $self->logger->error("_nest_oid_vars was not given an array of [var, val] combinations!");
-        return;
-    }
-}
-
-
 # Checks all branches and leaves of val_tree, removing any not listed in map_tree
 sub _trim_tree {
     my $self     = shift;
@@ -440,7 +388,7 @@ sub _trim_tree {
             delete $val_tree->{$key}; 
         }
     }
-    return $val_tree;
+    #return $val_tree;
 }
 
 
@@ -873,27 +821,16 @@ sub _do_vals {
                     next;
                 }
                 
-                # Check if the val is the special "node" val which is the node name, process, and skip to next val
-                # THIS WILL NEED TO BE ADAPTED TO ADD TO THE FINAL DATA STRUCTURE PROPERLY:
-                # Basically, for each final data object, add node => $host
-                if ( $val_attr{var} eq 'node' && 0 ) {
+                # If the val is the "node" var, create a data object in val that is the hostname
+                if ( $val_attr{var} eq 'node' ) {
                     foreach my $host (@$hosts) {
-                        my $val_host = $results->{'val'}{$host};
-                        $self->logger->debug(Dumper($val_host));     # THIS BLOCK IS MUTED
-                        my $scan = $results->{'scan'}{$host};
-                        $self->logger->debug(Dumper($scan));
-                        foreach my $scan_var (keys %{$scan->{data}}) {
-                            foreach my $oid_val (@{$scan->{$scan_var}}) {
-                                $val_host->{$oid_val}{$val_attr{id}} = [$host];
-                            }
-                        }
+                        $results->{val}{$host}{$val_attr{id}}{value} = $host;
                     }
                     next;
                 }
 
                 # If the val has a defined var attribute, 
                 # Set each of that var's scanned oid values in the val hash of results
-                # THIS WILL NEED TO BE ADAPTED TO ADD TO THE FINAL DATA STRUCTURE PROPERLY
                 foreach my $host (@$hosts) {
                     my $scan_var = $results->{'scan-match'}{$host}{$val_attr{var}};
 
@@ -1017,11 +954,11 @@ sub _val_cb {
 
     # Get the translated data for the val using the wanted OIDs
     my $val_data = $self->_translate_oids(\@oids, $data->{$host}, $val_map);
-    $self->logger->debug("Translated raw val data into data tree");
+    $self->logger->debug("Translated raw val data into data tree for $val_map->{id}");
 
     # Check translated data, removing leaves and branches that were not wanted
     $val_data = $self->_trim_tree($val_data->{vals}, $scan_data->{vals});
-    $self->logger->debug("Trimmed unwanted vals");
+    $self->logger->debug("Trimmed unwanted vals for $val_map->{id}");
 
     # Add the translated, cleaned data to to the val results for the host, at the val_id
     $results->{val}{$host}{$val_map->{id}} = $val_data;
@@ -1046,7 +983,7 @@ sub _build_data {
             $data_tree->{$val_id} = $val_tree->{value};
 
             # Set time once per leaf
-            if ( !exists $data_tree->{time} ) {
+            if ( !exists $data_tree->{time} && exists $val_tree->{time} ) {
                 $data_tree->{time} = $val_tree->{time};
             }
         }
@@ -1056,7 +993,7 @@ sub _build_data {
     for my $key ( keys %{$data_tree} ) {
 
         # The data values haven't been reached yet
-        if ( !exists $val_tree->{time} && !exists $val_tree->{value} ) {
+        if ( !exists $val_tree->{value} ) {
 
             # Check that the val_tree follows the path along the data tree
             if ( exists $val_tree->{$key} ) {
@@ -1168,6 +1105,11 @@ sub _do_functions {
     for my $host (keys %{$results->{'val'}}) {
 
         if ( !%f_map ) { last; }
+
+        if (ref($results->{val}{$host}) ne ref([])) {
+            $self->logger->error("No data array could be generated for $host!");
+            last; 
+        }
 
         # Initialise the final data array for the host
         $results->{final}{$host} = [];
