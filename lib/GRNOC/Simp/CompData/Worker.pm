@@ -394,55 +394,68 @@ sub _trim_data {
 
 # Creates a hash mapping for the OID with its split OID, vars and their position, and the OID trunk index
 sub _map_oid {
-    my $self    = shift;
-    my $oid     = shift;
+    my $self     = shift;
+    my $oid_attr = shift;
     my %oid_map;
 
-    $self->logger->debug("Creating a map for OID: $oid");
+    $self->logger->debug("Creating a map for: $oid_attr->{id}");
 
     # Split the oid and add that to our map
-    my @split_oid = split(/\./, $oid);
+    my @split_oid = split(/\./, $oid_attr->{oid});
     $oid_map{split_oid} = \@split_oid;
+
+    # For joining trailing OID elements after the last var
+    my $last_var_idx;
 
     # Loop over the OID elements
     for (my $i = 0; $i <= $#split_oid; $i++) {
 
         my $oid_elem = $split_oid[$i];
 
-        # Check if the OID element is a var (Regex matches on std var naming conventions)
-        if ($oid_elem =~ /^((?![\s\d])[a-z]+[\da-z_-]*)*$/i) {
+        # Change * to the name of the elem for backward compatibility
+        if ( $oid_elem eq '*' ) { 
+            $oid_elem      = $oid_attr->{id};
+            $split_oid[$i] = $oid_attr->{id};
+        }
+
+        # Check if the OID element is a var or * (Regex matches on std var naming conventions)
+        if ( $oid_elem =~ /^((?![\s\d])[a-z]+[\da-z_-]*)*$/i ) {
 
             # Add the var name and it's index to the map, dependency derived from its var_num
             $oid_map{vars}{$oid_elem}{index} = $i;
 
             if (! exists $oid_map{trunk} ) {
-            # Set the oid trunk where the first variable occurs
-                if ($i > 0) {
-                    $oid_map{trunk} = $i - 1;
-                } 
-                else {
-                    $oid_map{trunk} = $i;
-                }
+                # Set the oid trunk where the first variable occurs
+                $oid_map{trunk} = $i;
+                # Also init the last var idx
+                $last_var_idx   = $i;
             }
+
+            # Keep setting the last var to higher var positions
+            if ($last_var_idx < $i) { $last_var_idx = $i; }
         }
     }
+
+    $oid_map{last_var} = $last_var_idx;
+
+    $self->logger->debug("Generated map:\n" . Dumper(\%oid_map));
     return \%oid_map
 }
 
 
 # Transforms OID values and data into a tree with preserved dependencies
 sub _transform_oids {
-    my $self     = shift;
-    my $oids     = shift;
-    my $data     = shift;
-    my $map      = shift;
-    my $type     = shift;
+    my $self = shift;
+    my $oids = shift;
+    my $data = shift;
+    my $map  = shift;
+    my $type = shift;
 
     if ( !defined $type ) { $type = 'default'; }
 
-    my %trans;   # Final translated hash
-    my %vals;    # Temporary hash for building values
-    my @legend;  # Store vars in order of parent->child
+    my %trans;  # Final translated hash
+    my %vals;   # Temporary hash for building values
+    my @legend; # Store vars in order of parent->child
 
     for my $oid ( @{$oids} ) {
 
@@ -452,45 +465,54 @@ sub _transform_oids {
         # Remove time from scan data, to prevent assigning a static time for timeseries data
         if ( $type eq 'scan' && exists $value->{time} ) {
             delete $value->{time};
-            $self->logger->debug("Value found for $oid: " . Dumper($value));
         }
 
         my @split_oid = split(/\./, $oid);
 
-        # Make a reference point starting at the base of values in %trans
+        # Check if the last var happens before the end of the data OID elements
+        if ( $map->{last_var} < $#split_oid ) {
+
+            # Combine any tailing elements in the data OID with the last var
+            my $var_tail = join('.', splice(@split_oid, $map->{last_var}, $#split_oid));
+            push(@split_oid, $var_tail);
+        }
+
+        # Make a reference point to the base of %vals
         my $ref = \%vals;
 
         # Starting from the 1st var at the mapped trunk, loop over OID elements
-        for ( my $i = $map->{trunk} + 1; $i <= $#split_oid; $i++ ) {
+        for ( my $i = $map->{trunk}; $i <= $#split_oid; $i++ ) {
 
             # Get any matching var from the map's split OID
-            my $var = $map->{split_oid}[$i];
-            if (! exists $map->{vars}{$var} ) { next; }
+            my $var = $map->{split_oid}[$i]; 
+            if ( defined $var ) {
+                if (! exists $trans{legend} ) { 
+                    push @legend, $var;
+                }
+            }
+            else {
+                next;
+            }
 
             # Get the var's value in the polled OID
-            my $val = $split_oid[$i];
+            my $oid_elem = $split_oid[$i];
 
             # If it's not a key at the reference point, make it and give it a val
-            if (! exists $ref->{$val} ) {
+            if (! exists $ref->{$oid_elem} ) {
 
                 # On the last key, or if not a blank tree, assign the data value
                 if ( $i == $#split_oid && $type ne 'blank' ) {
-                    $ref->{$val} = $value;
+                    $ref->{$oid_elem} = $value;
                 }
                 # Otherwise init a new hash in that key for another var and set it in val results
                 else {
-                    $ref->{$val} = {};
+                    $ref->{$oid_elem} = {};
                 }
             }
-
-            # Switch the reference point to the new key's hash
-            $ref = $vals{$val};
-
-            # Push vars to the legend if it hasn't been set
-            if (! exists $trans{legend} ) {
-                push @legend, $var;
-            }
+            # Switch the reference point to the elem's new hash
+            $ref = $vals{$oid_elem};
         }
+
         # Set the legend if it hasn't been
         if (! exists $trans{legend} ) {
             $trans{legend} = \@legend;
@@ -539,7 +561,6 @@ sub _do_scans {
         $results->{val}{$host} = {};
         $results->{hostvar}{$host} = {};
     }
-    $self->logger->debug( Dumper($results) );  
 
     foreach my $composite ($composites->get_nodelist) {
 
@@ -554,50 +575,48 @@ sub _do_scans {
 
             # Create hash of the basic scan attributes
 	        my %scan_attr = (
-                scan_id  => $scan->getAttribute("id"),
-	            oid      => $scan->getAttribute("oid"),
-	            scan_var => $scan->getAttribute("var"),
-                ex_only  => $scan->getAttribute("exclude-only"),
+                id      => $scan->getAttribute("id"),
+	            oid     => $scan->getAttribute("oid"),
+	            var     => $scan->getAttribute("var"),
+                ex_only => $scan->getAttribute("exclude-only"),
             );
 
             # Add any targets to our scan attributes
-	        if ( defined($scan_attr{scan_var}) && defined($params->{$scan_attr{scan_var}}) ) {
-                $scan_attr{targets} = $params->{$scan_attr{scan_var}}{"value"};
+	        if ( defined($scan_attr{var}) && defined($params->{$scan_attr{var}}) ) {
+                $scan_attr{targets} = $params->{$scan_attr{var}}{value};
             }
             
             # Add any exclusion patterns to our scan attributes
-            if ( defined($scan_attr{scan_var}) && defined($exclude_patterns{$scan_attr{scan_var}}) ) {
-                $scan_attr{excludes} = $exclude_patterns{$scan_attr{scan_var}};
+            if ( defined($scan_attr{var}) && defined($exclude_patterns{$scan_attr{var}}) ) {
+                $scan_attr{excludes} = $exclude_patterns{$scan_attr{var}};
             } else {
                 $scan_attr{excludes} = [];
             }
 
             # Get names/indexes for the variables we need from the scan, and the split oid
-            my $scan_map = $self->_map_oid($scan_attr{oid});
+            my $scan_map = $self->_map_oid(\%scan_attr);
             my $split_oid = $scan_map->{split_oid};
             my $trunk = $scan_map->{trunk};
  
             # Add our scan map to the scan results
-            $scan_attr{scan_map} = $scan_map;
+            $scan_attr{map} = $scan_map;
             $self->logger->debug("Complete Scan Attributes:\n" . Dumper(\%scan_attr));
 
             # Build the OID tree to scan from its roots to its trunk
             my $scan_oid;
             if ( defined $scan_map ) {
-                $scan_oid = join '.', @{$split_oid}[0..$trunk];
+                $scan_oid = join '.', @{$split_oid}[0..($trunk - 1)];
             } else {
-                # ! Here we can add some backward compatability !
                 $scan_oid = join '.', @$split_oid;
             }
             $self->logger->debug($scan_oid);
 
-
             $cv->begin;
             # The results from this callback to RabbitMQ are sent directly to _do_vals as $results upon completion
             $self->client->get(
-                node            => $hosts, 
-                oidmatch        => $scan_oid,
-                async_callback  => sub { 
+                node           => $hosts, 
+                oidmatch       => $scan_oid,
+                async_callback => sub { 
                     my $data = shift;
                     $self->_scan_cb($data->{'results'},$hosts,$results,\%scan_attr);
                     $cv->end;
@@ -606,7 +625,7 @@ sub _do_scans {
         }
     }
     $cv->end;
-    $self->logger->debug("Completed _do_scans\n" . Dumper($results));
+    $self->logger->debug("Completed _do_scans");
 }
 
 
@@ -618,8 +637,8 @@ sub _scan_cb {
     my $results   = shift;
     my $scan_attr = shift;
 
-    my $scan_map     = $scan_attr->{scan_map};
-    my $scan_id      = $scan_attr->{scan_id};
+    my $scan_map     = $scan_attr->{map};
+    my $scan_id      = $scan_attr->{id};
     my $oid_pattern  = $scan_attr->{oid};
     my $targets      = $scan_attr->{targets};
     my $excludes     = $scan_attr->{excludes};
@@ -631,7 +650,7 @@ sub _scan_cb {
     for my $host (@$hosts) {
 
         if ( !$data->{$host} ) {
-            $self->logger->error("No scan data retrieved for $host");
+            $self->logger->error("No scan data could be retrieved for $host");
             next;
         }
         
@@ -662,15 +681,17 @@ sub _scan_cb {
                 push @oids, $oid;
             }
         }
+        
+        $self->logger->debug(scalar(@oids) . " OIDs were pushed for transforming and ex_only is " . $exclude_only);
 
         # Add the data for the scan to results if we're not excluding the host
         if ( !$exclude_only && @oids ) {
-            
+
             # Transform the OID data into a tree with empty leaves to fill
             my $scan_tree = $self->_transform_oids(\@oids, $data->{$host}, $scan_map, 'blank');
             # Transform the OID data into a tree containing value data for the scan
             my $scan_vals = $self->_transform_oids(\@oids, $data->{$host}, $scan_map, 'scan');
-
+            
             $results->{scan}{$host}{$scan_id}      = $scan_tree;
             $results->{scan_vals}{$host}{$scan_id} = $scan_vals->{vals};
         }
@@ -715,20 +736,26 @@ sub _digest_scans {
 
     for my $host ( @$hosts ) {
 
+        my %combined_scan;
+
         # Get the scans for the host
         my $scans = $results->{scan}{$host};
+        $self->logger->debug("_digest_scans found data for " . scalar(keys %{$scans}) . " scans");
 
-        my %combined_scan;
-        my @main_legend;
-        my $main_scan;
-
-        # Use the results of the scan if it is the only scan;
+        # Single scans don't need to be combined;
         if ( scalar(keys %{$scans}) < 2 ) {
-            $results->{scan}{$host} = values %{$results->{scan}{$host}};
+            $self->logger->debug("Single scan found, using that scan");
+            for my $scan_id (keys %{$scans}) {
+                $results->{scan}{$host} = $results->{scan}{$host}{$scan_id};
+                last;
+            }
             next;
         }
         # Otherwise, combine the dependent scan results for the host
         else {
+
+            my @main_legend;
+            my $main_scan;
 
             # Find the scan with the most dependencies and use its legend and scan val tree
             for my $scan (keys %{$scans}) {
@@ -758,7 +785,7 @@ sub _digest_scans {
         # Replace our scanned OID trees for the host with one combined one
         $results->{scan}{$host} = \%combined_scan;
     }
-    $self->logger->debug("Finished digesting scans:\n" . Dumper($results->{scan}));
+    $self->logger->debug("Finished digesting scans");
     $cv->end;
 }
 
@@ -855,7 +882,7 @@ sub _do_vals {
             } else {
 
                 # Create a map of the val OID for use
-                my $val_map = $self->_map_oid($val_attr{oid});
+                my $val_map = $self->_map_oid(\%val_attr);
                 next if !(defined $val_map);
 
                 # Add the val's ID to the val_map
@@ -865,7 +892,7 @@ sub _do_vals {
                 my $trunk = $val_map->{trunk};
 
                 # Set the base val OID to request as the OID from root to trunk
-                my $oid_base = join '.', @{$val_map->{split_oid}}[0..$trunk];
+                my $oid_base = join '.', @{$val_map->{split_oid}}[0..($trunk - 1)];
 
                 $self->logger->debug("Set the OID base for \"$val_attr{id}\" with trunk index of $trunk: $oid_base");
 
@@ -923,7 +950,6 @@ sub _hostvar_cb {
     foreach my $host (keys %$data) {
         foreach my $oid (keys %{$data->{$host}}) {
             my $val = $data->{$host}{$oid}{'value'};
-            $self->logger->debug(Dumper($val));
             $oid =~ s/^vars\.//;
             $results->{'hostvar'}{$host}{$oid} = $val;
         }
@@ -944,6 +970,7 @@ sub _val_cb {
 
     # Get the scan data for the host
     my $scan_data = $results->{scan}{$host};
+    $self->logger->debug("Scan data found for _val_cb: " . scalar(keys %{$scan_data}));
 
     $self->logger->debug("Running _val_cb");
 
@@ -965,7 +992,6 @@ sub _val_cb {
     my $val_data = $self->_transform_oids(\@oids, $data->{$host}, $val_map);
     $self->logger->debug("Translated raw val data into data tree for $val_map->{id}");
     $self->logger->debug(Dumper($val_data));
-
     # Check translated data, removing leaves and branches that were not wanted
     $val_data = $self->_trim_data($val_data->{vals}, $scan_data->{vals});
     $self->logger->debug("Trimmed unwanted vals for $val_map->{id}");
@@ -1064,7 +1090,6 @@ sub _digest_vals {
         
         # Get the vals polled for the host
         my $vals = $results->{val}{$host};
-        $self->logger->debug(Dumper($vals));
 
         # Add the data for all vals to the appropriate leaves of val_tree
         for my $val_id ( keys %{$vals} ) {
