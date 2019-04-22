@@ -465,6 +465,8 @@ sub _do_vals{
 	#--- get the list of scans to perform
 	my $valres = $xpc->find("./result/val",$instance);
 	foreach my $val ($valres->get_nodelist){
+
+	    warn Dumper($val->toString());
             # The <val> tag can have a couple of different forms:
             #
             # <val id="var_name" var="scan_var_name">
@@ -516,6 +518,7 @@ sub _do_vals{
                 }
             }else{ # pull data from Simp
                 # fetch the scan-variable name to use:
+		warn "Original OID: $oid\n";
                 my @oid_parts = split /\./, $oid;
                 my $scan_var_idx = 0;
 
@@ -523,31 +526,61 @@ sub _do_vals{
                     last if !($oid_parts[$scan_var_idx] =~ /^[0-9]*$/);
                     $scan_var_idx += 1;
                 }
+
+		$self->logger->error( "scan_var_idx $scan_var_idx num oid_parts " . @oid_parts );
                 if ($scan_var_idx >= scalar @oid_parts){
                     $self->logger->error("no scan-variable name found for <val id='$id'>");
-                    next;
+		    $self->logger->error( "oid_parts" . Dumper \@oid_parts );
+		    $scan_var_idx = undef;
                 }
 
                 my $scan_var_name = $oid_parts[$scan_var_idx];
-
+		$self->logger->error("scan_var_name: " . $scan_var_name);
+		warn "Scan var name: " . $scan_var_name . "\n";
                 foreach my $host (@$hosts) {
+		    $self->logger->error( "scan host " . Dumper $results->{'scan'}{$host} );
                     my $oid_suffixes = $results->{'scan'}{$host}{$scan_var_name};
-                    next if !defined($oid_suffixes); # Make sure there's stuff to iterate over
+                    
+		    #next if !defined($oid_suffixes); # Make sure there's stuff to iterate over
 
                     my %lut; # look-up table from (full OID) to list of (OID suffix, variable name) pairs
-                    my $oid_base = join '.', @oid_parts[0 .. ($scan_var_idx - 1)], '*'; # OID subtree to scan through
+                    my $oid_base;
+		    if ( !defined($scan_var_idx) ) {
+                      $oid_base = join '.', @oid_parts[0 .. (scalar @oid_parts - 1)]; # OID subtree to scan through
+		    } else {
+			$oid_base = join '.', @oid_parts[0 .. ($scan_var_idx - 1)], '*'; # OID subtree to scan through
+		    }
+		    warn "OID BASE: " . $oid_base . "\n";
+		    $self->logger->error( "OID_BASE " . Dumper $oid_base );
 
-                    foreach my $oid_suffix (@$oid_suffixes){
-                        # re-use @oid_parts to construct the full OID to look for
-                        $oid_parts[$scan_var_idx] = $oid_suffix;
-                        my $full_oid = join '.', @oid_parts;
+		    if(!defined($oid_suffixes)){
 
-                        push @{$lut{$full_oid}}, [$oid_suffix, $id];
-                    }
+			my $scan = $results->{'scan'}{$host};
+                        foreach my $scan_var (keys %{$scan}){
+                            foreach my $oid_suffix (@{$scan->{$scan_var}}){
+                                push @{$lut{$oid_base}}, [$oid_suffix, $id];
+                            }
+                        }
 
+			#push @{$lut{$oid_base}}, [$oid_base, $id];
+		    }else{
+			foreach my $oid_suffix (@$oid_suffixes){
+			    # re-use @oid_parts to construct the full OID to look for
+			    if ( defined($scan_var_idx) ) {
+				$oid_parts[$scan_var_idx] = $oid_suffix;
+			    }
+			    
+			    warn "OID PARTS: " . Dumper(\@oid_parts);
+			    
+			    my $full_oid = join '.', @oid_parts;
+			    
+			    push @{$lut{$full_oid}}, [$oid_suffix, $id];
+			}
+		    }
+		    
                     # Now get the data for these OIDs from Simp
                     $cv->begin;
-
+		    warn "Requesting from SIMP: " . $host . " base " . $oid_base . " period: " . $params->{'period'}{'value'} . "\n";
                     # It is tempting to request just the OIDs you know you want,
                     # instead of asking for the whole subtree, but requesting
                     # a bunch of individual OIDs takes SimpData a *whole* lot
@@ -620,6 +653,8 @@ sub _val_cb{
   my $host        = shift;
   my $lut         = shift;
 
+  warn "PRocessing VAL Callback " . Dumper($data);
+  warn Dumper($data->{$host});
   return if !defined($data->{$host});
 
   foreach my $oid (keys %{$data->{$host}}){
@@ -628,6 +663,7 @@ sub _val_cb{
 
       #my $indices = $lut->{$oid};
       my $indices = $self->_lookup_indicies($oid, $lut);
+      warn Dumper($indices);
       next if !defined($indices);
 
       foreach my $index (@$indices){
