@@ -150,7 +150,12 @@ sub BUILD {
     $self->_process_hosts_config();
 
     # Set status_dir to path in the configs, if defined and is a dir
-    my $status_dir = $self->config->get('/config/poller_status')->[0]->{'dir'};
+    my $status_path = $self->config->get('/config/poller_status');
+
+    my $status_dir;
+    if ( defined $status_path ) {
+        $status_dir = $status_path->[0]->{'dir'};
+    }
 
     if ( defined $status_dir && -d $status_dir) {
         $self->status_dir = $status_dir;
