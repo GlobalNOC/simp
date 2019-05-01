@@ -28,7 +28,6 @@ $AnyEvent::SNMP::MAX_RECVQUEUE = 128;
 
 =item hosts
 
-#ADDED
 =item status
 
 =item oids
@@ -228,7 +227,15 @@ sub start {
     # Start AnyEvent::SNMP's max outstanding requests window equal to the total
     # number of requests this process will be making. AnyEvent::SNMP will scale from there
     # as it observes bottlenecks
-    AnyEvent::SNMP::set_max_outstanding(@{$self->hosts()} * @{$self->oids()});
+    if ( $self->oids()  && $self->hosts() ) {
+        AnyEvent::SNMP::set_max_outstanding(@{$self->hosts()} * @{$self->oids()});
+    } 
+    else {
+        $self->logger->error("Hosts or OIDs were not defined!");
+        return;
+    }
+
+    
 
     $self->{'collector_timer'} = AnyEvent->timer(
         after => 10,
@@ -296,10 +303,14 @@ sub _poll_cb {
     if ( !defined $data ) {
 
         # OID with no data added to hash of failed OIDs
-        $host->{'failed_oids'}{$main_oid} = {
+        $host->{failed_oids}{$main_oid} = {
             error       => "OID_DATA_ERROR",
             timestamp   => time()
         };
+
+        if ( defined $context_id ) {
+            $host->{failed_oids}{$main_oid}{context} = $context_id;
+        }
 
         my $error = $session->error();
         $self->logger->error("Host/Context ID: $host->{'node_name'} " . (defined($context_id) ? $context_id : '[no context ID]'));
@@ -324,7 +335,7 @@ sub _poll_cb {
 
         $redis->sadd($key, @values) if (@values);
 
-        if ( scalar(keys %{$host->{'pending_replies'}}) < 1 ) {
+        if ( scalar(keys %{$host->{'pending_replies'}}) == 0 ) {
 
             #$self->logger->error("Received all responses!");
             $redis->expireat($key, $expires);
@@ -417,7 +428,10 @@ sub _connect_to_snmp {
             # Send an error if v2c and missing a community
             if ( !$host->{community} ) {
                 $self->logger->error("SNMP is v2c, but no community is defined for $host->{node_name}!");
-                $host->{snmp_errors}{community} = time;
+                $host->{snmp_errors}{community} = {
+                    time   => time,
+                    error  => "No community was defined for $host"
+                };
             }
 
             ($snmp, $error) = Net::SNMP->session(
@@ -473,13 +487,19 @@ sub _connect_to_snmp {
             # Send an error if the SNMP session wasn't created
             if ( !$snmp ) {
                 $self->logger->error("Error creating SNMP Session: $error");
-                $host->{snmp_errors}{session} = time;
+                $host->{snmp_errors}{session} = {
+                    time  => time,
+                    error => $error
+                };
             }
 
         # Send an error if the SNMP version is invalid
         } else {
             $self->logger->error("Invalid SNMP Version for SIMP");
-            $host->{snmp_errors}{version} = time;
+            $host->{snmp_errors}{version} = {
+                time  => time,
+                error => $error
+            };
         }
 
         my $host_poll_id;
@@ -498,7 +518,10 @@ sub _connect_to_snmp {
             $self->redis->select(0);
             $host_poll_id = 0;
             $self->logger->error("Error fetching the current poll cycle id from redis: $_");
-            $host->{snmp_errors}{redis} = time; 
+            $host->{snmp_errors}{redis} = {
+                time  => time,
+                error => "Error fetching the current poll cycle id from redis $_"
+            }; 
         };
 
         $host->{'poll_id'} = $host_poll_id;
@@ -513,45 +536,43 @@ sub _connect_to_snmp {
 sub _write_mon_data {
 
     my $self = shift;
-    my $host_data = $self->hosts; # Reference to array of host data hashes
-    
-    for my $host ( @$host_data ) {
-        
-        # Set dir for writing status files to status_dir defined in simp-poller.pl
-        my $mon_dir = $self->status_dir . $host->{node_name} . '/';
+    my $host = shift;
 
-        # Checks if $mon_dir exists or creates it
-        unless (-e $mon_dir) {
-            # Note: If the dir can't be accessed due to permissions, it will die
-            $self->logger->error("Could not find dir for monitoring data: $mon_dir");
-            return # Exit this subroutine if failed
-        }
+    # Set dir for writing status files to status_dir defined in simp-poller.pl
+    my $mon_dir = $self->status_dir . $host->{node_name} . '/';
 
-        # Add filename to the path for writing
-        $mon_dir .= $self->group_name . "_status.json";
-       
-        my %mon_data = (
-            timestamp   => time(),
-            failed_oids => $host->{failed_oids} ? $host->{failed_oids} : '',
-            snmp_errors => $host->{snmp_errors} ? $host->{snmp_errors} : '',
-            config      => $self->config->{config_file},
-            interval    => $self->poll_interval
-        );
-        $self->logger->debug(Dumper(\%mon_data));
-        
-        $self->logger->debug("Writing status file $mon_dir"); 
-
-        # Write out the status file
-        open(my $fh, '>:encoding(UTF-8)', $mon_dir) or die $self->logger->error("Could not open " . $mon_dir);
-
-           print $fh JSON->new->pretty->encode(\%mon_data);
-
-        close($fh) or warn $self->logger->error("Could not close " . $mon_dir);
-
-        $self->logger->debug("Writing completed for status file $mon_dir");
-
+    # Checks if $mon_dir exists or creates it
+    unless (-e $mon_dir) {
+        # Note: If the dir can't be accessed due to permissions, writing will fail
+        $self->logger->error("Could not find dir for monitoring data: $mon_dir");
+        return;
     }
-    
+
+    # Add filename to the path for writing
+    $mon_dir .= $self->group_name . "_status.json";
+       
+    my %mon_data = (
+        timestamp   => time(),
+        failed_oids => $host->{failed_oids} ? $host->{failed_oids} : '',
+        snmp_errors => $host->{snmp_errors} ? $host->{snmp_errors} : '',
+        config      => $self->config->{config_file},
+        interval    => $self->poll_interval
+    );
+    $self->logger->debug(Dumper(\%mon_data));
+        
+    $self->logger->debug("Writing status file $mon_dir"); 
+
+    # Write out the status file
+    if ( open(my $fh, '>:encoding(UTF-8)', $mon_dir) ) {
+       print $fh JSON->new->pretty->encode(\%mon_data);
+       close($fh) || $self->logger->error("Could not close $mon_dir");
+    }
+    else {
+        $self->logger->error("Could not open " . $mon_dir);
+        return;
+    }
+
+    $self->logger->debug("Writing completed for status file $mon_dir");
 }
 
 
@@ -574,6 +595,7 @@ sub _collect_data {
         my $delay = 0;
 
         my $node_name = $host->{'node_name'};
+
         # Log error and skip collections for the host if it has an OID key in pending response with a val of 1
         if ( scalar(keys %{$host->{'pending_replies'}}) > 0 ) {
             $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $node_name . " in poll cycle for group: " . $self->group_name . " remaining oids = " . Dumper($host->{'pending_replies'}));
@@ -590,13 +612,9 @@ sub _collect_data {
         
         for my $oid (@$oids) {
             
-
-            # Skip over an OID if it is failing
+            # Log an error if the OID is failing
             if ( exists $host->{'failed_oids'}->{$oid} ) {
-
-                # Log the error, skip the rest of this loop iteration
                 $self->logger->error($host->{'failed_oids'}->{$oid}->{'error'});
-                next;
             }
 
             my $reqstr = " $oid -> $host->{'ip'} ($host->{'node_name'})";
@@ -625,10 +643,11 @@ sub _collect_data {
                     }
                 );
 
-                if ( ! $res ) {
+                if ( !$res ) {
                     # Add oid and info to failed_oids if it failed during request
                     $host->{'failed_oids'}{$oid} = {
                         error       => "OID_REQUEST_ERROR",
+                        description => $snmp_session->error(),
                         timestamp   => time()
                     };
                     
@@ -664,10 +683,11 @@ sub _collect_data {
                         }
                     );
 
-                    if (! $res) {
+                    if ( !$res ) {
                         # Add oid and info to failed_oids if it failed during request
                         $host->{'failed_oids'}{$oid} = {
                             error       => "OID_REQUEST_ERR",
+                            description => $snmp_session->error(),
                             timestamp   => time()
                         };
 
@@ -686,15 +706,12 @@ sub _collect_data {
             }
 
         }
-        
         $self->logger->debug(Dumper($host));
+        
+        # Write out the mon data for the host
+        $self->_write_mon_data($host);
     }
-
-    _write_mon_data($self);
     $self->logger->debug("----  END OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----" );
-    
-    
-    
 }
 
 1;
