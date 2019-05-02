@@ -326,6 +326,8 @@ sub _get {
     #--- Results from the _do_scans -> _scan_cb -> _digest_scans phase:
     # $results{scan_tree}{$node}{$scan_id} = { OID element tree returned from scans with empty leaves }
     # $results{scan_vals}{$node}{$scan_id} = { OID element tree returned from scans with hashes of their values }
+    #
+    # This is from legacy code, no performance is gained with it. Leaving if hidden meaning is revealed...
     # $results{scan_exclude}{$node}{$oid} = 1 (Any value here marks an oid to be excluded)
     #
     #--- Results from the _do_vals -> _val_cb -> _digest_vals phase:
@@ -605,9 +607,9 @@ sub _do_scans {
     foreach my $host (@$hosts) {
         $results->{scan_tree}{$host}    = {};
         $results->{scan_vals}{$host}    = {};
-        $results->{scan_exclude}{$host} = {};
         $results->{val}{$host}          = {};
         $results->{hostvar}{$host}      = {};
+        #$results->{scan_exclude}{$host} = {}; # scan_exclude blacklist only applied in legacy code
     }
 
     foreach my $instance ($instances->get_nodelist) {
@@ -712,8 +714,11 @@ sub _scan_cb {
 
             # Blacklist the value if it matches an exclude
             if ( any { $oid_value =~ /$_/ } @$excludes ) {
-                $results->{scan_exclude}{$host}{$oid} = 1;
-                next; # !!! Skipping for now while the scan_exclude methods do nothing
+                #$results->{scan_exclude}{$host}{$oid} = 1;
+                # !!! The scan_exclude blacklist above is from legacy code
+                # !!! Now that OIDs are only evaluated by pushing to the @oids array
+                # !!! Skipping over them has the same effect
+                next;
             }
 
             # Skip the OID if the host is exclusion only and is using target matches or the value matches a target
@@ -1048,8 +1053,11 @@ sub _val_cb {
     $self->logger->debug("Translated raw val data into data tree for $val_map->{id}");
 
     # Check translated data, removing leaves and branches that were not wanted
+    # !!! By design, this shouldn't be necessary as unwanted vals wont match
+    # !!! This was made as a replacement for a step in the legacy code
+    # !!! Running without this produces the same result
     #$val_data = $self->_trim_data($val_data->{vals}, $scan_data->{vals});
-    $self->logger->debug("Trimmed unwanted vals for $val_map->{id}");
+    #$self->logger->debug("Trimmed unwanted vals for $val_map->{id}");
 
     # Add the translated, cleaned data to to the val results for the host, at the val_id
     $results->{val}{$host}{$val_map->{id}} = $val_data->{vals};
