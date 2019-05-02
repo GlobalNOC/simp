@@ -180,7 +180,6 @@ sub _start {
     #--- parse config and create methods based on the set of composite definitions.
     $self->config->{'force_array'} = 1;
     my $allowed_methods = $self->config->get( '/config/composite' );
-    $self->logger->debug(Dumper($allowed_methods));
 
     my %predefined_param = map { $_ => 1 } ('node', 'period', 'exclude_regexp');
 
@@ -298,16 +297,15 @@ sub _get {
 
     my %results;
 
-    #--- figure out hostType
-    my $hostType = "default";
+    #--- Figure out host_type for instances: Feature Not Implemented!)
+    my $host_type = "default";
 
-    #--- give up on config object and go direct to xmllib to get proper xpath support
-    my $doc = $self->config->{'doc'};
-    my $xpc = XML::LibXML::XPathContext->new($doc);
+    #--- Get the XPath context for the config
+    my $conf_xpc = XML::LibXML::XPathContext->new($self->config->{doc});
 
-    #--- get the instance
-    my $path = "/config/composite[\@id=\"$composite\"]/instance[\@hostType=\"$hostType\"]";
-    my $ref = $xpc->find($path);
+    #--- Get the instance
+    my $instance_path = "/config/composite[\@id=\"$composite\"]/instance"; #[\@hostType=\"$host_type\"]";
+    my $instance = $conf_xpc->find($instance_path);
 
     ### PROCESS OVERVIEW ###
     # Processes within simp-comp work asynchronously.
@@ -345,18 +343,18 @@ sub _get {
 
     my @cv = map { AnyEvent->condvar; } (0..5);
 
-    $cv[0]->begin(sub { $self->_do_scans($ref, $params, \%results, $cv[1]); });
+    $cv[0]->begin(sub { $self->_do_scans($conf_xpc, $instance, $params, \%results, $cv[1]); });
     $cv[1]->begin(sub { $self->_digest_scans($params, \%results, $cv[2]); });
-    $cv[2]->begin(sub { $self->_do_vals($ref, $params, \%results, $cv[3]); });
+    $cv[2]->begin(sub { $self->_do_vals($conf_xpc, $instance, $params, \%results, $cv[3]); });
     $cv[3]->begin(sub { $self->_digest_vals($params, \%results, $cv[4]); });
-    $cv[4]->begin(sub { $self->_do_functions($ref, $params, \%results, $cv[5]); });
+    $cv[4]->begin(sub { $self->_do_functions($conf_xpc, $instance, $params, \%results, $cv[5]); });
     $cv[5]->begin(sub { 
         my $end = [gettimeofday];
 	    my $resp_time = tv_interval($start, $end);
 	    $self->logger->info("REQTIME COMP $resp_time");
 		&$success_callback($results{'final'});
 		undef %results;
-		undef $ref;
+		undef $instance;
 		undef $params;
 		undef @cv;
 		undef $success_callback;
@@ -455,10 +453,12 @@ sub _map_oid {
 
     # If vars, make the base OID the elems from the first elem until we reach the first var
     if ( $first_var_idx ) {
-        $oid_map{base_oid} = join '.', @split_oid[0..($first_var_idx - 1)];
+        # The .* is appended or simp-data will match any OID suffix starting with that num
+        # i.e. (1.2.3.1 would get 1.2.3.10, 1.2.3.17, 1.2.3.108, etc.)
+        $oid_map{base_oid} = (join '.', @split_oid[0..($first_var_idx - 1)]) . '.*';
     }
 
-    $self->logger->debug("Generated map for $oid_attr->{id}:\n" . Dumper(\%oid_map));
+    #$self->logger->debug("Generated map for $oid_attr->{id}:\n" . Dumper(\%oid_map));
     return \%oid_map
 }
 
@@ -471,10 +471,18 @@ sub _transform_oids {
     my $map  = shift;
     my $type = shift;
 
-    if ( !defined $type ) { $type = 'default'; }
+    my %trans; # The final translation hash
+    $trans{vals} = {};
 
-    my %trans;  # Final translated hash
-    my %vals;   # Temporary hash for building values
+    my $is_scan = 0;
+    if ( defined $type && $type eq 'scan' ) {
+        $trans{blanks} = {};
+        $is_scan++;
+    }
+    else {
+        $type = 'none'; 
+    }
+    
     my @legend; # Store vars in order of parent->child
 
     for my $oid ( @{$oids} ) {
@@ -483,10 +491,19 @@ sub _transform_oids {
         my $value = $data->{$oid};
         if ( !defined $value ) { next; }
 
-        # Remove time from scan data, to prevent assigning a static time for timeseries data
-        if ( $type eq 'scan' && exists $value->{time} ) {
-            delete $value->{time};
+        if ( !defined $map->{first_var} ) {
+            $trans{vals}{static} = $value;
+            $trans{legend} = ['static'];
+            if ( $is_scan ) {
+                $trans{blanks}{static} = {};
+            }
+            next;
         }
+
+        # Remove time from scan data, to prevent assigning a static time for timeseries data
+        #if ( $type eq 'scan' && exists $value->{time} ) {
+        #    delete $value->{time};
+        #}
 
         my @split_oid = split(/\./, $oid);
 
@@ -499,8 +516,14 @@ sub _transform_oids {
         }
 
         # Make a reference point to the base of %vals
-        my $ref = \%vals;
+        my $ref = $trans{vals};
+        my $blank_ref;
 
+        # Do the same for blanks if it's for a scan
+        if ( $is_scan ) {
+            $blank_ref = $trans{blanks};
+        }
+        
         # Starting from the 1st var, loop over OID elements
         for ( my $i = $map->{first_var}; $i <= $#split_oid; $i++ ) {
 
@@ -518,20 +541,28 @@ sub _transform_oids {
             # Get the var's value in the polled OID
             my $oid_elem = $split_oid[$i];
 
-            # If it's not a key at the reference point, make it and give it a val
+            # If it's not a key at the reference point, make it one and give it a val
             if (! exists $ref->{$oid_elem} ) {
 
-                # On the last key, or if not a blank tree, assign the data value
-                if ( $i == $#split_oid && $type ne 'blank' ) {
+                # On the last key (leaf), assign the data 
+                if ( $i == $#split_oid ) {
                     $ref->{$oid_elem} = $value;
                 }
                 # Otherwise init a new hash in that key for another var and set it in val results
                 else {
                     $ref->{$oid_elem} = {};
                 }
+
+                # Always assign blank hashes to elems in the blanks hash tree
+                if ( $is_scan ) {
+                    $blank_ref->{$oid_elem} = {};
+                }               
             }
             # Switch the reference point to the elem's new hash
-            $ref = $vals{$oid_elem};
+            $ref = $ref->{$oid_elem};
+            if ( $is_scan ) { 
+                $blank_ref = $blank_ref->{$oid_elem}; 
+            };
         }
 
         # Set the legend if it hasn't been
@@ -539,20 +570,19 @@ sub _transform_oids {
             $trans{legend} = \@legend;
         }
     }
-    # Add the vals to %trans
-    $trans{vals} = \%vals;
-
     return \%trans;
 }
 
 
+# Polls for the scan elements of a composite
 sub _do_scans {
 
     my $self      = shift;
-    my $instances = shift; # top-level XML element for CompData instance
-    my $params    = shift; # parameters to request
-    my $results   = shift; # request-global $results hash
-    my $cv        = shift; # assumes that it's been begin()'ed with a callback
+    my $conf_xpc  = shift; # The XPath context for the config
+    my $instances = shift; # The instance XPath from the config
+    my $params    = shift; # Parameters to request
+    my $results   = shift; # Global $results hash
+    my $cv        = shift; # AnyEvent condition var (assumes it's been begin()'ed)
 
     $self->logger->debug("Running _do_scans");
 
@@ -566,13 +596,10 @@ sub _do_scans {
         push @{$exclude_patterns{$1}}, $2;
     }
   
-    #--- this function will execute multiple scans in "parallel" using the begin / end approach
-    #--- we use $cv to signal when all those scans are done
+    #--- This function will execute multiple scans in "parallel" using the begin/end approach
+    #--- We use $cv to signal when all those scans are done
   
-    #--- give up on config object and go direct to xmllib to get proper xpath support
     #--- these should be moved to the constructor
-    my $doc = $self->config->{'doc'};
-    my $xpc = XML::LibXML::XPathContext->new($doc);
 
     # Make sure several root hashes exist
     foreach my $host (@$hosts) {
@@ -585,11 +612,11 @@ sub _do_scans {
 
     foreach my $instance ($instances->get_nodelist) {
 
-        # Get the name of the composite we're scanning as an ID
+        # Get the name of the instance we're scanning as an ID
         my $instance_id = $instance->getAttribute("id");
 
-        # Get <scan> elements from the composite instance for oids to scan
-        my $scans = $xpc->find("./scan", $instance);
+        # Get <scan> elements from the instance instance for oids to scan
+        my $scans = $conf_xpc->find("./scan", $instance);
 
         foreach my $scan ($scans->get_nodelist) {
             # Example Scan: <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.18.*" var="ifAlias" />
@@ -602,14 +629,16 @@ sub _do_scans {
                 ex_only => $scan->getAttribute("exclude-only")
             );
 
-            # Add any targets to our scan attributes
-	        if ( defined($scan_attr{var}) && defined($params->{$scan_attr{var}}) ) {
-                $scan_attr{targets} = $params->{$scan_attr{var}}{value};
-            }
-            
-            # Add any exclusion patterns to our scan attributes
-            if ( defined($scan_attr{var}) && defined($exclude_patterns{$scan_attr{var}}) ) {
-                $scan_attr{excludes} = $exclude_patterns{$scan_attr{var}};
+            # Add any targets or exclusion patterns to our scan attributes
+            if ( defined($scan_attr{var}) ){
+
+                if ( defined($params->{$scan_attr{var}}) ) {
+                    $scan_attr{targets} = $params->{$scan_attr{var}}{value};
+                }
+
+                if ( defined($exclude_patterns{$scan_attr{var}}) ) {
+                    $scan_attr{excludes} = $exclude_patterns{$scan_attr{var}};
+                }
             } 
             else {
                 $scan_attr{excludes} = [];
@@ -682,14 +711,14 @@ sub _scan_cb {
             my $oid_value = $data->{$host}{$oid}{value};
 
             # Blacklist the value if it matches an exclude
-            if (any { $oid_value =~ /$_/ } @$excludes) {
+            if ( any { $oid_value =~ /$_/ } @$excludes ) {
                 $results->{scan_exclude}{$host}{$oid} = 1;
                 next; # !!! Skipping for now while the scan_exclude methods do nothing
             }
 
             # Skip the OID if the host is exclusion only and is using target matches or the value matches a target
             if ( $exclude_only ) {
-                if ( $has_targets || !(any { $scan_oid =~ /$_/ } @$targets) ) {
+                unless ( !$has_targets || (any { $scan_oid =~ /$_/ } @$targets) ) {
                     next;
                 }
             }
@@ -705,12 +734,15 @@ sub _scan_cb {
         if ( !$exclude_only && scalar(@oids) ) {
 
             # Transform the OID data into an OID tree with empty leaves to fill
-            my $scan_tree = $self->_transform_oids(\@oids, $data->{$host}, $scan_map, 'blank');
-            # Transform the OID data into a tree containing value data for the scan
-            my $scan_vals = $self->_transform_oids(\@oids, $data->{$host}, $scan_map, 'scan');
+            my $scan_transform = $self->_transform_oids(\@oids, $data->{$host}, $scan_map, 'scan');
+
+            # Set scan_tree with the blank OID tree and legend from the scan
+            $results->{scan_tree}{$host}{$scan_id}{vals}   = $scan_transform->{blanks};
+            $results->{scan_tree}{$host}{$scan_id}{legend} = $scan_transform->{legend};
+
+            # Set scan_vals to the tree of values from the scan
+            $results->{scan_vals}{$host}{$scan_id}         = $scan_transform->{vals};
             
-            $results->{scan_tree}{$host}{$scan_id}      = $scan_tree;
-            $results->{scan_vals}{$host}{$scan_id} = $scan_vals->{vals};
         }
     }
     $self->logger->debug("Finished running _scan_cb for $scan_id");
@@ -814,12 +846,14 @@ sub _digest_scans {
 
 # Fetches the host variables and SNMP values for <val> elements
 sub _do_vals {
-    my $self         = shift;
-    my $composites   = shift; # Top-level XML element for CompData instance
-    my $params       = shift; # Parameters to request
-    my $results      = shift; # Request-global $results hash
-    my $cv           = shift; # Assumes that it's been begin()'ed with a callback
-   
+
+    my $self      = shift;
+    my $conf_xpc  = shift; # The XPath context for the config
+    my $instances = shift; # The instance XPath from the config
+    my $params    = shift; # Parameters to request
+    my $results   = shift; # Global $results hash
+    my $cv        = shift; # AnyEvent condition var (assumes it's been begin()'ed)
+
     $self->logger->debug("Running _do_vals");
 
     # Get the set of required variables
@@ -838,15 +872,10 @@ sub _do_vals {
         },
     );
 
-    # Give up on config object and go direct to xmllib to get proper xpath support
-    # These should be moved to the constructor
-    my $doc = $self->config->{'doc'};
-    my $xpc = XML::LibXML::XPathContext->new($doc);
-    
-    foreach my $composite ($composites->get_nodelist) {
+    for my $instance ($instances->get_nodelist) {
 
         # Get the <val> elements and loop through them
-        my $vals = $xpc->find("./result/val",$composite);
+        my $vals = $conf_xpc->find("./result/val",$instance);
         foreach my $val ($vals->get_nodelist) {
 
         # Notes for <val> Elements ------------------------------------------
@@ -898,10 +927,11 @@ sub _do_vals {
                             $results->{val}{$host}{$val_attr{id}} = $results->{scan_vals}{$host}{$val_attr{var}};
                         }
                     }
+                    next;
                 }
-
+            }
             # Pull the val's OID data from Simp
-            } else {
+            else {
 
                 # Create a map of the val OID for use
                 $val_attr{map} = $self->_map_oid(\%val_attr);
@@ -918,8 +948,6 @@ sub _do_vals {
 
                 foreach my $host (@$hosts) {
 
-                    $self->logger->debug(Dumper($results->{hostvar}{$host}));
-                    
                     if ( scalar(keys %{$results->{scan_tree}{$host}}) < 1 ) {
                         $self->logger->error("ERROR: No scan data! Skipping vals for $host");
                         next;
@@ -945,8 +973,8 @@ sub _do_vals {
                             }
                         );
 
-                    } else {
-
+                    } 
+                    else {
                         $self->client->get(
                             node     => [$host],
                             oidmatch => [$base_oid],
@@ -965,7 +993,7 @@ sub _do_vals {
     $self->logger->debug("Finished running _do_vals");
 }
 
-
+# Not sure what the point of this is, perhaps to queue data?
 sub _hostvar_cb {
 
     my $self    = shift;
@@ -1020,11 +1048,11 @@ sub _val_cb {
     $self->logger->debug("Translated raw val data into data tree for $val_map->{id}");
 
     # Check translated data, removing leaves and branches that were not wanted
-    $val_data = $self->_trim_data($val_data->{vals}, $scan_data->{vals});
+    #$val_data = $self->_trim_data($val_data->{vals}, $scan_data->{vals});
     $self->logger->debug("Trimmed unwanted vals for $val_map->{id}");
 
     # Add the translated, cleaned data to to the val results for the host, at the val_id
-    $results->{val}{$host}{$val_map->{id}} = $val_data;
+    $results->{val}{$host}{$val_map->{id}} = $val_data->{vals};
 
     return;
 }
@@ -1039,7 +1067,8 @@ sub _build_data {
 
 
     # Check if our data tree reference is a leaf on the tree
-    if ( ref($data_tree) eq ref({}) && (!keys $data_tree || exists $data_tree->{time}) ) {
+    #if ( ref($data_tree) eq ref({}) && (!keys $data_tree || exists $data_tree->{time}) ) {
+    if ( exists $data_tree->{time} || !scalar(%{$data_tree}) ) {
 
         # Ensure that we have a value to add to the leaf
         if ( exists $val_tree->{value} ) {
@@ -1057,24 +1086,25 @@ sub _build_data {
                 }
             }
         }
-        return;
     }
-    # Loop over the all the relevant keys of the data tree
-    for my $key ( keys %{$data_tree} ) {
+    else{
+        # Loop over the all the relevant keys of the data tree
+        for my $key ( keys %{$data_tree} ) {
 
-        # The data values haven't been reached yet
-        if ( !exists $val_tree->{value} ) {
+            # The data values haven't been reached yet
+            if ( !exists $val_tree->{value} ) {
 
-            # Check that the val_tree follows the path along the data tree
-            if ( exists $val_tree->{$key} ) {
+                # Check that the val_tree follows the path along the data tree
+                if ( exists $val_tree->{$key} ) {
 
-                # Recurse with the new key in both hashes
-                $self->_build_data($val_id, $val_tree->{$key}, $data_tree->{$key});
+                    # Recurse with the new key in both hashes
+                    $self->_build_data($val_id, $val_tree->{$key}, $data_tree->{$key});
+                }
             }
-        }
-        # The data values have been reached
-        else {
-            $self->_build_data($val_id, $val_tree, $data_tree->{$key});
+            # The data values have been reached
+            else {
+                $self->_build_data($val_id, $val_tree, $data_tree->{$key});
+            }
         }
     }
 }
@@ -1134,7 +1164,6 @@ sub _digest_vals {
         my @val_data;
         $self->_extract_data($val_tree, \@val_data);
         $self->logger->debug("Extracted val data objects for $host");
-
         # Set the results for val for the host to the data
         $results->{val}{$host} = \@val_data;
     }
@@ -1146,23 +1175,27 @@ sub _digest_vals {
 # Applies functions to values gathered by _do_vals
 sub _do_functions {
 
-    my $self       = shift;
-    my $composites = shift; # top-level XML element for CompData instance
-    my $params     = shift; # parameters to request
-    my $results    = shift; # request-global $results hash
-    my $cv         = shift; # assumes that it's been begin()'ed with a callback
+    my $self      = shift;
+    my $conf_xpc  = shift; # The XPath context for the config
+    my $instances = shift; # The instance XPath from the config
+    my $params    = shift; # Parameters to request
+    my $results   = shift; # Global $results hash
+    my $cv        = shift; # AnyEvent condition var (assumes it's been begin()'ed)
 
     $self->logger->debug("Applying functions to the val data");
 
     my $now = time;
 
-    # Create a hash, mapping functions to their val IDs
+    # Create a hash map of functions to their val IDs from the config
     my %f_map;
-    my $xpc = XML::LibXML::XPathContext->new($self->config->{doc});
-    my $val_elems = $xpc->find("./result/val", $composites->get_nodelist);
+    my $val_elems = $conf_xpc->find("./result/val", $instances->get_nodelist);
+
     for my $val_elem ($val_elems->get_nodelist) {
+
         my $val_id = $val_elem->getAttribute('id');
-        my @fctns  = $xpc->find('./fctn', $val_elem)->get_nodelist;
+
+        my @fctns  = $conf_xpc->find('./fctn', $val_elem)->get_nodelist;
+
         if ( @fctns ) {
             $f_map{$val_id} = \@fctns;
         }
@@ -1173,9 +1206,9 @@ sub _do_functions {
 
         # Initialise the final data array for the host
         $results->{final}{$host} = [];
-
         if ( !%f_map ) { 
             $results->{final}{$host} = $results->{val}{$host};
+            $self->logger->debug("Got a total of " . scalar(@{$results->{final}{$host}}) . " results back for $host");
             next; 
         }
 
@@ -1227,8 +1260,10 @@ sub _do_functions {
         }
         # Once any/all functions are applied in results->val for the host, we set the final data to that hash
         $results->{final}{$host} = $results->{val}{$host};
+        $self->logger->debug("Got a total of " . scalar(@{$results->{final}{$host}}) . " results back for $host");
     }
     $self->logger->debug("Finished applying functions to the data");
+    #$self->logger->debug(Dumper($results->{final}));
     $cv->end;
 }
 
@@ -1247,7 +1282,6 @@ sub _do_functions {
     # (undef op [anything]) should equal undef, hence line 2
     'sum' => sub {
 	my ($vals, $operand) = @_;
-	warn "Passed in Vals: " . Dumper($vals);
 	my $new_val = 0;
 	foreach my $val (@$vals){
 	    $new_val += $val;
@@ -1357,7 +1391,6 @@ sub _do_functions {
 
 sub _rpn_calc{
     my ($vals, $operand, $fctn_elem, $val_set, $results, $host) = @_;
-    warn "RPN CALC: " . Dumper($vals, $val_set);
     foreach my $val (@$vals){
 	# As a convenience, we initialize the stack with a copy of $val on it already
 	my @stack = ($val);
@@ -1375,7 +1408,6 @@ sub _rpn_calc{
 	
 	my %func_lookup_errors;
 	my @prog_copy = @prog;
-	GRNOC::Log::log_debug('RPN Program: ' . Dumper(\@prog_copy));
 	
 	# Now, go through the program, one token at a time:
 	foreach my $token (@prog){
@@ -1409,7 +1441,6 @@ sub _rpn_calc{
 	    
 	    # We copy, as in certain cases Dumper() can affect the elements of values passed to it
 	    my @stack_copy = @stack;
-	    GRNOC::Log::log_debug("Stack, post token '$token': " . Dumper(\@stack_copy));
 	}
 
 	# Return the top of the stack
