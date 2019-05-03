@@ -502,11 +502,6 @@ sub _transform_oids {
             next;
         }
 
-        # Remove time from scan data, to prevent assigning a static time for timeseries data
-        #if ( $type eq 'scan' && exists $value->{time} ) {
-        #    delete $value->{time};
-        #}
-
         my @split_oid = split(/\./, $oid);
 
         # Check if the last var happens before the end of the data OID elements
@@ -1152,6 +1147,7 @@ sub _digest_vals {
 
         if (! keys %{$results->{scan_tree}{$host}} ) {
             $self->logger->error("No vals were returned for $host");
+            $results->{val}{$host} = [];
             next;
         }
 
@@ -1214,15 +1210,15 @@ sub _do_functions {
 
         # Initialise the final data array for the host
         $results->{final}{$host} = [];
-        if ( !%f_map ) { 
-            $results->{final}{$host} = $results->{val}{$host};
-            $self->logger->debug("Got a total of " . scalar(@{$results->{final}{$host}}) . " results back for $host");
-            next; 
+
+        if ( !$results->{val}{$host} || (ref($results->{val}{$host}) ne ref([])) ) {
+            $self->logger->error("No data array was generated for $host!");
+            next;
         }
 
-        if (ref($results->{val}{$host}) ne ref([])) {
-            $self->logger->error("No data array was generated for $host!");
-            last; 
+        if ( !%f_map ) {
+            $results->{final}{$host} = $results->{val}{$host};
+            next; 
         }
 
         # Ensure all data objects have a time
@@ -1268,7 +1264,6 @@ sub _do_functions {
         }
         # Once any/all functions are applied in results->val for the host, we set the final data to that hash
         $results->{final}{$host} = $results->{val}{$host};
-        $self->logger->debug("Got a total of " . scalar(@{$results->{final}{$host}}) . " results back for $host");
     }
     $self->logger->debug("Finished applying functions to the data");
     #$self->logger->debug(Dumper($results->{final}));
@@ -1399,60 +1394,66 @@ sub _do_functions {
 
 sub _rpn_calc{
     my ($vals, $operand, $fctn_elem, $val_set, $results, $host) = @_;
-    foreach my $val (@$vals){
-	# As a convenience, we initialize the stack with a copy of $val on it already
-	my @stack = ($val);
-	
-	# Split the RPN program's text into tokens (quoted strings,
-	# or sequences of non-space chars beginning with a non-quote):
-	my @prog;
-	my $progtext = $operand;
-	while (length($progtext) > 0){
-	    $progtext =~ /^(\s+|[^\'\"][^\s]*|\'([^\'\\]|\\.)*(\'|\\?$)|\"([^\"\\]|\\.)*(\"|\\?$))/;
-	    my $x = $1;
-	    push @prog, $x if $x !~ /^\s*$/;
-	    $progtext = substr $progtext, length($x);
-	}
-	
-	my %func_lookup_errors;
-	my @prog_copy = @prog;
-	
-	# Now, go through the program, one token at a time:
-	foreach my $token (@prog){
-	    # Handle some special cases of tokens:
-	    if($token =~ /^[\'\"]/){ # quoted strings
-		# Take off the start and end quotes, including
-		# the handling of unterminated strings:
-		if($token =~ /^\"/) {
-		    $token =~ s/^\"(([^\"\\]|\\.)*)[\"\\]?$/$1/;
-		}else{
-		    $token =~ s/^\'(([^\'\\]|\\.)*)[\'\\]?$/$1/;
-		}
-		$token =~ s/\\(.)/$1/g; # unescape escapes
-		push @stack, $token;
-	    }elsif($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/){ # decimal numbers
-		push @stack, ($token + 0);
-	    }elsif($token =~ /^\$/){ # name of a value associated with the current (host, OID suffix)
-		push @stack, $val_set->{substr $token, 1}->[0];
-	    }elsif($token =~ /^\#/){ # host variable
-		push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
-	    }elsif($token eq '@'){ # push hostname
-		push @stack, $host;
-	    }else{ # treat as a function
-		if (!defined($_RPN_FUNCS{$token})){
-		    GRNOC::Log::log_error("RPN function $token not defined!") if !$func_lookup_errors{$token};
-		    $func_lookup_errors{$token} = 1;
-		    next;
-            }
-		$_RPN_FUNCS{$token}(\@stack);
-	    }
-	    
-	    # We copy, as in certain cases Dumper() can affect the elements of values passed to it
-	    my @stack_copy = @stack;
-	}
 
-	# Return the top of the stack
-	return pop @stack;
+    for my $val (@$vals) {
+	    # As a convenience, we initialize the stack with a copy of $val on it already
+	    my @stack = ($val);
+	
+	    # Split the RPN program's text into tokens (quoted strings,
+	    # or sequences of non-space chars beginning with a non-quote):
+	    my @prog;
+	    my $progtext = $operand;
+	    while (length($progtext) > 0) {
+	        $progtext =~ /^(\s+|[^\'\"][^\s]*|\'([^\'\\]|\\.)*(\'|\\?$)|\"([^\"\\]|\\.)*(\"|\\?$))/;
+	        my $x = $1;
+	        push @prog, $x if $x !~ /^\s*$/;
+	        $progtext = substr $progtext, length($x);
+	    }
+	
+	    my %func_lookup_errors;
+	    my @prog_copy = @prog;
+	
+	    # Now, go through the program, one token at a time:
+	    foreach my $token (@prog) {
+	        # Handle some special cases of tokens:
+	        if($token =~ /^[\'\"]/){ # quoted strings
+		        # Take off the start and end quotes, including
+		        # the handling of unterminated strings:
+		        if($token =~ /^\"/) {
+		            $token =~ s/^\"(([^\"\\]|\\.)*)[\"\\]?$/$1/;
+		        } else {
+		            $token =~ s/^\'(([^\'\\]|\\.)*)[\'\\]?$/$1/;
+		        }
+		        $token =~ s/\\(.)/$1/g; # unescape escapes
+		        push @stack, $token;
+	        }
+            elsif ($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/) { # decimal numbers
+		        push @stack, ($token + 0);
+	        }
+            elsif ($token =~ /^\$/) { # name of a value associated with the current (host, OID suffix)
+		        push @stack, $val_set->{substr $token, 1};
+	        }
+            elsif ($token =~ /^\#/) { # host variable
+		        push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
+	        }
+            elsif ($token eq '@') { # push hostname
+		        push @stack, $host;
+	        }
+            else { # treat as a function
+		        if (!defined($_RPN_FUNCS{$token})) {
+		            GRNOC::Log::log_error("RPN function $token not defined!") if !$func_lookup_errors{$token};
+		            $func_lookup_errors{$token} = 1;
+		            next;
+                }
+		        $_RPN_FUNCS{$token}(\@stack);
+	        }
+	    
+	        # We copy, as in certain cases Dumper() can affect the elements of values passed to it
+	        my @stack_copy = @stack;
+	    }
+
+	    # Return the top of the stack
+	    return pop @stack;
     }
 }
 
