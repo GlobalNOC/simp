@@ -303,7 +303,7 @@ sub _create_workers_for_one_collection {
 
     # Spawn workers
     foreach my $worker_id (keys %hosts_by_worker) {
-	my $worker_name = "$collection->{'composite-name'}_$worker_id";
+	my $worker_name = "$collection->{'composite-name'} ($worker_id)";
 
 	$self->logger->info("Staggering creation of worker by " . $self->stagger_interval . "sec...");
 	sleep($self->stagger_interval);
