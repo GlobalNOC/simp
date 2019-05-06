@@ -1,6 +1,6 @@
 Summary: A small system for gathering large amounts of SNMP data and pushing them into redis
 Name: simp-poller
-Version: 1.0.11
+Version: 1.1.0
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -94,6 +94,18 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Mon May 06 2019 Vincent Orlowski <vincentorlowski@gmail.com> - 1.1.0
+  - Poller now writes status files for each polling group per host for simp-poller-monitoring
+  - Poller now has various error checks for monitoring
+  - Comp now has the ability to scan a static OID
+  - Comp now has the ability to use a scan's parameters within N other scans
+  - Comp scans dependent on other scans will now perserve dependencies
+  - Comp now has a refactored data structure for results
+  - Comp has had various optimizations added
+  - Comp now outputs an array of data objects instead of a hash
+  - TSDS has been adjusted to use new output from Comp
+  - Simp now has packaging and installation support for EL6
+  - Simp now has init.d scripts for simp-poller, simp-data, simp-comp, and simp-tsds to support EL6 hosts
 * Fri Mar 10 2017 Andrew Ragusa <aragusa@globalnoc.iu.edu> - 1.0.2
   - Fixes for holes in graphs
   - improvements in the poller

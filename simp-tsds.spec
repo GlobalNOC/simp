@@ -1,6 +1,6 @@
 Summary: SIMP TSDS Collector
 Name: simp-tsds
-Version: 1.0.11
+Version: 1.1.0
 Release: 1%{dist}
 License: APL 2.0
 Group: Network
@@ -90,6 +90,18 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{configdir}/simp_tsds_logging.conf
 
 %changelog
+* Mon May 06 2019 Vincent Orlowski <vincentorlowski@gmail.com> - 1.1.0
+  - Poller now writes status files for each polling group per host for simp-poller-monitoring
+  - Poller now has various error checks for monitoring
+  - Comp now has the ability to scan a static OID
+  - Comp now has the ability to use a scan's parameters within N other scans
+  - Comp scans dependent on other scans will now perserve dependencies
+  - Comp now has a refactored data structure for results
+  - Comp has had various optimizations added
+  - Comp now outputs an array of data objects instead of a hash
+  - TSDS has been adjusted to use new output from Comp
+  - Simp now has packaging and installation support for EL6
+  - Simp now has init.d scripts for simp-poller, simp-data, simp-comp, and simp-tsds to support EL6 hosts
 * Tue May 23 2017 AJ Ragusa <aragusa@globalnoc.iu.edu> - SIMP Collector
 * Fri Feb 24 2017 CJ Kloote <ckloote@globalnoc.iu.edu> - OESS VLAN Collector
 - Initial build.
