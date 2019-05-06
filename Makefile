@@ -52,16 +52,20 @@ dist:
 	cp -r conf/compDataConfig.xml dist/simp-comp-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-comp-$(VERSION)/conf/
 	cp -r conf/simp-comp.systemd dist/simp-comp-$(VERSION)/conf/
+	cp -r conf/simp-comp.service dist/simp-comp-$(VERSION)/conf/
 	cp -r conf/simpDataConfig.xml dist/simp-data-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-data-$(VERSION)/conf/
 	cp -r conf/simp-data.systemd dist/simp-data-$(VERSION)/conf/
+	cp -r conf/simp-data.service dist/simp-data-$(VERSION)/conf/
 	cp -r conf/config.xml dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/simp-poller.systemd dist/simp-poller-$(VERSION)/conf/
+	cp -r conf/simp-poller.service dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/hosts.d/* dist/simp-poller-$(VERSION)/conf/hosts.d/
 	cp -r conf/simp-tsds.xml dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/simp-tsds.systemd dist/simp-tsds-$(VERSION)/conf/
+	cp -r conf/simp-tsds.service dist/simp-tsds-$(VERSION)/conf/
 
 	cp -r conf/response-graph-config.xml dist/simp-monitor-$(VERSION)/conf/
 	cp -r conf/response-monitor-log.conf dist/simp-monitor-$(VERSION)/conf/

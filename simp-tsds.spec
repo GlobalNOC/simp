@@ -52,10 +52,12 @@ rm -rf $RPM_BUILD_ROOT
 %__install bin/simp-tsds.pl $RPM_BUILD_ROOT/%{execdir}/
 %__install conf/simp-tsds.xml $RPM_BUILD_ROOT/%{configdir}/simp-tsds.xml
 %__install conf/logging.conf $RPM_BUILD_ROOT/%{configdir}/simp_tsds_logging.conf
-%if 0%{?rhel} == 7
+%if 0%{?rhel} >= 7
 %__install -d -p %{buildroot}/etc/systemd/system/
 %__install conf/simp-tsds.systemd $RPM_BUILD_ROOT/etc/systemd/system/simp-tsds.service
 %else
+%{__install} -d -p %{buildroot}/etc/init.d/
+%{__install} conf/simp-tsds.service %{buildroot}/etc/init.d/simp-tsds
 %__install conf/sysconfig $RPM_BUILD_ROOT/%{sysconfdir}/simp-tsds
 %endif
 %__install lib/GRNOC/Simp/TSDS.pm $RPM_BUILD_ROOT/%{perl_vendorlib}/GRNOC/Simp/
@@ -74,9 +76,10 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(644,root,root,755)
 %attr(755,root,root) %{execdir}/simp-tsds.pl
-%if 0%{?rhel} == 7
+%if 0%{?rhel} >= 7
 %attr(644,root,root) /etc/systemd/system/simp-tsds.service
 %else
+%attr(644,root,root) /etc/init.d/simp-tsds
 %config(noreplace) %{sysconfdir}/simp-tsds
 %endif
 %{perl_vendorlib}/GRNOC/Simp/TSDS.pm
