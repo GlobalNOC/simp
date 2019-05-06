@@ -1,3 +1,31 @@
+## SIMP 1.1.0
+May 06 2019
+
+### Features:
+
+  * Simp now has packaging and installation support for EL6
+
+  * Simp now has init.d scripts for simp-poller, simp-data, simp-comp, and simp-tsds to support EL6 hosts
+
+  * Poller now writes status files for each polling group per host for simp-poller-monitoring
+
+  * Poller now has various error checks for monitoring
+
+  * Comp now has the ability to scan a static OID
+
+  * Comp now has the ability to use scan parameters from a scan within N other scans
+
+  * Comp scans dependent on other scans will now perserve dependencies
+
+  * Comp now has a refactored data structure for results
+
+  * Comp has had various optimizations
+
+  * Comp now outputs an array of data objects instead of a hash
+
+  * TSDS has been adjusted to use new output from Comp
+
+
 ## SIMP 1.0.11
 Dec 11 2018
 
