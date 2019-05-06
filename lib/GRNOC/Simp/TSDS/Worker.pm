@@ -115,7 +115,8 @@ has stop_me => (is => 'rwp', default => 0);
 sub run {
     my ($self) = @_;
 
-    $0 = $self->worker_name;
+    # change process name
+    $0 = "simp_tsds(" . $self->worker_name . ")";
 
     # Set logging object
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
@@ -249,8 +250,7 @@ sub _process_host {
 	$self->logger->debug($self->worker_name . ' Value: ' . Dumper($res->{'results'}->{$node_name}));
 
 	my $data = $res->{'results'}->{$node_name};
-	foreach my $datum_name (keys %{$data}) {
-	    my $datum = $data->{$datum_name};
+	foreach my $datum (@$data) {
 	    my %vals;
 	    my %meta;
 	    my $datum_tm = $tm;
