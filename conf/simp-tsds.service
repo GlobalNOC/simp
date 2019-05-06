@@ -9,7 +9,7 @@
 . /etc/rc.d/init.d/functions
 
 name="simp-tsds"
-exec="/usr/bin/$name"
+exec="/usr/bin/$name.pl"
 pidfile="/var/run/$name.pid"
 CONFIG="/etc/simp/simp-tsds.xml"
 LOGGING="/etc/simp/simp_tsds_logging.conf"

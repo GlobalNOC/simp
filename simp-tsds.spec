@@ -79,7 +79,7 @@ rm -rf $RPM_BUILD_ROOT
 %if 0%{?rhel} >= 7
 %attr(644,root,root) /etc/systemd/system/simp-tsds.service
 %else
-%attr(644,root,root) /etc/init.d/simp-tsds
+%attr(755,root,root) /etc/init.d/simp-tsds
 %config(noreplace) %{sysconfdir}/simp-tsds
 %endif
 %{perl_vendorlib}/GRNOC/Simp/TSDS.pm
