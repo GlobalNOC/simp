@@ -61,7 +61,7 @@ has hosts_dir => (
 );
 
 has status_dir => (
-    is => 'ro',
+    is => 'rwp',
     isa => Str,
     required => 1
 );
@@ -147,8 +147,6 @@ sub BUILD {
                                      force_array => 1 );
     $self->_set_config( $config );
 
-    $self->_process_hosts_config();
-
     # Set status_dir to path in the configs, if defined and is a dir
     my $status_path = $self->config->get('/config/poller_status');
 
@@ -158,7 +156,11 @@ sub BUILD {
     }
 
     if ( defined $status_dir && -d $status_dir) {
-        $self->status_dir = $status_dir;
+        if ( substr($status_dir, -1) ne '/') {
+            $status_dir .= '/';
+            $self->logger->error("The path for status_dir didn't include a trailing slash, added it: $status_dir");
+        }
+        $self->_set_status_dir( $status_dir );
         $self->logger->debug("Found poller_status dir in config, using: " . $self->status_dir);
 
     # Use default if not defined in configs, or invalid
@@ -209,7 +211,7 @@ sub _process_hosts_config {
 
             # Check if status dir for each host exists, or create it.
             my $mon_dir = $self->status_dir . $raw->{node_name} . '/';
-            unless (-e $mon_dir or system("mkdir -m 0744 -p $mon_dir") == 0) {
+            unless ( -e $mon_dir || system("mkdir -m 0755 -p $mon_dir") == 0 ) {
                 $self->logger->error("Could not find or create dir for monitoring data: $mon_dir");
             } else {
                 $self->logger->debug("Found or created status dir for $raw->{node_name} successfully");
