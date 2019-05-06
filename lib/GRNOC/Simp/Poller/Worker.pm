@@ -177,7 +177,7 @@ sub start {
     $self->_set_is_running( 1 );
 
     # Change our process name
-    $0 = "simp($worker_name)";
+    $0 = "simp_poller($worker_name)";
 
     # Setup signal handlers
     $SIG{'TERM'} = sub {
