@@ -43,6 +43,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData
 %{__install} -d -p %{buildroot}/etc/systemd/system/
+%{__install} -d -p %{buildroot}/etc/init.d/
 %{__install} -d -p %{buildroot}/usr/bin/
 %{__install} -d -p %{buildroot}/etc/simp
 
@@ -51,7 +52,12 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} bin/simp-comp.pl %{buildroot}/usr/bin/simp-comp.pl
 %{__install} conf/compDataConfig.xml %{buildroot}/etc/simp/compDataConfig.xml
 %{__install} conf/logging.conf %{buildroot}/etc/simp/comp_logging.conf
+
+%if 0%{?rhel} >= 7
 %{__install} conf/simp-comp.systemd %{buildroot}/etc/systemd/system/simp-comp.service
+%else
+%{__install} conf/simp-comp.service %{buildroot}/etc/init.d/simp-comp
+%endif
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -62,7 +68,13 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
 %defattr(755,root,root,755)
 /usr/bin/simp-comp.pl
+
+%if 0%{?rhel} >= 7
 /etc/systemd/system/simp-comp.service
+%else
+/etc/init.d/simp-comp
+%endif
+
 %defattr(644,root,root,755)
 %config(noreplace) /etc/simp/comp_logging.conf
 %config(noreplace) /etc/simp/compDataConfig.xml
