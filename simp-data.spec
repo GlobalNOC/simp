@@ -26,6 +26,7 @@ Requires: perl(POSIX)
 Requires: perl-Redis >= 1.991
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
+Requires: perl(Class::Accessor::Fast)
 
 Provides: perl(GRNOC::Simp::Data)
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
