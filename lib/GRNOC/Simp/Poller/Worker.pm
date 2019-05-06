@@ -28,7 +28,7 @@ $AnyEvent::SNMP::MAX_RECVQUEUE = 128;
 
 =item hosts
 
-=item status
+=item status_dir
 
 =item oids
 
@@ -484,19 +484,19 @@ sub _connect_to_snmp {
                 }
             }
 
-            # Send an error if the SNMP session wasn't created
-            if ( !$snmp ) {
-                $self->logger->error("Error creating SNMP Session: $error");
-                $host->{snmp_errors}{session} = {
-                    time  => time,
-                    error => $error
-                };
-            }
-
         # Send an error if the SNMP version is invalid
         } else {
             $self->logger->error("Invalid SNMP Version for SIMP");
             $host->{snmp_errors}{version} = {
+                time  => time,
+                error => $error
+            };
+        }
+
+        # Send an error if the SNMP session object for the host wasn't created
+        if ( !$snmp ) {
+            $self->logger->error("Error creating SNMP Session: $error");
+            $host->{snmp_errors}{session} = {
                 time  => time,
                 error => $error
             };
@@ -553,8 +553,8 @@ sub _write_mon_data {
        
     my %mon_data = (
         timestamp   => time(),
-        failed_oids => $host->{failed_oids} ? $host->{failed_oids} : '',
-        snmp_errors => $host->{snmp_errors} ? $host->{snmp_errors} : '',
+        failed_oids => scalar($host->{failed_oids}) ? $host->{failed_oids} : '',
+        snmp_errors => scalar($host->{snmp_errors}) ? $host->{snmp_errors} : '',
         config      => $self->config->{config_file},
         interval    => $self->poll_interval
     );
@@ -589,6 +589,11 @@ sub _collect_data {
     $self->logger->debug($self->worker_name . " " . $self->group_name . " with " . scalar(@$hosts) . " hosts and " . scalar(@$oids) . " oids per hosts, max outstanding scaled to " . $AnyEvent::SNMP::MAX_OUTSTANDING, " queue is " . $AnyEvent::SNMP::MIN_RECVQUEUE . " to " . $AnyEvent::SNMP::MAX_RECVQUEUE);
 
     for my $host (@$hosts) {
+        
+        # Write mon data out for the host's last poll cycle
+        $self->_write_mon_data($host);
+        # Reset the failed OIDs after writing out the status
+        $host->{failed_oids} = {};
 
         # Used to stagger each request to a specific host, spread load.
         # This does mean you can't collect more OID bases than your interval
@@ -708,8 +713,6 @@ sub _collect_data {
         }
         $self->logger->debug(Dumper($host));
         
-        # Write out the mon data for the host
-        $self->_write_mon_data($host);
     }
     $self->logger->debug("----  END OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----" );
 }
