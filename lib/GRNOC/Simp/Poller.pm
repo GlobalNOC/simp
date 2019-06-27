@@ -30,6 +30,8 @@ use GRNOC::Simp::Poller::Worker;
 
 =item hosts_dir
 
+=item groups_dir
+
 =item status_dir
 
 =item daemonize
@@ -55,6 +57,12 @@ has logging_file => (
 );
 
 has hosts_dir => (
+    is => 'ro',
+    isa => Str,
+    required => 1
+);
+
+has groups_dir => (
     is => 'ro',
     isa => Str,
     required => 1
@@ -92,9 +100,13 @@ has run_group => (
 
 =item config
 
+=item logger
+
 =item hosts
 
-=item logger
+=item groups
+
+=item total_workers
 
 =item status_path
 
@@ -118,6 +130,15 @@ has hosts  => (
     is => 'rwp'
 );
 
+has groups => (
+    is => 'rwp'
+);
+
+has total_workers => (
+    is => 'rwp',
+    default => 0
+);
+
 has children => (
     is => 'rwp',
     default => sub { [] }
@@ -128,37 +149,40 @@ has do_reload => (
     default => 0
 );
 
+
 =head2 BUILD
-
+    Builds the simp_poller object and sets its parameters.
 =cut
-
 sub BUILD {
 
     my ( $self ) = @_;
 
     # Create and store logger object
-    my $grnoc_log = GRNOC::Log->new( config => $self->logging_file, watch => 120 );
+    my $grnoc_log = GRNOC::Log->new(
+        config => $self->logging_file, 
+        watch => 120 
+    );
     my $logger = GRNOC::Log->get_logger();
-
     $self->_set_logger( $logger );
 
-    # Create and store config objects
-    my $config = GRNOC::Config->new( config_file => $self->config_file,
-                                     force_array => 1 );
+    # Create and store the main config
+    my $config = GRNOC::Config->new( 
+        config_file => $self->config_file,
+        force_array => 1
+    );
     $self->_set_config( $config );
 
     # Set status_dir to path in the configs, if defined and is a dir
-    my $status_path = $self->config->get('/config/poller_status');
-
-    my $status_dir;
-    if ( defined $status_path ) {
-        $status_dir = $status_path->[0]->{'dir'};
-    }
+    my $status_path = $self->config->get('/config/status');
+    my $status_dir  = $status_path ? $status_path->[0]->{dir} : undef;
+    #if ( defined $status_path ) {
+    #    $status_dir = $status_path->[0]->{'dir'};
+    #}
 
     if ( defined $status_dir && -d $status_dir) {
         if ( substr($status_dir, -1) ne '/') {
             $status_dir .= '/';
-            $self->logger->error("The path for status_dir didn't include a trailing slash, added it: $status_dir");
+            $self->logger->debug("The path for status_dir didn't include a trailing slash, added it: $status_dir");
         }
         $self->_set_status_dir( $status_dir );
         $self->logger->debug("Found poller_status dir in config, using: " . $self->status_dir);
@@ -172,92 +196,194 @@ sub BUILD {
 }
 
 
-=head2 _process_hosts_config
-
+=head2 _get_config_objects
+    Retrieves the XPath objects of a target from every XML file in a config dir.
+    Returns the objects in an array reference.
 =cut
+sub _get_config_objects {
 
-# Process the config files containing hosts to monitor
-# the configs are located in /etc/simp/hosts.d/ by default
+    my $self       = shift;
+    my $target_obj = shift;
+    my $target_dir = shift;
+
+    # The final hash of config objects to return
+    my %config_objects;
+
+    $self->logger->debug("Getting $target_obj XPath objects from $target_dir");
+
+    # Load all files in the target_dir into an array
+    opendir(my $dir, $target_dir);
+    my @files = readdir $dir;
+    closedir($dir);
+
+    $self->logger->debug("Files found:\n" . Dumper(\@files));
+
+    # Check every file in the target dir
+    foreach my $file (@files) {
+
+        # Only process valid XML files
+        next unless $file =~ /\.xml$/;
+
+        # Make an XPath object from the file
+        my $config = GRNOC::Config->new(
+            config_file => $target_dir . $file,
+            force_array => 1
+        );
+
+        # Push each targeted XPath object found in the file into the final array
+        foreach my $object ( @{$config->get($target_obj)} ) {
+
+            # Check if the object has been set to inactive
+            unless ($object->{active} and $object->{active} == 0) {
+
+                # Use the object name as the key to the object
+                if ( exists $object->{name} ) {
+                    $config_objects{$object->{name}} = $object;
+                    delete $object->{name};
+                }
+                # Use the config file name as the key to the object
+                else {
+                    $config_objects{substr($file, 0, -4)} = $object;
+                }
+            }   
+            else {
+                $self->logger->debug('Skipping inactive object');
+            }
+        }
+    }
+
+    $self->logger->debug("Got a total of " . scalar(keys %config_objects) . " $target_obj objects");
+    return \%config_objects;
+}
+
+
+=head2 _process_hosts_config
+    Process the host configs for their polling groups.
+    Create and remove status dirs based upon which hosts are found.
+    Set the hosts for the poller objects.
+=cut
 sub _process_hosts_config {
 
     my $self = shift;
     $self->logger->debug("BEGIN processing hosts_dir from config");
 
-    # Open hosts.d/ and get array of files within, recursively
-    opendir my $dir, $self->hosts_dir;
-    my @files = readdir $dir;
-    $self->logger->debug("Files in hosts_dir: " . Dumper(\@files));
-    closedir $dir;
+    my $hosts = $self->_get_config_objects('/config/host', $self->hosts_dir);
+    $self->logger->debug(Dumper($hosts));
 
-    my @hosts;
-
-    # Loop through xml host config files and extract hosts
-    foreach my $file (@files) {
-
-        next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
-
-        $self->logger->debug("Creating hosts_dir config path: " . $self->hosts_dir . $file);
-
-        my $conf = GRNOC::Config->new(
-            config_file => $self->hosts_dir . $file,
-            force_array => 1
-        );
-
-        my $rawhosts = $conf->get("/config/host");
-
-        foreach my $raw (@$rawhosts) {
-            push(@hosts, $raw);
-            $self->logger->debug("Host \"$raw->{node_name}\" added to \@hosts");
-
-            # Check if status dir for each host exists, or create it.
-            my $mon_dir = $self->status_dir . $raw->{node_name} . '/';
-            unless ( -e $mon_dir || system("mkdir -m 0755 -p $mon_dir") == 0 ) {
-                $self->logger->error("Could not find or create dir for monitoring data: $mon_dir");
-            } else {
-                $self->logger->debug("Found or created status dir for $raw->{node_name} successfully");
-            }
+    foreach my $host_name (keys %$hosts) {
+        # Check if status dir for each host exists, or create it.
+        my $mon_dir = $self->status_dir . $host_name . '/';
+        unless ( -e $mon_dir || system("mkdir -m 0755 -p $mon_dir") == 0 ) {
+            $self->logger->error("Could not find or create dir for monitoring data: $mon_dir");
+        } else {
+            $self->logger->debug("Found or created status dir for $host_name successfully");
         }
     }
    
     # Once status dirs for configured hosts have been made...
-    # Remove any dirs that are not included in configurations
-    for my $node_path ( glob($self->status_dir . '*') ) {
+    # Remove any dirs for hosts that are not included in any hosts.d file
+    foreach my $host_dir ( glob($self->status_dir . '*') ) {
 
-        my $flag_removal = 1;
-        my $node_name = (split(/\//, $node_path))[-1];
+        my $dir_name = (split(/\//, $host_dir))[-1];
 
-        for my $raw_host ( @hosts ) {
-            if ( $raw_host->{node_name} eq $node_name ) {
-                $flag_removal = 0;
-                last;
-            }
-        }
+        # Remove the dir unless the dir name exists in the hosts hash
+        unless ( exists $hosts->{$dir_name} ) {
         
-        if ( $flag_removal ) {
-            $self->logger->debug("$node_path was flagged for removal");
-            # This needs many constraints, but works as is
-            unless( rmtree([$node_path]) ) {
-                $self->logger->error("Attempted to remove $node_path, but failed!");
+            $self->logger->debug("$host_dir was flagged for removal");
+
+            # This needs constraints, but works as is
+            unless( rmtree([$host_dir]) ) {
+                $self->logger->error("Attempted to remove $host_dir, but failed!");
             } else {
-                $self->logger->debug("Successfully removed $node_path");
+                $self->logger->debug("Successfully removed $host_dir");
             }
         }
 
     }
           
-
-    $self->_set_hosts(\@hosts);
+    $self->_set_hosts($hosts);
     $self->logger->debug("FINISHED processing hosts_dir from config");
 }
 
 
+=head2 _process_groups_config
+    Process the group configs for their polling oids.
+    Set the groups for the poller object.
+=cut
+sub _process_groups_config {
 
+    my $self = shift;
+    $self->logger->debug("BEGIN processing groups_dir from config");
+
+    # Get the default results-per-request size (max_repetitions) from the poller config. (Default to 15)
+    my $request_size = $self->config->get('/config/request_size');
+    my $num_results  = $request_size ? $request_size->[0]->{results} : 15;
+
+    # Get the group objects from the files in groups.d
+    my $groups = $self->_get_config_objects('/group', $self->groups_dir);
+
+    # Get the total number of workers to fork and set the group name and any defaults
+    my $total_workers = 0;
+    foreach my $group_name (keys %$groups) {
+
+        my $group = $groups->{$group_name};
+       
+        # Set the oids for the group from the mib elements 
+        $group->{oids} = [];
+        foreach my $mib (@{$group->{mib}}) {
+            push($group->{oids}, $mib->{oid});
+        }
+        delete $group->{mib};
+
+        $self->logger->debug("Optional settings for group $group_name");
+    
+        # Set retention time to 5x the polling interval
+        unless ($group->{retention}) {
+            $group->{retention} = $group->{interval} * 5;
+            $self->logger->debug("Retention Period: $group->{retention} (default)");
+        } else {
+            $self->logger->debug("Retention Period: $group->{retention} (specified)");
+        }
+
+        # Set the packet results size (max_repetitions) or default to size from poller config
+        unless ($group->{request_size}) {
+            $group->{request_size} = $num_results;
+            $self->logger->debug("Request Size: $group->{request_size} results (default)\n\n");
+        } else {
+            $self->logger->debug("Request Size: $group->{request_size} results (specified)\n\n");
+        }
+
+        # Set the hosts that belong to the polling group
+        $group->{hosts} = ();
+        foreach my $host_name ( keys %{$self->hosts} ) {
+
+            my $host = $self->hosts->{$host_name};
+            
+            foreach my $host_group ( keys %{$self->hosts->{$host_name}->{group}} ) {
+                if ($host_group eq $group_name) {
+                    push(@{$group->{hosts}}, $host_name);
+                }
+            }
+        }
+
+        # Add the groups' workers to the total number of forks to create
+        $total_workers += $group->{workers};
+    }
+
+    # Set the number of forks and then the groups for the poller object
+    $self->_set_total_workers($total_workers);
+    $self->_set_groups($groups);
+    
+    $self->logger->debug(Dumper($groups));
+
+    $self->logger->debug('FINISHED processing groups_dir from config');
+
+}
 
 
 =head2 start
-
+    Starts all of the simp_poller processes
 =cut
-
 sub start {
 
     my ( $self ) = @_;
@@ -286,7 +412,7 @@ sub start {
         $self->logger->debug( 'Created daemon process.' );
 
         # Change process name
-        $0 = "simpPoller";
+        $0 = "simp_poller";
 
         # Figure out what user/group (if any) to change to
         my $user_name  = $self->run_user;
@@ -337,6 +463,9 @@ sub start {
         $self->logger->info( 'Main loop, running process_hosts_config');
         $self->_process_hosts_config();
 
+        $self->logger->info('Main loop, running process_groups_config');
+        $self->_process_groups_config();
+
         $self->logger->info( 'Main loop, running create_workers');
         $self->_create_workers();
 
@@ -360,9 +489,8 @@ sub _log_err_then_exit {
 
 
 =head2 stop
-
+    Stops all of the simp_poller processes.
 =cut
-
 sub stop {
 
     my ( $self ) = @_;
@@ -378,86 +506,45 @@ sub stop {
 }
 
 
-# End of multprocess boilerplate
+=head2 _create_workers
+    Creates the forked worker processes for each polling group.
+    Delegates hosts to their polling groups' workers.
+=cut
 sub _create_workers {
 
     my ( $self ) = @_;
+
     $self->logger->debug("BEGIN creating workers");
 
-    # Get the set of active groups
-    my $groups  = $self->config->get( "/config/group" );
-
-    # For each host, one worker handles the host variables.
-    # This hash keeps track of whether a host has had a worker assigned for that.
-    my %var_worker;
-
-    my $total_workers = 0;
-    foreach my $group ( @$groups ) {
-        # Ignore the group if it isnt active
-        next if( $group->{'active'} == 0 );
-        $total_workers += $group->{'workers'};
-    }
-
-    my $forker = Parallel::ForkManager->new( $total_workers );
+    # Create a fork for each worker that is needed
+    my $forker = Parallel::ForkManager->new( $self->total_workers );
 
     # Create workers for each group
-    foreach my $group ( @$groups ) {
-        # Ignore the group if it isnt active
-        next if($group->{'active'} == 0);
-        $self->logger->debug("Creating worker for active group: " . $group->{"name"});
+    foreach my $group_name ( keys %{$self->groups} ) {
 
-        my $name            = $group->{"name"};
-        my $workers         = $group->{'workers'};
-        my $poll_interval   = $group->{'interval'};
-        my $retention       = $group->{'retention'};
-        my $snmp_timeout    = $group->{'snmp_timeout'};
-        my $max_reps        = $group->{'max_reps'};
+        my $group = $self->groups->{$group_name};
 
-        # Get the set of OIDS for this group
-        my @oids;
-        foreach my $line ( @{$group->{'mib'}} ) {
-            push( @oids, $line->{'oid'} );
-            $self->logger->debug("OID Pushed: " . $line->{"oid"});
+        $self->logger->debug("Creating worker for group: " . $group_name);
+
+        # Split hosts into worker groups
+        my %worker_hosts;
+        my $i = 0;
+        foreach my $host_name (@{$group->{hosts}}) {
+            
+            next if ( !defined($host_name) );
+
+            my $host = $self->hosts->{$host_name};
+
+            $worker_hosts{$i}{$host_name} = $host;
+
+            $i++;
+
+            if ( $i >= $group->{workers} ) { $i = 0; }
         }
 
-        my %hostsByWorker;
-        my %varsByWorker;
-        my $idx=0;
-        # Get the set of hosts that belong to this group
-        my $id= $group->{'name'};
+        $self->logger->debug(Dumper(\%worker_hosts));
 
-        my @hosts;
-
-        foreach my $host ( @{$self->hosts} ) {
-            my $groups = $host->{'group'};
-            foreach my $group (keys %$groups) {
-                if ($group eq $id) {
-                    # Match add the host to the host list
-                    push(@hosts,$host);
-                    # No double-pushing:
-                    last;
-                }
-            }
-        }
-
-        # Split hosts between workers
-        foreach my $host (@hosts) {
-
-            next if ( !defined($host->{'node_name'}) );
-
-            push(@{$hostsByWorker{$idx}},$host);
-
-            if ( !$var_worker{$host->{'node_name'}} ) {
-                $var_worker{$host->{'node_name'}} = 1;
-                $varsByWorker{$idx}{$host->{'node_name'}} = 1;
-            }
-
-            $idx++;
-
-            if($idx>=$workers) { $idx = 0; }
-        }
-
-        $self->logger->info( "Creating $workers child processes for group: $name" );
+        $self->logger->info( "Creating $group->{workers} child processes for group: $group_name" );
 
         # Keep track of children pids
         $forker->run_on_finish( sub {
@@ -465,9 +552,8 @@ sub _create_workers {
             $self->logger->error( "Child worker process $pid has died." );
         });
 
-
         # Create workers
-        for (my $worker_id=0; $worker_id<$workers; $worker_id++) {
+        for (my $worker_id=0; $worker_id < $group->{workers}; $worker_id++) {
 
             my $pid = $forker->start();
 
@@ -480,18 +566,17 @@ sub _create_workers {
 
             # Create worker in this process
             my $worker = GRNOC::Simp::Poller::Worker->new(
-                instance        => $worker_id,
-                group_name      => $name,
-                config          => $self->config,
-                oids            => \@oids,
-                hosts           => $hostsByWorker{$worker_id},
-                poll_interval   => $poll_interval,
-                retention       => $retention,
-                logger          => $self->logger,
-                status_dir      => $self->status_dir,
-                max_reps        => $max_reps,
-                snmp_timeout    => $snmp_timeout,
-                var_hosts       => $varsByWorker{$worker_id} || {}
+                instance     => $worker_id,
+                config       => $self->config,
+                logger       => $self->logger,
+                status_dir   => $self->status_dir,
+                group_name   => $group_name,
+                oids         => $group->{oids},
+                interval     => $group->{interval},
+                retention    => $group->{retention},
+                request_size => $group->{request_size},
+                timeout      => $group->{timeout},
+                hosts        => $worker_hosts{$worker_id} || {}
             );
 
             # This should only return if we tell it to stop via TERM signal etc.
