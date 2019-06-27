@@ -32,9 +32,7 @@ $AnyEvent::SNMP::MAX_RECVQUEUE = 128;
 
 =item oids
 
-=item poll_interval
-
-=item var_hosts
+=item interval
 
 =back
 
@@ -75,12 +73,7 @@ has oids => (
     required => 1
 );
 
-has poll_interval => (
-    is => 'ro',
-    required => 1
-);
-
-has var_hosts => ( 
+has interval => (
     is => 'ro',
     required => 1
 );
@@ -100,9 +93,9 @@ has var_hosts => (
 
 =item retention
 
-=item max_reps
+=item request_size
 
-=item snmp_timeout
+=item timeout
 
 =item main_cv
 
@@ -135,12 +128,12 @@ has retention => (
     default => 5
 );
 
-has max_reps => (
+has request_size => (
     is => 'rwp',
     default => 1
 );
 
-has snmp_timeout => (
+has timeout => (
     is => 'rwp',
     default => 5
 );
@@ -165,7 +158,7 @@ sub start {
 
     my ( $self ) = @_;
 
-    $self->_set_worker_name($self->group_name . $self->instance);
+    $self->_set_worker_name($self->group_name. '[' . $self->instance .']');
 
     my $logger = GRNOC::Log->get_logger($self->worker_name);
     $self->_set_logger($logger);
@@ -218,17 +211,17 @@ sub start {
     $self->logger->debug( $self->worker_name . ' Starting SNMP Poll loop.' );
 
     $self->_connect_to_snmp();
-    if (! $self->var_hosts ) {
-        $self->logger->debug("No hosts found for $self->worker_name");
+    if (! scalar(keys %{$self->hosts}) ) {
+        $self->logger->debug("No hosts found for " . $self->worker_name);
     } else {
-        $self->logger->debug($self->worker_name . ' var_hosts: "' . (join '", "', (keys %{$self->var_hosts})) . '"');
+        $self->logger->debug($self->worker_name . ' hosts: "' . (join '", "', (keys %{$self->hosts})) . '"');
     }
 
     # Start AnyEvent::SNMP's max outstanding requests window equal to the total
     # number of requests this process will be making. AnyEvent::SNMP will scale from there
     # as it observes bottlenecks
-    if ( $self->oids()  && $self->hosts() ) {
-        AnyEvent::SNMP::set_max_outstanding(@{$self->hosts()} * @{$self->oids()});
+    if ( scalar(@{$self->oids})  && scalar(keys %{$self->hosts}) ) {
+        AnyEvent::SNMP::set_max_outstanding( scalar(keys %{$self->hosts}) * scalar(@{$self->oids}) );
     } 
     else {
         $self->logger->error("Hosts or OIDs were not defined!");
@@ -239,7 +232,7 @@ sub start {
 
     $self->{'collector_timer'} = AnyEvent->timer(
         after => 10,
-        interval => $self->poll_interval,
+        interval => $self->interval,
         cb => sub {
             $self->_collect_data();
             AnyEvent->now_update;
@@ -275,6 +268,7 @@ sub _poll_cb {
     # Set params
     my $session     = $params{'session'};
     my $host        = $params{'host'};
+    my $host_name   = $params{'host_name'};
     my $req_time    = $params{'timestamp'};
     my $reqstr      = $params{'reqstr'};
     my $main_oid    = $params{'oid'};
@@ -286,10 +280,9 @@ sub _poll_cb {
     my $timestamp   = $req_time;
 
     my $ip          = $host->{'ip'};
-    my $node_name   = $host->{'node_name'};
     my $poll_id     = $host->{'poll_id'};
     
-    $self->logger->debug("_poll_cb running for $node_name: $main_oid");
+    $self->logger->debug("_poll_cb running for $host_name: $main_oid");
     if ( defined($context_id) ) {
         delete $host->{'pending_replies'}->{$main_oid . "," . $context_id};
     } else {
@@ -313,7 +306,7 @@ sub _poll_cb {
         }
 
         my $error = $session->error();
-        $self->logger->error("Host/Context ID: $host->{'node_name'} " . (defined($context_id) ? $context_id : '[no context ID]'));
+        $self->logger->error("Host/Context ID: $host_name " . (defined($context_id) ? $context_id : '[no context ID]'));
         $self->logger->error("Group \"$id\" failed: $reqstr");
         $self->logger->error("Error: $error");
 
@@ -325,13 +318,13 @@ sub _poll_cb {
 
     my $expires = $timestamp + $self->retention;
 
-    my $group_poll_interval = $self->group_name . "," . $self->poll_interval;
+    my $group_interval = $self->group_name . "," . $self->interval;
 
     try {
 
         $redis->select(0);
 
-        my $key = $node_name . "," . $self->worker_name . ",$timestamp";
+        my $key = $host_name . "," . $self->worker_name . ",$timestamp";
 
         $redis->sadd($key, @values) if (@values);
 
@@ -343,25 +336,25 @@ sub _poll_cb {
             # Our poll_id to time lookup
             $redis->select(1);
 
-            my $node_base_key       = $node_name . "," . $self->group_name;
+            my $node_base_key       = $host_name . "," . $self->group_name;
             my $ip_base_key         = $ip . "," . $self->group_name;
             my $poll_timestamp_val  = $poll_id . "," . $timestamp;
-            my $node_name_key       = $node_base_key . "," . $poll_id;
+            my $host_name_key       = $node_base_key . "," . $poll_id;
             my $ip_key              = $ip_base_key . "," . $poll_id;
 
-            $redis->set($node_name_key, $key);
+            $redis->set($host_name_key, $key);
             $redis->set($ip_key, $key);
 
             # ...and expire
-            $redis->expireat($node_name_key, $expires);
+            $redis->expireat($host_name_key, $expires);
             $redis->expireat($ip_key, $expires);
 
             $redis->select(0);
             #$self->logger->error(Dumper($host->{'group'}{$self->group_name}));
 
-            if ( $self->var_hosts()->{$node_name} && defined($host->{'host_variable'}) ) {
+            if ( $self->hosts->{$host_name} && defined($host->{'host_variable'}) ) {
 
-                $self->logger->debug("Adding host variables for $node_name");
+                $self->logger->debug("Adding host variables for $host_name");
 
                 my %add_values = %{$host->{'host_variable'}};
 
@@ -377,8 +370,8 @@ sub _poll_cb {
                 }
 
                 $redis->select(3);
-                $redis->hset($node_name, "vars", $group_poll_interval);
-                $redis->hset($ip, "vars", $group_poll_interval);
+                $redis->hset($host_name, "vars", $group_interval);
+                $redis->hset($ip, "vars", $group_interval);
             }
 
             # ...and the current poll_id lookup
@@ -396,8 +389,8 @@ sub _poll_cb {
 
 
         $redis->select(3);
-        $redis->hset($node_name, $main_oid, $group_poll_interval);
-        $redis->hset($ip, $main_oid, $group_poll_interval);
+        $redis->hset($host_name, $main_oid, $group_interval);
+        $redis->hset($ip, $main_oid, $group_interval);
 
         # Change back to the primary db...
         $redis->select(0);
@@ -417,7 +410,9 @@ sub _connect_to_snmp {
     my $hosts = $self->hosts;
 
     # Build the SNMP object for each host of interest
-    foreach my $host ( @$hosts ) {
+    foreach my $host_name ( keys %$hosts ) {
+
+        my $host = $hosts->{$host_name};
 
         my ($snmp,$error);
         $host->{snmp_errors} = {};
@@ -427,7 +422,7 @@ sub _connect_to_snmp {
             
             # Send an error if v2c and missing a community
             if ( !$host->{community} ) {
-                $self->logger->error("SNMP is v2c, but no community is defined for $host->{node_name}!");
+                $self->logger->error("SNMP is v2c, but no community is defined for $host_name!");
                 $host->{snmp_errors}{community} = {
                     time   => time,
                     error  => "No community was defined for $host"
@@ -438,14 +433,14 @@ sub _connect_to_snmp {
                 -hostname         => $host->{'ip'},
                 -community        => $host->{'community'},
                 -version          => 'snmpv2c',
-                -timeout          => $self->snmp_timeout,
+                -timeout          => $self->timeout,
                 -maxmsgsize       => 65535,
                 -translate        => [-octetstring => 0],
                 -nonblocking      => 1,
                 -retries          => 5
             );
 
-            $self->{'snmp'}{$host->{'node_name'}} = $snmp;
+            $self->{'snmp'}{$host_name} = $snmp;
 
         # SNMP V3
         } elsif ( $host->{'snmp_version'} eq '3' ) {
@@ -455,7 +450,7 @@ sub _connect_to_snmp {
                 ($snmp, $error) = Net::SNMP->session(
                     -hostname         => $host->{'ip'},
                     -version          => '3',
-                    -timeout          => $self->snmp_timeout,
+                    -timeout          => $self->timeout,
                     -maxmsgsize       => 65535,
                     -translate        => [-octetstring => 0],
                     -username         => $host->{'username'},
@@ -463,7 +458,7 @@ sub _connect_to_snmp {
                     -retries          => 5
                 );
 
-                $self->{'snmp'}{$host->{'node_name'}} = $snmp;
+                $self->{'snmp'}{$host_name} = $snmp;
 
             } else {
 
@@ -472,7 +467,7 @@ sub _connect_to_snmp {
                     ($snmp, $error) = Net::SNMP->session(
                         -hostname         => $host->{'ip'},
                         -version          => '3',
-                        -timeout          => $self->snmp_timeout,
+                        -timeout          => $self->timeout,
                         -maxmsgsize       => 65535,
                         -translate        => [-octetstring => 0],
                         -username         => $host->{'username'},
@@ -480,7 +475,7 @@ sub _connect_to_snmp {
                         -retries          => 5
                     );
 
-                    $self->{'snmp'}{$host->{'node_name'}}{$ctxEngine} = $snmp;
+                    $self->{'snmp'}{$host_name}{$ctxEngine} = $snmp;
                 }
             }
 
@@ -507,7 +502,7 @@ sub _connect_to_snmp {
         try {
 
             $self->redis->select(2);
-            $host_poll_id = $self->redis->get($host->{'node_name'} . ",main_oid");
+            $host_poll_id = $self->redis->get($host_name . ",main_oid");
             $self->redis->select(0);
 
             if( !defined($host_poll_id) ) {
@@ -528,7 +523,7 @@ sub _connect_to_snmp {
         $host->{'pending_replies'} = {};
         $host->{'failed_oids'} = {};
 
-        $self->logger->debug($self->worker_name . " assigned host " . $host->{'node_name'});
+        $self->logger->debug($self->worker_name . " assigned host " . $host_name);
     }
 }
 
@@ -537,9 +532,10 @@ sub _write_mon_data {
 
     my $self = shift;
     my $host = shift;
+    my $name = shift;
 
     # Set dir for writing status files to status_dir defined in simp-poller.pl
-    my $mon_dir = $self->status_dir . $host->{node_name} . '/';
+    my $mon_dir = $self->status_dir . $name . '/';
 
     # Checks if $mon_dir exists or creates it
     unless (-e $mon_dir) {
@@ -556,7 +552,7 @@ sub _write_mon_data {
         failed_oids => scalar($host->{failed_oids}) ? $host->{failed_oids} : '',
         snmp_errors => scalar($host->{snmp_errors}) ? $host->{snmp_errors} : '',
         config      => $self->config->{config_file},
-        interval    => $self->poll_interval
+        interval    => $self->interval
     );
     $self->logger->debug(Dumper(\%mon_data));
         
@@ -586,12 +582,14 @@ sub _collect_data {
 
     $self->logger->debug("----  START OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----" );
 
-    $self->logger->debug($self->worker_name . " " . $self->group_name . " with " . scalar(@$hosts) . " hosts and " . scalar(@$oids) . " oids per hosts, max outstanding scaled to " . $AnyEvent::SNMP::MAX_OUTSTANDING, " queue is " . $AnyEvent::SNMP::MIN_RECVQUEUE . " to " . $AnyEvent::SNMP::MAX_RECVQUEUE);
+    $self->logger->debug($self->worker_name . " " . $self->group_name . " with " . scalar(keys %$hosts) . " hosts and " . scalar(@$oids) . " oids per hosts, max outstanding scaled to " . $AnyEvent::SNMP::MAX_OUTSTANDING, " queue is " . $AnyEvent::SNMP::MIN_RECVQUEUE . " to " . $AnyEvent::SNMP::MAX_RECVQUEUE);
 
-    for my $host (@$hosts) {
+    for my $host_name (keys %$hosts) {
+
+        my $host = $hosts->{$host_name};
         
         # Write mon data out for the host's last poll cycle
-        $self->_write_mon_data($host);
+        $self->_write_mon_data($host, $host_name);
         # Reset the failed OIDs after writing out the status
         $host->{failed_oids} = {};
 
@@ -599,19 +597,17 @@ sub _collect_data {
         # This does mean you can't collect more OID bases than your interval
         my $delay = 0;
 
-        my $node_name = $host->{'node_name'};
-
         # Log error and skip collections for the host if it has an OID key in pending response with a val of 1
         if ( scalar(keys %{$host->{'pending_replies'}}) > 0 ) {
-            $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $node_name . " in poll cycle for group: " . $self->group_name . " remaining oids = " . Dumper($host->{'pending_replies'}));
+            $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $host_name . " in poll cycle for group: " . $self->group_name . " remaining oids = " . Dumper($host->{'pending_replies'}));
             next;
         }
 
-        my $snmp_session  = $self->{'snmp'}{$node_name};
+        my $snmp_session  = $self->{'snmp'}{$host_name};
         my $snmp_contexts = $host->{'group'}{$self->group_name}{'context_id'};
 
         if ( !defined($snmp_session) ) {
-            $self->logger->error("No SNMP session defined for $node_name");
+            $self->logger->error("No SNMP session defined for $host_name");
             next;
         }
         
@@ -622,7 +618,7 @@ sub _collect_data {
                 $self->logger->error($host->{'failed_oids'}->{$oid}->{'error'});
             }
 
-            my $reqstr = " $oid -> $host->{'ip'} ($host->{'node_name'})";
+            my $reqstr = " $oid -> $host->{'ip'} ($host_name)";
             #$self->logger->debug($self->worker_name ." requesting ". $reqstr); 
 
             # Iterate through the the provided set of base OIDs to collect
@@ -634,12 +630,13 @@ sub _collect_data {
                 $self->logger->debug($self->worker_name . " requesting " . $reqstr);
                 $res = $snmp_session->get_table(
                     -baseoid         => $oid,
-                    -maxrepetitions  => $self->max_reps,
+                    -maxrepetitions  => $self->request_size,
                     -delay           => $delay++,
                     -callback        => sub {
                         my $session = shift;
                         $self->_poll_cb( 
                             host        => $host,
+                            host_name   => $host_name,
                             timestamp   => $timestamp,
                             reqstr      => $reqstr,
                             oid         => $oid,
@@ -671,13 +668,14 @@ sub _collect_data {
                     $host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
                     $res = $snmp_session->{$ctxEngine}->get_table(
                         -baseoid            => $oid,
-                        -maxrepetitions     => $self->max_reps,
+                        -maxrepetitions     => $self->request_size,
                         -contextengineid    => $ctxEngine,
                         -delay              => $delay++,
                         -callback           => sub {
                             my $session = shift;
                             $self->_poll_cb( 
                                 host        => $host,
+                                host_name   => $host_name,
                                 timestamp   => $timestamp,
                                 reqstr      => $reqstr,
                                 oid         => $oid,
@@ -707,7 +705,7 @@ sub _collect_data {
 
             # Shouldn't get here, this could be misconfig?
             } else {
-                $self->logger->error("Error collecting data - unsupported configuration for $node_name " . $self->group_name);
+                $self->logger->error("Error collecting data - unsupported configuration for $host_name " . $self->group_name);
             }
 
         }
