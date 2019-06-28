@@ -15,33 +15,33 @@ EOM
     exit( 1 );
 }
 
+use constant DEFAULT_CONFIG_FILE => '/etc/simp/data/config.xml';
+use constant DEFAULT_LOG_FILE    => '/etc/simp/data/logging.conf';
 
-use constant DEFAULT_CONFIG_FILE => '/etc/simp/simpDataConfig.xml';
-use constant DEFAULT_LOG_FILE    => '/etc/simp/data_logging.conf';
-
-my $config_file = DEFAULT_CONFIG_FILE;
-my $logging     = DEFAULT_LOG_FILE;
+my $config  = DEFAULT_CONFIG_FILE;
+my $logging = DEFAULT_LOG_FILE;
 my $nofork;
 my $help;
 my $username;
 my $groupname;
 
-GetOptions( 'config=s'  => \$config_file,
-            'logging=s' => \$logging,
-            'nofork'    => \$nofork,
-            'user=s'    => \$username,
-            'group=s'   => \$groupname,
-            'help|h|?'  => \$help );
+GetOptions(
+    'config=s'  => \$config,
+    'logging=s' => \$logging,
+    'nofork'    => \$nofork,
+    'user=s'    => \$username,
+    'group=s'   => \$groupname,
+    'help|h|?'  => \$help
+);
 
 usage() if $help;
 
-
 my $data_services = GRNOC::Simp::Data->new(
-			config_file    => $config_file,
-                        logging_file   => $logging,
-                        run_user       => $username,
-                        run_group      => $groupname,
-			daemonize      => !$nofork );
+    config_file  => $config,
+    logging_file => $logging,
+    run_user     => $username,
+    run_group    => $groupname,
+    daemonize    => !$nofork 
+);
 
 $data_services->start();
-

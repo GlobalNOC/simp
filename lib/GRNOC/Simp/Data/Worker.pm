@@ -27,14 +27,20 @@ use POSIX;
 
 =cut
 
-has config => ( is => 'ro',
-                required => 1 );
+has config => ( 
+    is       => 'ro',
+    required => 1
+);
 
-has logger => ( is => 'ro',
-                required => 1 );
+has logger => (
+    is       => 'ro',
+    required => 1
+);
 
-has worker_id => ( is => 'ro',
-               required => 1 );
+has worker_id => (
+    is       => 'ro',
+    required => 1
+);
 
 
 ### internal attributes ###
