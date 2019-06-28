@@ -35,25 +35,35 @@ use GRNOC::Simp::Data::Worker;
 
 =cut
 
-has config_file => ( is => 'ro',
-                     isa => Str,
-                     required => 1 );
+has config_file => ( 
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
 
-has logging_file => ( is => 'ro',
-                      isa => Str,
-                      required => 1 );
+has logging_file => ( 
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
 
 ### optional attributes ###
 
-has daemonize => ( is => 'ro',
-                   isa => Bool,
-                   default => 1 );
+has daemonize => ( 
+    is      => 'ro',
+    isa     => Bool,
+    default => 1
+);
 
-has run_user => ( is => 'ro',
-                  required => 0 );
+has run_user => ( 
+    is       => 'ro',
+    required => 0
+);
 
-has run_group => ( is => 'ro',
-                   required => 0 );
+has run_group => ( 
+    is       => 'ro',
+    required => 0
+);
 
 ### private attributes ###
 =head2 private attributes
