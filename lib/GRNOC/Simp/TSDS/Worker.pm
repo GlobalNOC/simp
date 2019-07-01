@@ -23,17 +23,17 @@ use GRNOC::Simp::TSDS::Pusher;
 
 =item worker_name
 
-=item simp_config
+=item rabbitmq
 
 =item tsds_config
 
-=item tsds_type
+=item measurement_type
 
 =item hosts
 
 =item interval
 
-=item composite_name
+=item composite
 
 =item filter_name
 
@@ -41,42 +41,64 @@ use GRNOC::Simp::TSDS::Pusher;
 
 =item exclude_patterns
 
-=item required_value_fields
+=item required_values
 
 =back
 
 =cut
 
-has worker_name => (is => 'ro',
-		    required => 1);
+has worker_name => (
+    is       => 'ro',
+    required => 1
+);
 
-has logger => (is => 'rwp',
-	       required => 1);
+has logger => (
+    is       => 'rwp',
+    required => 1
+);
 
-has simp_config => (is => 'rwp',
-		    required => 1);
+has rabbitmq => (
+    is       => 'rwp',
+    required => 1
+);
 
-has tsds_config => (is => 'rwp',
-		    required => 1);
+has tsds_config => (
+    is       => 'rwp',
+    required => 1
+);
 
-has hosts => (is => 'rwp',
-	      required => 1);
+has hosts => (
+    is       => 'rwp',
+    required => 1
+);
 
-has tsds_type => (is => 'rwp',
-                  required => 1);
+has measurement_type => (
+    is       => 'rwp',
+    required => 1
+);
 
-has interval => (is => 'rwp',
-		 required => 1);
+has interval => (
+    is       => 'rwp',
+    required => 1
+);
 
-has composite_name => (is => 'rwp',
-		       required => 1);
+has composite => (
+    is       => 'rwp',
+    required => 1
+);
 
-has filter_name => (is => 'rwp');
+has filter_name  => (is => 'rwp');
 has filter_value => (is => 'rwp');
 
-has exclude_patterns => (is => 'rwp', default => sub { [] });
+has exclude_patterns => (
+    is      => 'rwp', 
+    default => sub { [] }
+);
 
-has required_value_fields => (is => 'rwp', default => sub { [] });
+has required_values => (
+    is      => 'rwp', 
+    default => sub { [] }
+);
 
 
 =head2 private attributes
@@ -103,11 +125,19 @@ has required_value_fields => (is => 'rwp', default => sub { [] });
 
 has simp_client => (is => 'rwp');
 has tsds_pusher => (is => 'rwp');
-has poll_w => (is => 'rwp');
-has push_w => (is => 'rwp');
-has msg_list => (is => 'rwp', default => sub { [] });
-has cv => (is => 'rwp');
-has stop_me => (is => 'rwp', default => 0);
+has poll_w      => (is => 'rwp');
+has push_w      => (is => 'rwp');
+has cv          => (is => 'rwp');
+
+has msg_list => (
+    is      => 'rwp', 
+    default => sub { [] }
+);
+
+has stop_me => (
+    is      => 'rwp', 
+    default => 0
+);
 
 =head2 run
 
@@ -120,6 +150,7 @@ sub run {
 
     # Set logging object
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
+    $self->logger->debug('SIMP-TSDS WORKER');
 
     # Set worker properties
     $self->_load_config();
@@ -141,46 +172,46 @@ sub _load_config {
 
     # Create dispatcher to watch for messages from Master
     my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new(
-	host => $self->simp_config->{'host'},
-	port => $self->simp_config->{'port'},
-	user => $self->simp_config->{'user'},
-	pass => $self->simp_config->{'password'},
-	exchange => 'SNAPP',
-	topic    => "SNAPP." . $self->worker_name
+	    host     => $self->rabbitmq->{'host'},
+	    port     => $self->rabbitmq->{'port'},
+	    user     => $self->rabbitmq->{'user'},
+	    pass     => $self->rabbitmq->{'password'},
+	    exchange => 'SNAPP',
+	    topic    => "SNAPP." . $self->worker_name
     );
 
     # Create and register stop method
     my $stop_method = GRNOC::RabbitMQ::Method->new(
-	name        => "stop",
-	description => "stops worker",
-	callback => sub {
-	    $self->_set_stop_me(1);
-	}
+	    name        => "stop",
+	    description => "stops worker",
+	    callback    => sub {
+	        $self->_set_stop_me(1);
+	    }
     );
     $dispatcher->register_method($stop_method);
 
     # Create SIMP client object
     $self->_set_simp_client(GRNOC::RabbitMQ::Client->new(
-	host => $self->simp_config->{'host'},
-	port => $self->simp_config->{'port'},
-	user => $self->simp_config->{'user'},
-	pass => $self->simp_config->{'password'},
-	exchange => 'Simp',
-	topic    => 'Simp.CompData'
+	    host     => $self->rabbitmq->{'host'},
+	    port     => $self->rabbitmq->{'port'},
+	    user     => $self->rabbitmq->{'user'},
+	    pass     => $self->rabbitmq->{'password'},
+	    exchange => 'Simp',
+	    topic    => 'Simp.CompData'
     ));
 
     # Create TSDS Pusher object
     $self->_set_tsds_pusher(GRNOC::Simp::TSDS::Pusher->new(
-	logger => $self->logger,
-	worker_name => $self->worker_name,
-	tsds_config => $self->tsds_config,
+	    logger      => $self->logger,
+	    worker_name => $self->worker_name,
+	    tsds_config => $self->tsds_config,
     ));
     
     # set interval
     my $interval = $self->interval;
 
     # set composite name
-    my $composite = $self->composite_name;
+    my $composite = $self->composite;
 
     # Create polling timer for event loop
     $self->_set_poll_w(AnyEvent->timer(
@@ -241,7 +272,7 @@ sub _process_host {
 	return;
     }
 
-    my $required_values = $self->required_value_fields;
+    my $required_values = $self->required_values;
 
     # Take data from Comp and "package" for a post to TSDS
     foreach my $node_name (keys %{$res->{'results'}}) {
@@ -255,7 +286,7 @@ sub _process_host {
 	    my %meta;
 	    my $datum_tm = $tm;
 
-            # this works properly when required_value_fields is empty,
+            # this works properly when required_values is empty,
             # as any returns false then
             next if (any { !defined($datum->{$_}) } @$required_values);
 
@@ -279,7 +310,7 @@ sub _process_host {
 
 	    # push onto our queue for posting to TSDS
 	    push @{$self->msg_list}, {
-		type => $self->tsds_type,
+		type => $self->measurement_type,
 		time => $datum_tm,
 		interval => $self->interval,
 		values => \%vals,
