@@ -316,7 +316,7 @@ sub _get {
     # $results{scan_exclude}{$node}{$oid} = 1 (Any value here marks an oid to be excluded)
     #
     #--- Results from the _get_data -> _data_cb -> _digest_data phase:
-    # $results{val}{$host}{$val_id} = { OID element tree of hashes containting data returned for the val }
+    # $results{data}{$host}{$val_id} = { OID element tree of hashes containting data returned for the val }
     # $results{hostvar}{$host}{$hostvar_name} = The host variables (_get_data and _hostvar_cb)
     #
     #--- Results from the _do_conversions phase:
@@ -598,7 +598,7 @@ sub _get_scans {
     foreach my $host (@$hosts) {
         $results->{scan_tree}{$host}    = {};
         $results->{scan_vals}{$host}    = {};
-        $results->{val}{$host}          = {};
+        $results->{data}{$host}         = {};
         $results->{hostvar}{$host}      = {};
     }
 
@@ -765,7 +765,6 @@ sub _digest_scans {
     my $hosts = $params->{'node'}{'value'};
 
     $self->logger->debug("Digesting combined scans");
-    $self->logger->debug(Dumper($results));
 
     for my $host ( @$hosts ) {
 
@@ -839,7 +838,7 @@ sub _get_data {
     my $cv        = shift; # AnyEvent condition var (assumes it's been begin()'ed)
 
     $self->logger->debug("Running _get_data");
-    $self->logger->debug(Dumper($results));
+
     # Get the set of required variables
     my $hosts = $params->{'node'}{'value'};
     
@@ -856,111 +855,125 @@ sub _get_data {
         },
     );
 
-    my $data_elements = $composite->get('/composite/data/value');
+    # Initialize data elements 
+    my @data_elements;
+    
+    my $value_data = $composite->get('/composite/data/value');
+    my $meta_data  = $composite->get('/composite/data/meta');
 
-    my $meta_data = $composite->get('/composite/data/meta');
+    # Create a name map for metadata elements to handle the TSDS asterisk notation
     foreach my $meta_elem (@$meta_data) {
-        $meta_elem->{meta} = 1;
+        # Map the original name to the adjusted one for functions
+        $results->{meta}->{$meta_elem->{name}} = "*$meta_elem->{name}";
     }
-    push(@$data_elements, @$meta_data);
-    $self->logger->debug(Dumper($data_elements));
 
-        foreach my $elem (@$data_elements) {
+    push(@data_elements, @$value_data);
+    push(@data_elements, @$meta_data);
+    $self->logger->debug(Dumper(\@data_elements));
 
-        # Notes for <val> Elements ------------------------------------------
-        # The <val> tag can have a couple of different forms:
-        #
-        # <val id="var_name" var="scan_var_name">
-        #     - use a value from the scan phase
-        # <val id="var_name" type="rate" oid="1.2.3.4.scan_var_name">
-        #     - use OID suffixes from the scan phase, and lookup other OIDs,
-        #       optionally doing a rate calculation
-        #--------------------------------------------------------------------
+    foreach my $elem (@data_elements) {
+
+    # Attributes for <meta> and <value> Elements --------------------------------------------
+    #
+    #   "name" (required): 
+    #       - Should be the name of a metadata or value field from the TSDS measurement type.
+    #       - The use of a meta or value tag determines if a field is metadata or a value.
+    #
+    #   "source" (required):
+    #       - Has four possible options:
+    #           1. The poll_value name of a scan from the variables.
+    #           2. The name of an input from the variables.
+    #           3. A variable OID that uses oid_suffixes from scans.
+    #           4. A regular OID that is static and returns one result.
+    #
+    #   "type" (optional):
+    #       - Must be set equal to "rate", it is the only option right now.
+    #       - This is used to indicate that a numeric value should be calculated as a rate.
+    #       - Typically used for bit and packet rates that need a difference calculation.
+    #
+    #----------------------------------------------------------------------------------------
 
 
-            # Check if the element source isn't an OID
-            unless ( $elem->{source} =~ /.*\.+.*/ ) {
+        # Check if the element source isn't an OID
+        unless ( $elem->{source} =~ /.*\.+.*/ ) {
 
-                # If the val is the "node" var, create a val object in results with one value set to the host
-                if ( $elem->{name} eq 'node' ) {
-                    foreach my $host (@$hosts) {
-                        $results->{val}{$host}{$elem->{name}}{value} = $host;
-                    }
-                    next;
-                }
-                else {
-
-                # If the val has a defined var attribute 
-                    # Add the scan_vals hash for it to the results val hash under its val ID
-                    my $val_key = $results->{var_map}->{$elem->{source}};
-                    $self->logger->debug("Getting data for source $elem->{source} from the $val_key values");
-                    foreach my $host (@$hosts) {
-                        if ( exists $results->{scan_vals}{$host}{$val_key} ) {
-                            $results->{val}{$host}{$elem->{name}} = $results->{scan_vals}{$host}{$val_key};
-                        }
-                    }
-                    next;
-                }
-            }
-            # Pull the element's OID data from Simp
-            else {
-
-                # Create a map of the val OID for use
-                $elem->{map} = $self->_map_oid($elem);
-                if ( !defined $elem->{map} ) {
-                    $self->logger->error("A map could not be generated for val $elem->{name}!");
-                    next;
-                };
-
-                # Add the element's name to the val_map
-                $elem->{map}{name} = $elem->{name};
-                $self->logger->debug(Dumper($elem->{map}));
-
-                # Get the base OID of the val for polling 
-                my $base_oid = $elem->{map}{base_oid};
-
+            # If the val is the "node" var, create a val object in results with one value set to the host
+            if ( $elem->{name} eq 'node' ) {
                 foreach my $host (@$hosts) {
-
-                    if ( scalar(keys %{$results->{scan_tree}{$host}}) < 1 ) {
-                        $self->logger->error("ERROR: No scan data! Skipping vals for $host");
-                        next;
+                    $results->{data}{$host}{node}{value} = $host;
+                }
+                next;
+            }
+            else {
+                # Add the scan_vals hash for it to the results val hash under its val ID
+                my $val_key = $results->{var_map}->{$elem->{source}};
+                $self->logger->debug("Getting data for source $elem->{source} from the $val_key values");
+                foreach my $host (@$hosts) {
+                    if ( exists $results->{scan_vals}{$host}{$val_key} ) {
+                        $results->{data}{$host}{$elem->{name}} = $results->{scan_vals}{$host}{$val_key};
                     }
+                }
+                next;
+            }
+        }
+        # Pull the element's OID data from Simp
+        else {
 
-                    # Get the data for these OIDs from Simp
-                    $cv->begin;
+            # Create a map of the val OID for use
+            $elem->{map} = $self->_map_oid($elem);
+            if ( !defined $elem->{map} ) {
+                $self->logger->error("A map could not be generated for val $elem->{name}!");
+                next;
+            };
 
-                    # It is tempting to request just the OIDs you know you want,
-                    # instead of asking for the whole subtree, but requesting
-                    # a bunch of individual OIDs takes SimpData a *whole* lot
-                    # more time and CPU, so we go for the subtree.
-                    if ( defined($elem->{type}) && $elem->{type} eq 'rate' ) {
+            # Add the element's name to the val_map
+            $elem->{map}{name} = $elem->{name};
 
-                        $self->client->get_rate(
-                            node     => [$host],
-                            period   => $params->{'period'}{'value'},
-                            oidmatch => [$base_oid],
-                            async_callback => sub {
-                                my $data = shift;
-                                $self->_data_cb($data->{'results'},$results,$host,$elem->{map});
-                                $cv->end;
-                            }
-                        );
+            # Get the base OID of the val for polling 
+            my $base_oid = $elem->{map}{base_oid};
 
-                    } 
-                    else {
-                        $self->client->get(
-                            node     => [$host],
-                            oidmatch => [$base_oid],
-                            async_callback => sub {
-                                my $data = shift;
-                                $self->_data_cb($data->{'results'},$results,$host,$elem->{map});
-                                $cv->end;
-                            }
-                        );
-                    }
+            foreach my $host (@$hosts) {
+
+                if ( scalar(keys %{$results->{scan_tree}{$host}}) < 1 ) {
+                    $self->logger->error("ERROR: No scan data! Skipping vals for $host");
+                    next;
+                }
+
+                # Get the data for these OIDs from Simp
+                $cv->begin;
+
+                # It is tempting to request just the OIDs you know you want,
+                # instead of asking for the whole subtree, but requesting
+                # a bunch of individual OIDs takes SimpData a *whole* lot
+                # more time and CPU, so we go for the subtree.
+                if ( defined($elem->{type}) && $elem->{type} eq 'rate' ) {
+
+                    $self->client->get_rate(
+                        node     => [$host],
+                        period   => $params->{'period'}{'value'},
+                        oidmatch => [$base_oid],
+                        async_callback => sub {
+                            my $data = shift;
+                            $self->_data_cb($data->{'results'},$results,$host,$elem->{map});
+                            $cv->end;
+                        }
+                    );
+
+                } 
+                else {
+                    $self->client->get(
+                        node     => [$host],
+                        oidmatch => [$base_oid],
+                        async_callback => sub {
+                            my $data = shift;
+                            $self->_data_cb($data->{'results'},$results,$host,$elem->{map});
+                            $cv->end;
+                        }
+                    );
                 }
             }
         }
+    }
     $cv->end;
     $self->logger->debug("Finished running _get_data");
 }
@@ -1018,7 +1031,6 @@ sub _data_cb {
     # Get the transformed data for the val using the wanted OIDs
     my $val_data = $self->_transform_oids(\@oids, $data->{$host}, $elem_map);
     $self->logger->debug("Translated raw val data into data tree for $elem_map->{name}");
-    $self->logger->debug(Dumper($val_data));
 
     # Check translated data, removing leaves and branches that were not wanted
     # !!! By design, this shouldn't be necessary as unwanted vals wont match
@@ -1028,7 +1040,7 @@ sub _data_cb {
     #$self->logger->debug("Trimmed unwanted vals for $val_map->{id}");
 
     # Add the translated, cleaned data to to the val results for the host, at the val_id
-    $results->{val}{$host}{$elem_map->{name}} = $val_data->{vals};
+    $results->{data}{$host}{$elem_map->{name}} = $val_data->{vals};
 
     return;
 }
@@ -1120,7 +1132,7 @@ sub _digest_data {
 
         if (! keys %{$results->{scan_tree}{$host}} ) {
             $self->logger->error("No vals were returned for $host");
-            $results->{val}{$host} = [];
+            $results->{data}{$host} = [];
             next;
         }
 
@@ -1128,7 +1140,7 @@ sub _digest_data {
         my $val_tree = $results->{scan_tree}{$host}{vals};
 
         # Get the vals polled for the host
-        my $vals = $results->{val}{$host};
+        my $vals = $results->{data}{$host};
 
         # Add the data for all vals to the appropriate leaves of val_tree
         for my $val_id ( keys %{$vals} ) {
@@ -1142,10 +1154,9 @@ sub _digest_data {
         $self->_extract_data($val_tree, \@val_data);
         $self->logger->debug("Extracted val data objects for $host");
         # Set the results for val for the host to the data
-        $results->{val}{$host} = \@val_data;
+        $results->{data}{$host} = \@val_data;
     }
     $self->logger->debug("Finished digesting vals");
-    $self->logger->debug(Dumper($results->{val}));
     $cv->end;
 }
 
@@ -1167,19 +1178,19 @@ sub _do_conversions {
     my $now = time;
 
     # Iterate over the data array for each host
-    foreach my $host (keys %{$results->{'val'}}) {
+    foreach my $host (keys %{$results->{data}}) {
 
         # Initialise the final data array for the host
         $results->{final}{$host} = [];
 
-        if ( !$results->{val}{$host} || (ref($results->{val}{$host}) ne ref([])) ) {
+        if ( !$results->{data}{$host} || (ref($results->{data}{$host}) ne ref([])) ) {
             $self->logger->error("ERROR: No data array was generated for $host!");
             next;
         }
 
         # Set final values if no functions are being applied to the hosts's data 
         unless ( $functions ) {
-            $results->{final}{$host} = $results->{val}{$host};
+            $results->{final}{$host} = $results->{data}{$host};
             next; 
         }
 
@@ -1199,7 +1210,7 @@ sub _do_conversions {
             foreach my $target (keys %{$function->{data}}) {
 
                 # Check each data object for the val with functions
-                foreach my $host_data ( @{$results->{val}{$host}} ) {
+                foreach my $host_data ( @{$results->{data}{$host}} ) {
 
                     # Ensure the data object has a time stamp
                     unless (exists $host_data->{time}) {
@@ -1250,14 +1261,22 @@ sub _do_conversions {
                     else {
                         $host_data->{$target} = $_FUNCTIONS{rpn}([$host_data->{$target}],$target_def,$function,$host_data,$results,$host)->[0];
                     }
+
+                    # Prepend an asterisk to metadata names for TSDS
+                    foreach my $meta_name (keys %{$results->{meta}}) {
+                        if (exists $host_data->{$meta_name}) {
+                            # Set the new key to its value and delete the old key pair
+                            $host_data->{$results->{meta}{$meta_name}} = delete $host_data->{$meta_name};
+                        }
+                    }
                 }
             }
         }
         # Once any/all functions are applied in results->val for the host, we set the final data to that hash
-        $results->{final}{$host} = $results->{val}{$host};
+        $results->{final}{$host} = $results->{data}{$host};
     }
+    $self->logger->debug(Dumper($results->{final}));
     $self->logger->debug("Finished applying conversions to the data");
-    #$self->logger->debug(Dumper($results->{final}));
     $cv->end;
 }
 
