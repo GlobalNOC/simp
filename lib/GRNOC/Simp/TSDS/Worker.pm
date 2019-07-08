@@ -281,6 +281,7 @@ sub _process_host {
 	$self->logger->debug($self->worker_name . ' Value: ' . Dumper($res->{'results'}->{$node_name}));
 
 	my $data = $res->{'results'}->{$node_name};
+
 	foreach my $datum (@$data) {
 	    my %vals;
 	    my %meta;
@@ -310,11 +311,11 @@ sub _process_host {
 
 	    # push onto our queue for posting to TSDS
 	    push @{$self->msg_list}, {
-		type => $self->measurement_type,
-		time => $datum_tm,
-		interval => $self->interval,
-		values => \%vals,
-		meta => \%meta
+		    type     => $self->measurement_type,
+		    time     => $datum_tm,
+		    interval => $self->interval,
+		    values   => \%vals,
+		    meta     => \%meta
 	    };
 	}
     }
