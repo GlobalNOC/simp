@@ -3,7 +3,7 @@ Description=SIMP Computation Service
 After=syslog.target network.target
 
 [Service]
-ExecStart=/usr/bin/simp-comp.pl --config /etc/simp/compDataConfig.xml --logging /etc/simp/comp_logging.conf --user simp --group simp
+ExecStart=/usr/bin/simp-comp.pl --config /etc/simp/comp/config.xml --logging /etc/simp/comp/logging.conf --user simp --group simp
 Type=forking
 PIDFile=/var/run/simp_comp.pid
 

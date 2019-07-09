@@ -11,8 +11,8 @@
 name="simp-comp"
 exec="/usr/bin/$name.pl"
 pidfile="/var/run/simp_comp.pid"
-CONFIG="/etc/simp/compDataConfig.xml"
-LOGGING="/etc/simp/comp_logging.conf"
+CONFIG="/etc/simp/comp/config.xml"
+LOGGING="/etc/simp/comp/logging.conf"
 USER="simp"
 GROUP="simp"
 

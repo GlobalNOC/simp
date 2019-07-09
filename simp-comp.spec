@@ -25,7 +25,7 @@ Requires: perl(POSIX)
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
 
-Provides: perl(GRNOC::Simp::CompData)
+Provides: perl(GRNOC::Simp::Comp::Worker)
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
@@ -41,22 +41,27 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %install
 rm -rf $RPM_BUILD_ROOT
-%{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData
+%{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Comp
 %{__install} -d -p %{buildroot}/etc/systemd/system/
 %{__install} -d -p %{buildroot}/etc/init.d/
 %{__install} -d -p %{buildroot}/usr/bin/
 %{__install} -d -p %{buildroot}/etc/simp
+%{__install} -d -p %{buildroot}/etc/simp/comp
+%{__install} -d -p %{buildroot}/etc/simp/comp/composites.d
+%{__install} -d -p %{buildroot}/etc/simp/comp/validation.d
 
-%{__install} lib/GRNOC/Simp/CompData.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData.pm
-%{__install} lib/GRNOC/Simp/CompData/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
+%{__install} lib/GRNOC/Simp/Comp.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Comp.pm
+%{__install} lib/GRNOC/Simp/Comp/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Comp/Worker.pm
 %{__install} bin/simp-comp.pl %{buildroot}/usr/bin/simp-comp.pl
-%{__install} conf/compDataConfig.xml %{buildroot}/etc/simp/compDataConfig.xml
-%{__install} conf/logging.conf %{buildroot}/etc/simp/comp_logging.conf
+%{__install} conf/comp/config.xml %{buildroot}/etc/simp/comp/config.xml
+%{__install} conf/logging.conf %{buildroot}/etc/simp/comp/logging.conf
+%{__install} conf/comp/config.xsd %{buildroot}/etc/simp/comp/validation.d/config.xsd
+%{__install} conf/comp/composite.xsd %{buildroot}/etc/simp/comp/validation.d/composite.xsd
 
 %if 0%{?rhel} >= 7
-%{__install} conf/simp-comp.systemd %{buildroot}/etc/systemd/system/simp-comp.service
+%{__install} conf/comp/simp-comp.systemd %{buildroot}/etc/systemd/system/simp-comp.service
 %else
-%{__install} conf/simp-comp.service %{buildroot}/etc/init.d/simp-comp
+%{__install} conf/comp/simp-comp.service %{buildroot}/etc/init.d/simp-comp
 %endif
 
 %clean
@@ -64,8 +69,8 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(644,root,root,755)
-%{perl_vendorlib}/GRNOC/Simp/CompData.pm
-%{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
+%{perl_vendorlib}/GRNOC/Simp/Comp.pm
+%{perl_vendorlib}/GRNOC/Simp/Comp/Worker.pm
 %defattr(755,root,root,755)
 /usr/bin/simp-comp.pl
 
@@ -76,8 +81,10 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %defattr(644,root,root,755)
-%config(noreplace) /etc/simp/comp_logging.conf
-%config(noreplace) /etc/simp/compDataConfig.xml
+%config(noreplace) /etc/simp/comp/logging.conf
+%config(noreplace) /etc/simp/comp/config.xml
+%config(noreplace) /etc/simp/comp/validation.d/config.xsd
+%config(noreplace) /etc/simp/comp/validation.d/composite.xsd
 
 %doc
 
