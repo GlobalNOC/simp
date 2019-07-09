@@ -140,7 +140,7 @@ sub _start {
     $self->_set_is_running( 1 );
 
     # change our process name
-    $0 = "simp_comp [$worker_id] (worker)";
+    $0 = "simp_comp(worker[$worker_id])";
 
     # setup signal handlers
     $SIG{'TERM'} = sub {
