@@ -577,10 +577,11 @@ sub _get_rate{
         next;
       } 
 
-      if(!($current_val =~/^\d+$/)){
-        #--- not a number
+      # Skip rate if it's NaN or has a value greater than 1T
+      if ( !($current_val =~/^\d+$/) || $current_val > 1000000000000) {
         next;
       }
+
 
       $results{$ip}{$oid}{'value'} = $self->_rate($current_val,$current_ts,
 						  $previous_val,$previous_ts,
