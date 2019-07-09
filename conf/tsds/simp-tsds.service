@@ -11,8 +11,8 @@
 name="simp-tsds"
 exec="/usr/bin/$name.pl"
 pidfile="/var/run/$name.pid"
-CONFIG="/etc/simp/simp-tsds.xml"
-LOGGING="/etc/simp/simp_tsds_logging.conf"
+CONFIG="/etc/simp/tsds/config.xml"
+LOGGING="/etc/simp/tsds/logging.conf"
 USER="simp"
 GROUP="simp"
 
