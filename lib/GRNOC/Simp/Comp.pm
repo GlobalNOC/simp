@@ -254,7 +254,7 @@ sub start {
             $self->logger->debug( 'Created daemon process.' );
 
             # change process name
-            $0 = "simp_comp";
+            $0 = "simp_comp(MASTER)";
 
             # figure out what user/group (if any) to change to
             my $user_name  = $self->run_user;

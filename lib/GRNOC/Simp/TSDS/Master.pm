@@ -156,6 +156,8 @@ sub start {
     $self->logger->debug('Setting up signal handlers.');
 
 
+    $0 = "simp_tsds(MASTER)";
+
     # Daemonize if needed
     if ($self->daemonize) {
 	$self->logger->debug('Daemonizing.');
@@ -364,7 +366,7 @@ sub _create_collection_workers {
     # Spawn workers
     foreach my $worker_id (keys %worker_hosts) {
 
-	    my $worker_name = "$collection->{'composite'} [$worker_id]";
+	    my $worker_name = $collection->{'composite'} . "[$worker_id]";
 
 	    $self->logger->info("Staggering creation of $worker_name by " . $self->stagger_interval . "sec...");
 	    sleep($self->stagger_interval);
