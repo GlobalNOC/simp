@@ -23,7 +23,7 @@ dist:
 	rm -rf dist
 	mkdir -p dist/simp-data-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-data-$(VERSION)/bin
-	mkdir -p dist/simp-data-$(VERSION)/conf
+	mkdir -p dist/simp-data-$(VERSION)/conf/data
 	mkdir -p dist/simp-comp-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-comp-$(VERSION)/bin
 	mkdir -p dist/simp-comp-$(VERSION)/conf/comp
@@ -55,10 +55,10 @@ dist:
 	cp -r conf/comp/composite.xsd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.systemd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.service dist/simp-comp-$(VERSION)/conf/comp/
-	cp -r conf/simpDataConfig.xml dist/simp-data-$(VERSION)/conf/
+	cp -r conf/data/config.xml dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/logging.conf dist/simp-data-$(VERSION)/conf/
-	cp -r conf/simp-data.systemd dist/simp-data-$(VERSION)/conf/
-	cp -r conf/simp-data.service dist/simp-data-$(VERSION)/conf/
+	cp -r conf/data/simp-data.systemd dist/simp-data-$(VERSION)/conf/data/
+	cp -r conf/data/simp-data.service dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/config.xml dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/simp-poller.systemd dist/simp-poller-$(VERSION)/conf/
