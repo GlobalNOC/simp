@@ -11,8 +11,8 @@
 name="simp-poller"
 exec="/usr/bin/$name.pl"
 pidfile="/var/run/simp_poller.pid"
-CONFIG="/etc/simp/config.xml"
-LOGGING="/etc/simp/poller_logging.conf"
+CONFIG="/etc/simp/poller/config.xml"
+LOGGING="/etc/simp/poller/logging.conf"
 USER="simp"
 GROUP="simp"
 

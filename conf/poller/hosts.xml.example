@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+
+<!--
+
+Host elements should be wrapped in a config element and may contain unlimited group elements
+Each host element has the following attributes:
+    - "name"            (The host name)
+    - "ip"              (The IPv4 address of the host)
+    - "snmp_version"    (Which version of SNMP to use: [1,2c,3])
+
+    For SNMP version 1 or 2c:
+    - "community"       (The SNMP community to use for access)
+
+    For SNMP version 3:
+    - "username"        (The SNMP username for contexts)
+    - "auth_key"        (The authentication and privacy key settings to use)
+
+Group elements will contain context_id elements only if using SNMP v3
+Each group element will have one attribute:
+    - "id"              (The name of the group file from groups.d containing OIDs to poll for the host)
+
+A context element has only one attribute:
+    - "id"              (A context string to use for SNMP v3 access)
+
+
+Example Hosts File Contents:
+
+<config>
+
+    <host name="foo.grnoc.iu.edu" ip="127.0.0.1" snmp_version="1" community="secret">
+        <group id="generic_interfaces"/>
+        <group id="juniper_cpu"/>
+        <group id="juniper_temp"/>
+    </host>
+
+    <host name="bar.grnoc.iu.edu" ip="127.0.0.2" snmp_version="2c" community="secret">
+        <group id="juniper_optical"/>
+    </host>
+
+    <host name="baz.grnoc.iu.edu" ip="127.0.0.3" snmp_version="3" username="admin" auth_key="NoAuthNoPriv">
+        <group id="firewall">
+            <context id="AYYLMA0987263BK2R32RU0001"/>
+            <context id="UWOTM8HRG34029222HK321103"/>
+        </group>
+    </host>
+
+</config>
+
+-->

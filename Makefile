@@ -29,7 +29,7 @@ dist:
 	mkdir -p dist/simp-comp-$(VERSION)/conf/comp
 	mkdir -p dist/simp-poller-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-poller-$(VERSION)/bin
-	mkdir -p dist/simp-poller-$(VERSION)/conf/hosts.d
+	mkdir -p dist/simp-poller-$(VERSION)/conf/poller
 	mkdir -p dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-tsds-$(VERSION)/bin
 	mkdir -p dist/simp-tsds-$(VERSION)/conf
@@ -42,6 +42,7 @@ dist:
 	cp -r lib/GRNOC/Simp/Data* dist/simp-data-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/Comp* dist/simp-comp-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/TSDS* dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
+
 	cp -r bin/simp-comp.pl dist/simp-comp-$(VERSION)/bin/
 	cp -r bin/simp-data.pl dist/simp-data-$(VERSION)/bin/
 	cp -r bin/simp-poller.pl dist/simp-poller-$(VERSION)/bin/
@@ -50,24 +51,29 @@ dist:
 	cp -r bin/redis_tsds.pl dist/simp-monitor-$(VERSION)/bin/
 
 	cp -r conf/comp/config.xml dist/simp-comp-$(VERSION)/conf/comp/
-	cp -r conf/logging.conf dist/simp-comp-$(VERSION)/conf/
 	cp -r conf/comp/config.xsd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/composite.xsd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.systemd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.service dist/simp-comp-$(VERSION)/conf/comp/
+
 	cp -r conf/data/config.xml dist/simp-data-$(VERSION)/conf/data/
-	cp -r conf/logging.conf dist/simp-data-$(VERSION)/conf/
 	cp -r conf/data/simp-data.systemd dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/data/simp-data.service dist/simp-data-$(VERSION)/conf/data/
-	cp -r conf/config.xml dist/simp-poller-$(VERSION)/conf/
-	cp -r conf/logging.conf dist/simp-poller-$(VERSION)/conf/
-	cp -r conf/simp-poller.systemd dist/simp-poller-$(VERSION)/conf/
-	cp -r conf/simp-poller.service dist/simp-poller-$(VERSION)/conf/
-	cp -r conf/hosts.d/* dist/simp-poller-$(VERSION)/conf/hosts.d/
+
+	cp -r conf/poller/config.xml dist/simp-poller-$(VERSION)/conf/poller/
+	cp -r conf/poller/simp-poller.systemd dist/simp-poller-$(VERSION)/conf/poller/
+	cp -r conf/poller/simp-poller.service dist/simp-poller-$(VERSION)/conf/poller/
+	cp -r conf/poller/hosts.xml.example dist/simp-poller-$(VERSION)/conf/poller/
+	cp -r conf/poller/group.xml.example dist/simp-poller-$(VERSION)/conf/poller/
+
 	cp -r conf/simp-tsds.xml dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/simp-tsds.systemd dist/simp-tsds-$(VERSION)/conf/
 	cp -r conf/simp-tsds.service dist/simp-tsds-$(VERSION)/conf/
+
+	cp -r conf/logging.conf dist/simp-poller-$(VERSION)/conf/
+	cp -r conf/logging.conf dist/simp-data-$(VERSION)/conf/
+	cp -r conf/logging.conf dist/simp-comp-$(VERSION)/conf/
 
 	cp -r conf/response-graph-config.xml dist/simp-monitor-$(VERSION)/conf/
 	cp -r conf/response-monitor-log.conf dist/simp-monitor-$(VERSION)/conf/
