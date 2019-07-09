@@ -1,0 +1,9 @@
+<config>
+
+    <collection measurement_type="Insert TSDS Measurement Type" interval="60" composite="Composite" workers="1">
+        <host>foo.grnoc.iu.edu</host>
+        <host>bar.grnoc.iu.edu</host>
+        <host>baz.grnoc.iu.edu</host>
+    </collection>
+
+</config>
