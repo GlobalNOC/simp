@@ -3,7 +3,7 @@ Description=SIMP Poller
 After=syslog.target network.target
 
 [Service]
-ExecStart=/usr/bin/simp-poller.pl --config /etc/simp/config.xml --logging /etc/simp/poller_logging.conf --user simp --group simp
+ExecStart=/usr/bin/simp-poller.pl --config /etc/simp/poller/config.xml --logging /etc/simp/poller/logging.conf --user simp --group simp
 Type=forking
 PIDFile=/var/run/simp_poller.pid
 
