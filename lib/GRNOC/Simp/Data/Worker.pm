@@ -8,6 +8,7 @@ use Data::Dumper;
 use Try::Tiny;
 use Moo;
 use Redis;
+use Scalar::Util qw(looks_like_number);
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::WebService::Regex;
@@ -107,8 +108,12 @@ sub _start {
     # flag that we're running
     $self->_set_is_running( 1 );
 
-    # change our process name
-    $0 = "simp_data(worker[$worker_id])";
+    #XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    # BEHOLD! TIS' THE FORSAKEN WORKER NAME FORMAT!
+    #XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    # ALL WHO CHANGE IT WILL BE CURSED BY REDIS...
+    # TO DEBUG FOR ALL ETERNITY!
+    $0 = "simp_data ($worker_id) [worker]";
 
     # setup signal handlers
     $SIG{'TERM'} = sub {
@@ -498,7 +503,9 @@ sub _get{
 }
 sub _rate{
   my ($self,$cur_val,$cur_ts,$pre_val,$pre_ts,$context) = @_;
-  my $et      = $cur_ts - $pre_ts;
+  my $et = $cur_ts - $pre_ts;
+  my $rate;
+
   if(!($cur_val =~ /\d+$/)){
       #not a number... 
       return $cur_val;
@@ -523,9 +530,18 @@ sub _rate{
       $self->logger->debug("  counter wrap: $context");
     }
     $delta = ($max_val - $pre_val) + $cur_val;
-  }  
+  }
 
-  return $delta / $et;
+
+  $rate = $delta / $et;
+
+  if ( $rate > 1000000000000 ) {
+    return undef;
+  }
+  else {
+    return $rate;
+  }
+
 }
 
 
@@ -577,8 +593,8 @@ sub _get_rate{
         next;
       } 
 
-      # Skip rate if it's NaN or has a value greater than 1T
-      if ( !($current_val =~/^\d+$/) || $current_val > 1000000000000) {
+      # Skip rate if it's NaN
+      unless (looks_like_number($current_val)) {
         next;
       }
 
