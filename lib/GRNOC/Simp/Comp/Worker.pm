@@ -1256,8 +1256,12 @@ sub _do_conversions {
                     $target_pattern =~ s/\$\{\}/\$\{$target\}/g;
                     
                     %vars = map {$_ => 1} $target_pattern =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
-                    
-                    $self->logger->debug("Match has the following vars:");
+ 
+                    unless (scalar(keys %vars)) {
+                        $target_pattern = $conversion->{pattern};
+                    }
+                    $self->logger->debug("Match has the following pattern and vars:");
+                    $self->logger->debug($target_pattern);
                     $self->logger->debug(Dumper(\%vars));
                 }
 
@@ -1279,7 +1283,7 @@ sub _do_conversions {
                     }
 
                     # Skip if the target data element doesn't exist in the object
-                    unless (exists $data->{$target}) {
+                    unless (exists $data->{$target} && defined $data->{$target}) {
                         #$self->logger->error("ERROR: The target data \"$target\" doesn't exist for $host!");
                         next;
                     }
@@ -1289,7 +1293,7 @@ sub _do_conversions {
                         $self->logger->debug("VARIABLE: $var");
 
                         # Add error and skip the var if there's no data for it
-                        unless (exists $data->{$var}) {
+                        unless (exists $data->{$var} && defined $data->{$var}) {
                             $data_errors++;
                             next;
                         }
@@ -1346,10 +1350,13 @@ sub _do_conversions {
                     }
                     # Match application
                     elsif ($conversion->{type} eq 'match') {
-
+                        
                         # Set new value to pattern match or assign as undef
-                        if ($data->{$target} =~ /$temp_pattern/){
+                        if ( $data->{$target} =~ /$temp_pattern/ ) {
                             $new_value = $1;
+                        }
+                        else {
+                            $new_value = $data->{$target};
                         }
                     }
                     
