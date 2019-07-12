@@ -54,14 +54,16 @@
 
     <!-- Conversions element definitions -->
     <xsd:complexType name="CONVERSIONS">
-        <xsd:sequence>
-            <xsd:element name="function" type="FUNCTION" minOccurs="1" maxOccurs="unbounded"/>
-        </xsd:sequence>
+        <xsd:choice minOccurs="1" maxOccurs="unbounded">
+            <xsd:element name="function" type="FUNCTION" minOccurs="0" maxOccurs="unbounded"/>
+            <xsd:element name="replace"  type="REPLACE"  minOccurs="0" maxOccurs="unbounded"/>
+            <xsd:element name="match"    type="MATCH"    minOccurs="0" maxOccurs="unbounded"/>
+        </xsd:choice>
     </xsd:complexType>
 
     <xsd:complexType name="FUNCTION">
         <xsd:sequence>
-            <xsd:element name="data" type="FUNCTION_DATA" minOccurs="1" maxOccurs="unbounded"/>
+            <xsd:element name="data" type="CONVERSION_DATA" minOccurs="1" maxOccurs="unbounded"/>
         </xsd:sequence>
         <xsd:attribute name="definition" use="required">
             <xsd:simpleType>
@@ -73,9 +75,26 @@
         </xsd:attribute>
     </xsd:complexType>
 
-    <xsd:complexType name="FUNCTION_DATA">
+    <xsd:complexType name="CONVERSION_DATA">
         <xsd:attribute name="name" type="VAR_NAME" use="required"/>
     </xsd:complexType>
+
+    <xsd:complexType name="REPLACE">
+        <xsd:sequence>
+            <xsd:element name="data" type="CONVERSION_DATA" minOccurs="1" maxOccurs="unbounded"/>
+        </xsd:sequence>
+        <xsd:attribute name="this" type="xsd:string" use="required"/>
+      	<xsd:attribute name="with" type="xsd:string" use="required"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="MATCH">
+        <xsd:sequence>
+            <xsd:element name="data" type="CONVERSION_DATA" minOccurs="1" maxOccurs="unbounded"/>
+        </xsd:sequence>
+        <xsd:attribute name="pattern" type="xsd:string" use="required"/>
+    </xsd:complexType>
+
+    
 
 
 <!-- Global simpleType Definitions -->
@@ -113,6 +132,13 @@
         <xsd:restriction base="xsd:integer">
             <xsd:enumeration value="0"/>
             <xsd:enumeration value="1"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:simpleType name="REGEX_TYPE">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="match"/>
+            <xsd:enumeration value="replace"/>
         </xsd:restriction>
     </xsd:simpleType>
 
