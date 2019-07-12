@@ -549,7 +549,7 @@ sub _create_workers {
         # Keep track of children pids
         $forker->run_on_finish( sub {
             my ( $pid ) = @_;
-            $self->logger->error( "Child worker process $pid has died." );
+            $self->logger->error( "Child worker process $pid ($group_name) has died." );
         });
 
         # Create workers
@@ -559,7 +559,7 @@ sub _create_workers {
 
             # We're still in the parent if so
             if ($pid) {
-                $self->logger->debug( "Child worker process $pid created." );
+                $self->logger->debug( "Child worker process $pid ($group_name) created." );
                 push( @{$self->children}, $pid );
                 next;
             }

@@ -19,8 +19,8 @@ EOM
 use constant DEFAULT_CONFIG_FILE    => '/etc/simp/comp/config.xml';
 use constant DEFAULT_LOG_FILE       => '/etc/simp/comp/logging.conf';
 use constant DEFAULT_COMPOSITES_DIR => '/etc/simp/comp/composites.d/';
-use constant DEFAULT_CONFIG_XSD     => '/etc/simp/comp/validation/config.xsd';
-use constant DEFAULT_COMPOSITE_XSD  => '/etc/simp/comp/validation/composite.xsd';
+use constant DEFAULT_CONFIG_XSD     => '/etc/simp/comp/validation.d/config.xsd';
+use constant DEFAULT_COMPOSITE_XSD  => '/etc/simp/comp/validation.d/composite.xsd';
 
 my $config        = DEFAULT_CONFIG_FILE;
 my $logging       = DEFAULT_LOG_FILE;

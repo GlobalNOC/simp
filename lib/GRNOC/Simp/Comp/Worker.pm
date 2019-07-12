@@ -1170,10 +1170,22 @@ sub _do_conversions {
     my $results   = shift; # Global $results hash
     my $cv        = shift; # AnyEvent condition var (assumes it's been begin()'ed)
 
-    my $functions = $composite->get('/composite/conversions/function');
-    $self->logger->debug(Dumper($functions));
+    # Get array of all conversions in-order
+    my $conversions = $composite->get('/composite/conversions/*');
+    foreach my $c (@$conversions) {
+        if (exists $c->{definition}) {
+            $c->{type} = 'function';
+        } 
+        elsif (exists $c->{this}) {
+            $c->{type} = 'replace';
+        } 
+        elsif (exists $c->{pattern}) {
+            $c->{type} = 'match';
+        }
+    }
+    $self->logger->debug(Dumper($conversions));
 
-    $self->logger->debug("Applying functions to the val data");
+    $self->logger->debug("Applying conversions to the data");
 
     my $now = time;
 
@@ -1183,92 +1195,174 @@ sub _do_conversions {
         # Initialise the final data array for the host
         $results->{final}{$host} = [];
 
+        # Skip and use empty results if host has no data
         if ( !$results->{data}{$host} || (ref($results->{data}{$host}) ne ref([])) ) {
             $self->logger->error("ERROR: No data array was generated for $host!");
             next;
         }
 
         # Set final values if no functions are being applied to the hosts's data 
-        unless ( $functions ) {
+        unless ( $conversions ) {
             $results->{final}{$host} = $results->{data}{$host};
             next; 
         }
 
         # Apply each function included in conversions
-        foreach my $function (@$functions) {
+        foreach my $conversion (@$conversions) {
 
-            my $function_data = $function->{data};
-            my $definition    = $function->{definition};
-            my $replace       = 0;
+            # Get the target data for the conversion
+            my $targets = $conversion->{data};
 
-            # Check whether the definition is a string replacement
-            if (substr($definition,0,2) eq 's/') {
-                $replace = 1;
-            }
+            # Apply the conversion to each data target
+            foreach my $target (keys %$targets) {
 
-            # Apply to each target data element from within the function
-            foreach my $target (keys %{$function->{data}}) {
+                # Make a hash of all var names mentioned in the conversion (avoids dupes)
+                my %vars;
 
-                # Check each data object for the val with functions
-                foreach my $host_data ( @{$results->{data}{$host}} ) {
+                # Initialize all conversion attributes specific to the target
+                my $target_def     = $conversion->{definition};
+                my $target_with    = $conversion->{with};
+                my $target_this    = $conversion->{this};
+                my $target_pattern = $conversion->{pattern};
+
+                # Functions
+                if ($conversion->{type} eq 'function') {
+                    
+                    $target_def =~ s/\$\{\}/\$\{$target\}/g;
+
+                    %vars = map {$_ => 1} $target_def =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
+
+                    $self->logger->debug("Function has the following definition and vars:");
+                    $self->logger->debug(Dumper($target_def));
+                    $self->logger->debug(Dumper(\%vars));
+                }
+                # Replacements
+                elsif ($conversion->{type} eq 'replace') {
+
+                    $target_with =~ s/\$\{\}/\$\{$target\}/g;
+                    $target_this =~ s/\$\{\}/\$\{$target\}/g;
+
+                    # Combine strings so vars can be found easier in both
+                    my $combo = $target_with . $target_this;
+
+                    %vars = map {$_ => 1} $combo =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
+                    
+                    $self->logger->debug("Replacement has the follwing vars:");
+                    $self->logger->debug(Dumper(\%vars));
+                }
+                # Matches
+                elsif ($conversion->{type} eq 'match') {
+
+                    $target_pattern =~ s/\$\{\}/\$\{$target\}/g;
+                    
+                    %vars = map {$_ => 1} $target_pattern =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
+                    
+                    $self->logger->debug("Match has the following vars:");
+                    $self->logger->debug(Dumper(\%vars));
+                }
+
+                # Apply the conversion for the target to each data object for the host
+                foreach my $data ( @{$results->{data}{$host}} ) {
+
+                    # Initialize all temporary conversion attributes for the data object
+                    my $temp_def     = $target_def;
+                    my $temp_this    = $target_this;
+                    my $temp_with    = $target_with;
+                    my $temp_pattern = $target_pattern;
+
+                    # Track any missing variable values or errors
+                    my $data_errors = 0;
 
                     # Ensure the data object has a time stamp
-                    unless (exists $host_data->{time}) {
-                        $host_data->{time} = $now;
+                    unless (exists $data->{time}) {
+                        $data->{time} = $now;
                     }
 
                     # Skip if the target data element doesn't exist in the object
-                    unless (exists $host_data->{$target}) {
-                        $self->logger->error("ERROR: The target data \"$target\" doesn't exist for $host!");
+                    unless (exists $data->{$target}) {
+                        #$self->logger->error("ERROR: The target data \"$target\" doesn't exist for $host!");
                         next;
                     }
 
-                    # Create a temporary copy of the definition that can be altered
-                    my $target_def = $definition;
-                   
-                    # Replace any occurrence of the target data marker with its value
-                    $target_def =~ s/\$\{\}/$host_data->{$target}/g;
-                    
-                    # Get any remaining data element names to be used
-                    my @func_vars = $target_def =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
+                    # Replace data variables in the definition with their value
+                    foreach my $var (keys %vars) {
+                        $self->logger->debug("VARIABLE: $var");
 
-                    # Replace data element variables with their value
-                    foreach my $var (@func_vars) {
-
-                        unless (exists $host_data->{$var}) {
-                            $self->logger->error("ERROR: Invalid data element $var in function definition, skipping!");
+                        # Add error and skip the var if there's no data for it
+                        unless (exists $data->{$var}) {
+                            $data_errors++;
                             next;
                         }
-                        $target_def =~ s/\$\{$var\}/$host_data->{$var}/g;
+                        $self->logger->debug("Checking value for $var: \"$data->{$var}\"");
+
+                        # Get the data's value for the var
+                        my $var_value = $data->{$var};
+
+                        # Functions
+                        if ($conversion->{type} eq 'function') {
+
+                            # Replace the var indicators with their value
+                            $temp_def =~ s/\$\{$var\}/$var_value/;
+                            $self->logger->debug("Applying function: $temp_def");
+                        }
+                        # Replacements
+                        elsif ($conversion->{type} eq 'replace') {
+
+                            # Replace the var indicators with their value
+                            $temp_with =~ s/\$\{$var\}/$var_value/g;
+                            $temp_this =~ s/\$\{$var\}/$var_value/g;
+                            $self->logger->debug("Replacing \"$temp_this\" with \"$temp_with\"");
+                        }
+                        # Matches
+                        elsif ($conversion->{type} eq 'match') {
+
+                            # Replace the var indicators with their value
+                            $temp_pattern =~ s/\$\{$var\}/\Q$var_value\E/;
+                            $self->logger->debug($temp_pattern);
+                        }
+                    }
+
+                    # If the function can't be completed, don't send a value for the data
+                    if ($data_errors) {
+                        #$self->logger->error("ERROR: There were $data_errors missing data points!");
+                        $data->{$target} = undef;
+                        next;
+                    }
+                
+                    # Store the converted value
+                    my $new_value;
+ 
+                    # Function application
+                    if ($conversion->{type} eq 'function') {
+
+                        # Use the FUNCTIONS object rpn definition
+                        $new_value = $_FUNCTIONS{rpn}([$data->{$target}],$temp_def,$conversion,$data,$results,$host)->[0];
+                    }
+                    # Replacement application
+                    elsif ($conversion->{type} eq 'replace') {
+
+                        # Use the replace module to replace the value
+                        $new_value =  Data::Munge::replace($data->{$target}, $temp_this, $temp_with);
+                    }
+                    # Match application
+                    elsif ($conversion->{type} eq 'match') {
+
+                        # Set new value to pattern match or assign as undef
+                        if ($data->{$target} =~ /$temp_pattern/){
+                            $new_value = $1;
+                        }
                     }
                     
-                    # Do a replacement
-                    if ( $replace ) {
-
-                        # Replacement should already be the 2nd half of the sed string, get it
-                        my @sed = split(/\//, $target_def);
-
-                        # Ensure there is something in the second sed argument position to use
-                        if (scalar(@sed) >= 3) {
-                            $host_data->{$target} = $sed[2];
-                        }
-                        else {
-                            $self->logger->error("ERROR: Invalid or no results produced by replacement operation for $target");
-                            next;
-                        }
-                    }
-                    # All normal functions are done via a call to the RPN calculator
-                    else {
-                        $host_data->{$target} = $_FUNCTIONS{rpn}([$host_data->{$target}],$target_def,$function,$host_data,$results,$host)->[0];
-                    }
+                    # Assign the new value to the data target
+                    $data->{$target} = $new_value;
 
                     # Prepend an asterisk to metadata names for TSDS
-                    foreach my $meta_name (keys %{$results->{meta}}) {
-                        if (exists $host_data->{$meta_name}) {
+                    #foreach my $meta_name (keys %{$results->{meta}}) {
+                    #    if (exists $data->{$meta_name}) {
                             # Set the new key to its value and delete the old key pair
-                            $host_data->{$results->{meta}{$meta_name}} = delete $host_data->{$meta_name};
-                        }
-                    }
+                    #        $data->{$results->{meta}{$meta_name}} = delete $data->{$meta_name};
+                    #    }
+                    #}
                 }
             }
         }
@@ -1382,7 +1476,7 @@ sub _do_conversions {
 	    return [$val];
 	}
     },
-    'regexp' => sub { # regular-expression match and extract first group
+    'match' => sub { # regular-expression match and extract first group
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
 	    if($val =~ /$operand/){
@@ -1392,9 +1486,8 @@ sub _do_conversions {
 	}
     },
     'replace' => sub { # regular-expression replace
-        my ($vals, $operand, $elem) = @_;
+        my ($vals, $operand, $replace_with) = @_;
 	foreach my $val (@$vals){
-	    my $replace_with = $elem->[2];
 	    $val = Data::Munge::replace($val, $operand, $replace_with);
 	    return [$val];
 	}

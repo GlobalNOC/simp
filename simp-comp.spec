@@ -25,6 +25,7 @@ Requires: perl(POSIX)
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
 
+Provides: perl(GRNOC::Simp::Comp)
 Provides: perl(GRNOC::Simp::Comp::Worker)
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
