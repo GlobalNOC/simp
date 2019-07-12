@@ -224,7 +224,7 @@ sub start {
         AnyEvent::SNMP::set_max_outstanding( scalar(keys %{$self->hosts}) * scalar(@{$self->oids}) );
     } 
     else {
-        $self->logger->error("Hosts or OIDs were not defined!");
+        $self->logger->error("Hosts or OIDs were not defined for $self->worker_name!");
         return;
     }
 
