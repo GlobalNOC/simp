@@ -183,21 +183,24 @@ sub BUILD {
     my $xsd = $self->validation_dir . 'config.xsd';
     
     # Validate the config
-    my $validation_code = $config->validate($xsd);
+#    my $validation_code = $config->validate($xsd);
 
     # Use the validation code to log the outcome and exit if any errors occur
-    if ($validation_code == 1) {
-        $self->logger->debug("Successfully validated $self->config_file");
-    }
-    else { 
-        if ($validation_code == 0) {
-            $self->logger->error("ERROR: Failed to validate $self->config_file!\n" . $config->{error}->{backtrace});
-        }
-        else {
-            $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $config->{error}->{backtrace});
-        }
-        exit(1);
-    }
+#    if ($validation_code == 1) {
+#        $self->logger->debug("Successfully validated $self->config_file");
+#    }
+#    else { 
+#        if ($validation_code == 0) {
+#            $self->logger->error("ERROR: Failed to validate $self->config_file!\n" . $config->{error}->{backtrace});
+#        }
+#        else {
+#            $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $config->{error}->{backtrace});
+#        }
+#        exit(1);
+#    }
+
+    # Validate the main config useing the xsd file for it
+    $self->_validate_config($self->config_file, $config, $xsd);
 
     # Set the config if it validated
     $self->_set_config( $config );
@@ -223,6 +226,37 @@ sub BUILD {
 }
 
 
+=head2 _validate_config
+    Will validate a config file given a file path, config object, and xsd file path
+    Logs a debug message on success or logs and then exits on error
+=cut
+
+sub _validate_config {
+    my $self   = shift;
+    my $file   = shift;
+    my $config = shift;
+    my $xsd    = shift;
+
+    # Validate the config
+    my $validation_code = $config->validate($xsd);
+
+    # Use the validation code to log the outcome and exit if any errors occur
+    if ($validation_code == 1) {
+        $self->logger->debug("Successfully validated $file");
+        return 1;
+    }
+    else {
+        if ($validation_code == 0) {
+            $self->logger->error("ERROR: Failed to validate $file!\n" . $config->{error}->{backtrace});
+        }
+        else {
+            $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $config->{error}->{backtrace});
+        }
+        exit(1);
+    }
+}
+
+
 =head2 _get_config_objects
     Retrieves the XPath objects of a target from every XML file in a config dir.
     Returns the objects in an array reference.
@@ -232,6 +266,7 @@ sub _get_config_objects {
     my $self       = shift;
     my $target_obj = shift;
     my $target_dir = shift;
+    my $xsd        = shift;
 
     # The final hash of config objects to return
     my %config_objects;
@@ -256,6 +291,9 @@ sub _get_config_objects {
             config_file => $target_dir . $file,
             force_array => 1
         );
+
+        # Validate the config using the main config xsd file
+        $self->_validate_config($file, $config, $xsd);
 
         # Push each targeted XPath object found in the file into the final array
         foreach my $object ( @{$config->get($target_obj)} ) {
@@ -294,7 +332,7 @@ sub _process_hosts_config {
     my $self = shift;
     $self->logger->debug("BEGIN processing hosts_dir from config");
 
-    my $hosts = $self->_get_config_objects('/config/host', $self->hosts_dir);
+    my $hosts = $self->_get_config_objects('/config/host', $self->hosts_dir, $self->validation_dir.'hosts.xsd');
     $self->logger->debug(Dumper($hosts));
 
     foreach my $host_name (keys %$hosts) {
@@ -347,7 +385,7 @@ sub _process_groups_config {
     my $num_results  = $request_size ? $request_size->[0]->{results} : 15;
 
     # Get the group objects from the files in groups.d
-    my $groups = $self->_get_config_objects('/group', $self->groups_dir);
+    my $groups = $self->_get_config_objects('/group', $self->groups_dir, $self->validation_dir.'group.xsd');
 
     # Get the total number of workers to fork and set the group name and any defaults
     my $total_workers = 0;
