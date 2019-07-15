@@ -32,6 +32,8 @@ use GRNOC::Simp::Poller::Worker;
 
 =item groups_dir
 
+=item validation_dir
+
 =item status_dir
 
 =item daemonize
@@ -65,6 +67,12 @@ has hosts_dir => (
 has groups_dir => (
     is => 'ro',
     isa => Str,
+    required => 1
+);
+
+has validation_dir => (
+    is       => 'ro',
+    isa      => Str,
     required => 1
 );
 
@@ -165,19 +173,38 @@ sub BUILD {
     my $logger = GRNOC::Log->get_logger();
     $self->_set_logger( $logger );
 
-    # Create and store the main config
+    # Create the main config object
     my $config = GRNOC::Config->new( 
         config_file => $self->config_file,
         force_array => 1
     );
+
+    # Get the validation file for config.xml
+    my $xsd = $self->validation_dir . 'config.xsd';
+    
+    # Validate the config
+    my $validation_code = $config->validate($xsd);
+
+    # Use the validation code to log the outcome and exit if any errors occur
+    if ($validation_code == 1) {
+        $self->logger->debug("Successfully validated $self->config_file");
+    }
+    else { 
+        if ($validation_code == 0) {
+            $self->logger->error("ERROR: Failed to validate $self->config_file!\n" . $config->{error}->{backtrace});
+        }
+        else {
+            $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $config->{error}->{backtrace});
+        }
+        exit(1);
+    }
+
+    # Set the config if it validated
     $self->_set_config( $config );
 
     # Set status_dir to path in the configs, if defined and is a dir
     my $status_path = $self->config->get('/config/status');
     my $status_dir  = $status_path ? $status_path->[0]->{dir} : undef;
-    #if ( defined $status_path ) {
-    #    $status_dir = $status_path->[0]->{'dir'};
-    #}
 
     if ( defined $status_dir && -d $status_dir) {
         if ( substr($status_dir, -1) ne '/') {

@@ -183,7 +183,7 @@ sub start {
     };
 
     # Connect to redis
-    my $redis_host = $self->config->get( '/config/redis/@host' )->[0];
+    my $redis_host = $self->config->get( '/config/redis/@ip' )->[0];
     my $redis_port = $self->config->get( '/config/redis/@port' )->[0];
 
     $self->logger->debug($self->worker_name." Connecting to Redis $redis_host:$redis_port." );
