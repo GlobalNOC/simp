@@ -156,7 +156,7 @@ sub start {
     $self->logger->debug('Setting up signal handlers.');
 
 
-    $0 = "simp_tsds(MASTER)";
+    $0 = "simp_tsds [master]";
 
     # Daemonize if needed
     if ($self->daemonize) {

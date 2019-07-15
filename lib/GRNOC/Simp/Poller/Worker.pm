@@ -158,7 +158,7 @@ sub start {
 
     my ( $self ) = @_;
 
-    $self->_set_worker_name($self->group_name. '[' . $self->instance .']');
+    $self->_set_worker_name($self->group_name. ' [' . $self->instance .']');
 
     my $logger = GRNOC::Log->get_logger($self->worker_name);
     $self->_set_logger($logger);
