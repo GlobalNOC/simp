@@ -48,6 +48,13 @@ has collections_dir => (
     default  => "/etc/simp/tsds/collections.d/"
 );
 
+has validation_dir => (
+    is => 'ro',
+    isa => Str,
+    required => 1,
+    default => '/etc/simp/tsdds/validation.d/'
+);
+
 has pidfile => (
     is       => 'ro', 
     isa      => Str, 
@@ -240,6 +247,26 @@ sub _load_config {
         
     # Get the settings for the RabbitMQ server, TSDS services instance, and stagger time
     my $config = $self->_get_conf($self->config);
+
+    # Get the validation file for config.xml
+    my $xsd = $self->validation_dir . 'config.xsd';
+
+    # Validate the config
+    my $validation_code = $config->validate($xsd);
+
+    # Use the validation code to log the outcome and exit if any errors occur
+    if ($validation_code == 1) {
+        $self->logger->debug("Successfully validated " . $self->config);
+    }
+    else {
+        if ($validation_code == 0) {
+            $self->logger->error("ERROR: Failed to validate " . $self->config . "!\n" . $config->{error}->{backtrace});
+        }
+        else {
+            $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $config->{error}->{backtrace});
+        }
+        exit(1);
+    } 
     
     $self->_set_rabbitmq($config->get('/config/rabbitmq')->[0]);
     $self->_set_tsds_instance($config->get('/config/tsds')->[0]);

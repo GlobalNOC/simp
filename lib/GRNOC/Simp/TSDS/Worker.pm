@@ -172,7 +172,7 @@ sub _load_config {
 
     # Create dispatcher to watch for messages from Master
     my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new(
-	    host     => $self->rabbitmq->{'host'},
+	    host     => $self->rabbitmq->{'ip'},
 	    port     => $self->rabbitmq->{'port'},
 	    user     => $self->rabbitmq->{'user'},
 	    pass     => $self->rabbitmq->{'password'},
@@ -192,7 +192,7 @@ sub _load_config {
 
     # Create SIMP client object
     $self->_set_simp_client(GRNOC::RabbitMQ::Client->new(
-	    host     => $self->rabbitmq->{'host'},
+	    host     => $self->rabbitmq->{'ip'},
 	    port     => $self->rabbitmq->{'port'},
 	    user     => $self->rabbitmq->{'user'},
 	    pass     => $self->rabbitmq->{'password'},
