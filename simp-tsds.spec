@@ -54,6 +54,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} conf/tsds/config.xml $RPM_BUILD_ROOT/%{configdir}/config.xml
 %{__install} conf/tsds/config.xsd $RPM_BUILD_ROOT/%{configdir}/validation.d/config.xsd
 %{__install} conf/tsds/collection.xml.example $RPM_BUILD_ROOT/%{configdir}/collections.d/collection.xml.example
+%{__install} conf/tsds/collection.xsd $RPM_BUILD_ROOT/%{configdir}/validation.d/collection.xsd
 %{__install} conf/logging.conf $RPM_BUILD_ROOT/%{configdir}/logging.conf
 
 %if 0%{?rhel} >= 7

@@ -220,21 +220,32 @@ sub _get_conf {
     return GRNOC::Config->new(config_file => shift, force_array => shift || 1);
 }
 
-# Helper fuction that validates collection attributes
-sub _is_valid {
-    my $self = shift;
-    my $attr = shift;
-    my $type = shift || 'str';
 
-    unless (defined $attr && $attr ne '') {
-        $self->logger->debug('EMPTY/UNDEFINED');
-        return 0;
+sub _validate_config {
+
+    my $self   = shift;
+    my $file   = shift;
+    my $config = shift;
+    my $xsd    = shift;
+
+    # Validate the config
+    my $validation_code = $config->validate($xsd);
+
+    # Use the validation code to log the outcome and exit if any errors occur
+    if ($validation_code == 1) {
+        $self->logger->debug("Successfully validated " . $file);
+        return 1;
     }
-    unless ($type eq 'str' || ($attr =~ /^[0-9]+$/ && $attr > 0) ) {
-        $self->logger->debug('NOT AN INT > 0');
-        return 0;
+    else {
+        if ($validation_code == 0) {
+            $self->logger->error("ERROR: Failed to validate " . $file . "!\n" . $config->{error}->{backtrace});
+        }
+        else {
+            $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $config->{error}->{backtrace});
+        }
+        exit(1);
     }
-    return 1;
+
 }
 
 
@@ -249,25 +260,12 @@ sub _load_config {
     my $config = $self->_get_conf($self->config);
 
     # Get the validation file for config.xml
-    my $xsd = $self->validation_dir . 'config.xsd';
+    my $config_xsd = $self->validation_dir . 'config.xsd';
 
-    # Validate the config
-    my $validation_code = $config->validate($xsd);
+    # Validate the config file or exit
+    $self->_validate_config($self->config, $config, $config_xsd);
 
-    # Use the validation code to log the outcome and exit if any errors occur
-    if ($validation_code == 1) {
-        $self->logger->debug("Successfully validated " . $self->config);
-    }
-    else {
-        if ($validation_code == 0) {
-            $self->logger->error("ERROR: Failed to validate " . $self->config . "!\n" . $config->{error}->{backtrace});
-        }
-        else {
-            $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $config->{error}->{backtrace});
-        }
-        exit(1);
-    } 
-    
+    # Set parameters from the config
     $self->_set_rabbitmq($config->get('/config/rabbitmq')->[0]);
     $self->_set_tsds_instance($config->get('/config/tsds')->[0]);
     $self->_set_stagger_interval($config->get('/config/stagger/@seconds')->[0]);
@@ -279,40 +277,17 @@ sub _load_config {
 
     # Set collections to an array of collection XPath config objects assigned to their filename
     my @collections;
+    my $collection_xsd = $self->validation_dir . 'collection.xsd';
     foreach my $file (@collections_files) {
 
-        foreach my $collection ( @{$self->_get_conf($self->collections_dir.'/'.$file)->get('/config/collection')} ) {
+        my $collection_config = $self->_get_conf($self->collections_dir . $file);
 
-            my $should_die = 0;
+        # Validate the collection file and exit if errors
+        $self->_validate_config($file, $collection_config, $collection_xsd);
 
-            # Validate main collection attributes
-            unless ( $self->_is_valid($collection->{'measurement_type'},'str') ) {
-                $self->logger->error("Collection has invalid measurement_type \"$collection->{measurement_type}\" in $file");
-                $should_die = 1;
-            }
-            unless ( $self->_is_valid($collection->{'interval'},'int') ) {
-                $self->logger->error("Collection has invalid interval \"$collection->{interval}\" in $file");
-                $should_die = 1;
-            }
-            unless ( $self->_is_valid($collection->{'composite'},'str') ) {
-                $self->logger->error("Collection has invalid composite \"$collection->{composite}\" in $file");
-                $should_die = 1;
-            }
-            unless ( $self->_is_valid($collection->{workers}, 'int') ) {
-                $self->logger->error("Collection has invalid workers \"$collection->{workers}\" in $file");
-                $should_die = 1;
-            }
-
-            # Validate filtering attributes
-            if ($collection->{'filter_value'} xor $collection->{'filter_name'}) {
-                $self->logger->error("If filtering, both filter_name and filter_value must be specified! Check $file");
-                $should_die = 1;
-            }
-
-            die if $should_die;
+        foreach my $collection ( @{$collection_config->get('/config/collection')} ) {
 
             $collection->{'host'} = [] if !defined($collection->{'host'});
-
             push(@collections, $collection);
         }
     }
@@ -376,11 +351,6 @@ sub _create_collection_workers {
     # Divide up hosts in config among number of workers defined in config
     my $i = 0;
     foreach my $host (@{$collection->{'host'}}) {
-
-        unless ($self->_is_valid($host)) {
-            $self->logger->error("Skipping invalid host \"$host\" for $collection->{measurement_type} collection");
-            next;
-        }
 
 	    push(@{$worker_hosts{$i}}, $host);
 
