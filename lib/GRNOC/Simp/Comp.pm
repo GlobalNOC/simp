@@ -254,7 +254,7 @@ sub start {
             $self->logger->debug( 'Created daemon process.' );
 
             # change process name
-            $0 = "simp_comp(MASTER)";
+            $0 = "simp_comp";
 
             # figure out what user/group (if any) to change to
             my $user_name  = $self->run_user;
@@ -285,7 +285,7 @@ sub start {
         $self->logger->debug( 'Running in foreground.' );
 
         #-- when in fg just act as a working directly with no sub processes so we can nytprof 
-        my $worker = GRNOC::Simp::CompData::Worker->new(
+        my $worker = GRNOC::Simp::Comp::Worker->new(
             config     => $self->config,
             logger     => $self->logger,
             composites => $self->composites,
@@ -356,7 +356,7 @@ sub _create_workers {
 
 
 	    # create worker in this process
-	    my $worker = GRNOC::Simp::CompData::Worker->new( 
+	    my $worker = GRNOC::Simp::Comp::Worker->new( 
             config     => $self->config,
             logger     => $self->logger,
             composites => $self->composites,

@@ -1,4 +1,4 @@
-package GRNOC::Simp::CompData::Worker;
+package GRNOC::Simp::Comp::Worker;
 
 use strict;
 ### REQUIRED IMPORTS ###
@@ -140,7 +140,7 @@ sub _start {
     $self->_set_is_running( 1 );
 
     # change our process name
-    $0 = "simp_comp(worker[$worker_id])";
+    $0 = "simp_comp [$worker_id] (worker)";
 
     # setup signal handlers
     $SIG{'TERM'} = sub {
@@ -174,8 +174,8 @@ sub _start {
     $self->_set_client($client);
 
     my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	
-        queue_name  => "Simp.CompData",
-        topic       => "Simp.CompData",
+        queue_name  => "Simp.Comp",
+        topic       => "Simp.Comp",
         exchange    => "Simp",
         user        => $rabbit_user,
         pass        => $rabbit_pass,
@@ -1268,6 +1268,7 @@ sub _do_conversions {
                 # Apply the conversion for the target to each data object for the host
                 foreach my $data ( @{$results->{data}{$host}} ) {
 
+                    $self->logger->debug(Dumper($data));
                     # Initialize all temporary conversion attributes for the data object
                     my $temp_def     = $target_def;
                     my $temp_this    = $target_this;
@@ -1290,10 +1291,9 @@ sub _do_conversions {
 
                     # Replace data variables in the definition with their value
                     foreach my $var (keys %vars) {
-                        $self->logger->debug("VARIABLE: $var");
 
                         # Add error and skip the var if there's no data for it
-                        unless (exists $data->{$var} && defined $data->{$var}) {
+                        unless (exists($data->{$var}) && defined($data->{$var})) {
                             $data_errors++;
                             next;
                         }
@@ -1324,6 +1324,7 @@ sub _do_conversions {
                             $temp_pattern =~ s/\$\{$var\}/\Q$var_value\E/;
                             $self->logger->debug($temp_pattern);
                         }
+                        
                     }
 
                     # If the function can't be completed, don't send a value for the data
@@ -1359,20 +1360,22 @@ sub _do_conversions {
                             $new_value = $data->{$target};
                         }
                     }
-                    
+                    $self->logger->debug("Set value for $target to $new_value");
                     # Assign the new value to the data target
                     $data->{$target} = $new_value;
+                    
+                }
+            }
+        } 
 
-                    # Prepend an asterisk to metadata names for TSDS
-                    #foreach my $meta_name (keys %{$results->{meta}}) {
-                    #    if (exists $data->{$meta_name}) {
-                            # Set the new key to its value and delete the old key pair
-                    #        $data->{$results->{meta}{$meta_name}} = delete $data->{$meta_name};
-                    #    }
-                    #}
+        foreach my $meta_name ( keys %{$results->{meta}} ) {
+            foreach my $data (@{$results->{data}{$host}}) {
+                if (exists $data->{$meta_name}) {
+                    $data->{$results->{meta}->{$meta_name}} = delete $data->{$meta_name};
                 }
             }
         }
+        
         # Once any/all functions are applied in results->val for the host, we set the final data to that hash
         $results->{final}{$host} = $results->{data}{$host};
     }
