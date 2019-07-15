@@ -57,6 +57,7 @@ dist:
 	cp -r conf/poller/group.xml.example dist/simp-poller-$(VERSION)/conf/poller/
 
 	cp -r conf/data/config.xml dist/simp-data-$(VERSION)/conf/data/
+	cp -r conf/data/config.xsd dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/data/simp-data.systemd dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/data/simp-data.service dist/simp-data-$(VERSION)/conf/data/
 
