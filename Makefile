@@ -66,6 +66,7 @@ dist:
 
 	cp -r conf/comp/config.xml dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/config.xsd dist/simp-comp-$(VERSION)/conf/comp/
+	cp -r conf/comp/composite.xml.example dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/composite.xsd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.systemd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.service dist/simp-comp-$(VERSION)/conf/comp/
