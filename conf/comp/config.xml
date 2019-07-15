@@ -1,3 +1,9 @@
-<config workers="10" >
+<?xml version="1.0"?>
+
+<!-- Main Simp Comp Config -->
+<config workers="4">
+
+    <!-- RabbitMQ Configuration -->
     <rabbitmq ip="127.0.0.1" port="5672" user="guest" password="guest"/>
+
 </config>

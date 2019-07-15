@@ -47,3 +47,8 @@ Example Hosts File Contents:
 </config>
 
 -->
+<config>
+    <host name="" ip="" snmp_version="" community="">
+        <group id=""/>
+    </host>
+</config>
