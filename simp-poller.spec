@@ -62,6 +62,8 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} conf/logging.conf %{buildroot}/etc/simp/poller/logging.conf
 %{__install} conf/poller/hosts.xml.example %{buildroot}/etc/simp/poller/hosts.d/hosts.xml.example
 %{__install} conf/poller/group.xml.example %{buildroot}/etc/simp/poller/groups.d/group.xml.example
+%{__install} conf/poller/hosts.xsd %{buildroot}/etc/simp/poller/validation.d/hosts.xsd
+%{__install} conf/poller/group.xsd %{buildroot}/etc/simp/poller/validation.d/group.xsd
 
 %if 0%{?rhel} >= 7
 %{__install} conf/poller/simp-poller.systemd %{buildroot}/etc/systemd/system/simp-poller.service
