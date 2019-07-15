@@ -47,10 +47,12 @@ This program pulls SNMP-derived data from Simp and publishes it to TSDS.
 rm -rf $RPM_BUILD_ROOT
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{execdir}
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{configdir}/collections.d
+%{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{configdir}/validation.d
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{sysconfdir}
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{perl_vendorlib}/GRNOC/Simp/TSDS
 %{__install} bin/simp-tsds.pl $RPM_BUILD_ROOT/%{execdir}/
 %{__install} conf/tsds/config.xml $RPM_BUILD_ROOT/%{configdir}/config.xml
+%{__install} conf/tsds/config.xsd $RPM_BUILD_ROOT/%{configdir}/validation.d/config.xsd
 %{__install} conf/tsds/collection.xml.example $RPM_BUILD_ROOT/%{configdir}/collections.d/collection.xml.example
 %{__install} conf/logging.conf $RPM_BUILD_ROOT/%{configdir}/logging.conf
 
@@ -90,6 +92,7 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/TSDS/Pusher.pm
 %config(noreplace) %{configdir}/*
 %config(noreplace) %{configdir}/collections.d/*
+%config(noreplace) %{configdir}/validation.d/*
 
 %changelog
 * Mon May 06 2019 Vincent Orlowski <vincentorlowski@gmail.com> - 1.1.0

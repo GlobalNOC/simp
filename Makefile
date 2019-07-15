@@ -69,6 +69,7 @@ dist:
 	cp -r conf/comp/simp-comp.service dist/simp-comp-$(VERSION)/conf/comp/
 
 	cp -r conf/tsds/config.xml dist/simp-tsds-$(VERSION)/conf/tsds/
+	cp -r conf/tsds/config.xsd dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/collection.xml.example dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/simp-tsds.systemd dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/simp-tsds.service dist/simp-tsds-$(VERSION)/conf/tsds/
