@@ -50,11 +50,13 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}/usr/bin/
 %{__install} -d -p %{buildroot}/etc/simp
 %{__install} -d -p %{buildroot}/etc/simp/data
+%{__install} -d -p %{buildroot}/etc/simp/data/validation.d
 
 %{__install} lib/GRNOC/Simp/Data.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data.pm
 %{__install} lib/GRNOC/Simp/Data/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
 %{__install} bin/simp-data.pl %{buildroot}/usr/bin/simp-data.pl
 %{__install} conf/data/config.xml %{buildroot}/etc/simp/data/config.xml
+%{__install} conf/data/config.xsd %{buildroot}/etc/simp/data/validation.d/config.xsd
 %{__install} conf/logging.conf %{buildroot}/etc/simp/data/logging.conf
 
 %if 0%{?rhel} >= 7
@@ -82,6 +84,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %config(noreplace) /etc/simp/data/config.xml
 %config(noreplace) /etc/simp/data/logging.conf
+%config(noreplace) /etc/simp/data/validation.d/config.xsd
 %doc
 
 

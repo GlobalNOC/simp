@@ -47,6 +47,12 @@ has logging_file => (
     required => 1
 );
 
+has validation_file => (
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
+
 ### optional attributes ###
 
 has daemonize => ( 
@@ -101,8 +107,30 @@ sub BUILD{
     $self->_set_logger( $logger );
 
     # create and store config object
-    my $config = GRNOC::Config->new( config_file => $self->config_file,
-                                     force_array => 0 );
+    my $config = GRNOC::Config->new( 
+        config_file => $self->config_file,
+        force_array => 0
+    );
+
+    # Validate the config, exiting if there are errors
+    my $validation_code = $config->validate($self->validation_file);
+
+    if ($validation_code == 1) {
+        $self->logger->debug("Successfully validated config file");
+    }
+    else {
+        if ($validation_code == 0) {
+            $self->logger->error("ERROR: Failed to validate $self->config_file!\n" . $config->{error}->{backtrace});
+        }
+        else {
+            $self->logger->error("ERROR: XML schema in $self->validation_file is invalid!\n" . $config->{error}->{backtrace});
+        }
+        exit(1);
+    }
+
+    
+
+
 
     $self->_set_config( $config );
 

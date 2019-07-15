@@ -1,5 +1,12 @@
-<!-- Simp-Data Main Config -->
-<config workers="3">
-    <redis host="127.0.0.1" port="6379" />
-    <rabbitMQ host="127.0.0.1" port="5672" user="guest" password="guest" />
+<?xml version="1.0"?>
+
+<!-- Main Simp Data Config -->
+<config workers="4">
+
+    <!-- Redis Configuration -->
+    <redis    ip="127.0.0.1" port="6379" />
+
+    <!-- RabbitMQ Configuration -->
+    <rabbitmq ip="127.0.0.1" port="5672" user="guest" password="guest" />
+
 </config>

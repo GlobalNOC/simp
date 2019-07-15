@@ -130,13 +130,13 @@ sub _start {
       $self->stop();
     };
 
-    my $redis_host = $self->config->get( '/config/redis/@host' );
+    my $redis_host = $self->config->get( '/config/redis/@ip' );
     my $redis_port = $self->config->get( '/config/redis/@port' );
   
-    my $rabbit_host = $self->config->get( '/config/rabbitMQ/@host' );
-    my $rabbit_port = $self->config->get( '/config/rabbitMQ/@port' );
-    my $rabbit_user = $self->config->get( '/config/rabbitMQ/@user' );
-    my $rabbit_pass = $self->config->get( '/config/rabbitMQ/@password' );
+    my $rabbit_host = $self->config->get( '/config/rabbitmq/@ip' );
+    my $rabbit_port = $self->config->get( '/config/rabbitmq/@port' );
+    my $rabbit_user = $self->config->get( '/config/rabbitmq/@user' );
+    my $rabbit_pass = $self->config->get( '/config/rabbitmq/@password' );
  
    
     # conect to redis
