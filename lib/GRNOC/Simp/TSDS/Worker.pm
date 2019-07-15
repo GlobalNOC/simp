@@ -197,7 +197,7 @@ sub _load_config {
 	    user     => $self->rabbitmq->{'user'},
 	    pass     => $self->rabbitmq->{'password'},
 	    exchange => 'Simp',
-	    topic    => 'Simp.CompData'
+	    topic    => 'Simp.Comp'
     ));
 
     # Create TSDS Pusher object
