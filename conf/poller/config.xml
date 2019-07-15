@@ -1,18 +1,18 @@
 <?xml version="1.0"?>
 
-<!-- Simp-Poller Main Configuration -->
+<!-- Main Simp Poller Config -->
 <config>
 
-    <!-- Redis host connection information -->
-    <redis host="127.0.0.1" port="6379"/>
+    <!-- Redis Configuration -->
+    <redis ip="127.0.0.1" port="6379"/>
 
-    <!-- How long to keep data in Redis before purging (seconds) -->
+    <!-- How long to wait before purging old Redis entries -->
     <purge interval="3600"/>
 
-    <!-- Default num of results to get per SNMP request -->
+    <!-- Default number of results to get per SNMP request for groups -->
     <request_size results="15"/>
 
-    <!-- Where to write status files -->
+    <!-- Directory where polling status dirs/files will be made/written -->
     <status dir="/var/lib/simp/poller/"/>
 
 </config>

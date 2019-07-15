@@ -51,6 +51,7 @@ dist:
 	cp -r bin/redis_tsds.pl dist/simp-monitor-$(VERSION)/bin/
 
 	cp -r conf/poller/config.xml dist/simp-poller-$(VERSION)/conf/poller/
+	cp -r conf/poller/config.xsd dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/simp-poller.systemd dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/simp-poller.service dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/hosts.xml.example dist/simp-poller-$(VERSION)/conf/poller/
