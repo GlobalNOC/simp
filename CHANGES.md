@@ -1,3 +1,23 @@
+## SIMP 1.2.0
+July 15 2019
+
+## Features:
+
+  * Simp now uses a cleaner configuration architecture
+
+  * Simp now has automatic validation for every config file it requires and logs validity errors
+
+  * Simp now has more consistent process naming
+
+  * Comp is no longer known or packaged as CompData
+
+  * Comp can now use retrieved data values as input for functions and other data conversions
+
+  * Data now ignores errant data spikes caused whenever a calculated rate is an impossible value
+
+  * Defaults have been added for less-used configuration attributes which can now be omitted.
+
+
 ## SIMP 1.1.0
 May 06 2019
 

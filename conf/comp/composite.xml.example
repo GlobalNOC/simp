@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+
+<!--
+
+The example below is a composite for the generic interfaces table
+
+
+The root element is the composite element
+<composite>
+
+    The variables element contains any number of input and/or scan elements
+    <variables>
+
+        Inputs require a name and value attribute
+        The name is the name of the input origin
+        The value is the name used to reference the value returned by the input
+        <input name="node" value="node_name"/>
+
+        Scans require a poll_value, oid_suffix, and an oid attribute
+        The poll_value is the name to reference for the values returned by the OID
+        The oid_suffix is the name to reference for the actual number of the node in the OID string returned at *
+        The oid is an OID that has been collected by poller, with a * or the oid_suffix name at the end
+        <scan  poll_value="ifName" oid_suffix="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.1.*"/>
+
+    </variables>
+
+
+    The element contains any number of meta and value elements, but requires at least 1 of each.
+    This section indicates what data should be sent to tsds
+    <data>
+    
+        All data elements have a name and a source attribute
+        The name attribute is set to the value of the measurement as it has been named in the TSDS measurement type
+        The source attribute can contain a value or poll_value name from variables, or a variable OID that will return the desired data
+        The oid_suffix from a scan can be used as a node within a different OID that's been given as a source
+
+        Meta elements indicate that the data is a metadata field for the TSDS measurement type
+        <meta  name="node"       source="node_name"/>
+        <meta  name="intf"       source="ifName"/>
+
+        Value elements indicate that the data is a value to use for the TSDS measurement type
+        <value name="input"      source="1.3.6.1.2.1.31.1.1.1.6.ifIdx"  type="rate"/>
+        <value name="output"     source="1.3.6.1.2.1.31.1.1.1.10.ifIdx" type="rate"/>
+        <value name="inerror"    source="1.3.6.1.2.1.2.2.1.14.ifIdx"    type="rate"/>
+        <value name="outerror"   source="1.3.6.1.2.1.2.2.1.20.ifIdx"    type="rate"/>
+        <value name="inUcast"    source="1.3.6.1.2.1.2.2.1.11.ifIdx"    type="rate"/>
+        <value name="outUcast"   source="1.3.6.1.2.1.2.2.1.17.ifIdx"    type="rate"/>
+        <value name="indiscard"  source="1.3.6.1.2.1.2.2.1.13.ifIdx"    type="rate"/>
+        <value name="outdiscard" source="1.3.6.1.2.1.2.2.1.19.ifIdx"    type="rate"/>
+        <value name="status"     source="1.3.6.1.2.1.2.2.1.8.ifIdx"/>
+    </data>
+
+
+    The conversions element has any number of function, match, or replace elements, or can be omitted if none need be applied
+    <conversions>
+
+        All elements within conversions require at least one child data element, which will have the conversion applied to it
+        Each conversion element is applied in the order they've been written.
+        All child data elements have one attribute, name, which is its name attribute from within the data element
+
+        In order to use data values as variables within a conversion, ${} is used to indicate the data it's being applied to
+        All other data values can be used in the same way by writing their name between "${" and "}" like "${intf}"
+
+        A function element requires a definition attribute that is an RPN definition to be used
+        <function definition="${} 8 *">
+            <data name="input"/>
+            <data name="output"/>
+        </function>
+
+        A match element requires a pattern attribute which is a regex with at least one capture group
+        <match pattern="^.* ([^ ]+)$">
+            <data name="intf"/>
+        </match>
+
+        A replace element requires a "this" attribute saying what we want to replace, and a "with" attribute with the replacement
+        <replace this="${}" with="${}-Special">
+            data name="intf"
+        </replace>
+
+    </conversions>
+
+</composite>
+-->
+

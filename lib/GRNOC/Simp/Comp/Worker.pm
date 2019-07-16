@@ -1,4 +1,4 @@
-package GRNOC::Simp::CompData::Worker;
+package GRNOC::Simp::Comp::Worker;
 
 use strict;
 ### REQUIRED IMPORTS ###
@@ -11,6 +11,7 @@ use Try::Tiny;
 use Moo;
 use AnyEvent;
 use GRNOC::Log;
+use GRNOC::Config;
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::RabbitMQ::Client;
@@ -33,18 +34,23 @@ use GRNOC::WebService::Regex;
 =cut
 
 has config => ( 
-    is          => 'ro',
-    required    => 1 
+    is       => 'ro',
+    required => 1 
 );
 
 has logger => ( 
-    is          => 'ro',
-    required    => 1 
+    is       => 'ro',
+    required => 1 
+);
+
+has composites => (
+    is       => 'ro',
+    required => 1
 );
 
 has worker_id => ( 
-    is          => 'ro',
-    required    => 1 
+    is       => 'ro',
+    required => 1 
 );
 
 
@@ -148,10 +154,10 @@ sub _start {
         $self->logger->info( "Received SIG HUP." );
     };
 
-    my $rabbit_host = $self->config->get( '/config/rabbitMQ/@host' );
-    my $rabbit_port = $self->config->get( '/config/rabbitMQ/@port' );
-    my $rabbit_user = $self->config->get( '/config/rabbitMQ/@user' );
-    my $rabbit_pass = $self->config->get( '/config/rabbitMQ/@password' );
+    my $rabbit_host = $self->config->get( '/config/rabbitmq/@ip' );
+    my $rabbit_port = $self->config->get( '/config/rabbitmq/@port' );
+    my $rabbit_user = $self->config->get( '/config/rabbitmq/@user' );
+    my $rabbit_pass = $self->config->get( '/config/rabbitmq/@password' );
  
     $self->logger->debug( 'Setup RabbitMQ' );
 
@@ -168,8 +174,8 @@ sub _start {
     $self->_set_client($client);
 
     my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new( 	
-        queue_name  => "Simp.CompData",
-        topic       => "Simp.CompData",
+        queue_name  => "Simp.Comp",
+        topic       => "Simp.Comp",
         exchange    => "Simp",
         user        => $rabbit_user,
         pass        => $rabbit_pass,
@@ -177,21 +183,19 @@ sub _start {
         port        => $rabbit_port 
     );
 
-    #--- parse config and create methods based on the set of composite definitions.
-    $self->config->{'force_array'} = 1;
-    my $allowed_methods = $self->config->get( '/config/composite' );
-
     my %predefined_param = map { $_ => 1 } ('node', 'period', 'exclude_regexp');
+    
+    my $composites = $self->composites;
 
-    foreach my $meth (@$allowed_methods) {
-        my $method_id = $meth->{'id'};
-        print "$method_id:\n";
+    foreach my $composite_name (keys %$composites) {
+
+        my $composite = $composites->{$composite_name};
 
         my $method = GRNOC::RabbitMQ::Method->new(
-            name        => "$method_id",
+            name        => "$composite_name",
             async       => 1,
-            callback    =>  sub {$self->_get($method_id,@_) },
-            description => "retrieve composite simp data of type $method_id, we should add a descr to the config" 
+            callback    =>  sub {$self->_get($composite,@_) },
+            description => "retrieve composite data of type $composite_name, we should add a descr to the config" 
         );
 
         $method->add_input_parameter( 
@@ -218,50 +222,42 @@ sub _start {
             pattern     => '^([^=]+=.*)$' 
         );
 
-        #--- let xpath do the iteration for us
-        my $path = "/config/composite[\@id=\"$method_id\"]/input";
-        my $inputs = $self->config->get($path);
-
-        foreach my $input (@$inputs) {
-
-            my $input_id = $input->{'id'};
-            next if $predefined_param{$input_id};
-
-            my $required = 0;
-            if ( defined $input->{'required'} ) { $required = 1; }
-
-            $method->add_input_parameter( 
-                name        => $input_id,
-                description => "we will add description to the config file later",
-                required    => $required,
-                multiple    => 1,
-                pattern     => $GRNOC::WebService::Regex::TEXT
-            );
+        # Process any input variables the composite has
+        my $inputs = $composite->get('/composite/variables/input');
         
-            print "  $input_id: $required:\n";
+        foreach my $input (@$inputs) {
+            unless (exists $predefined_param{$input->{name}}) {
+                $method->add_input_parameter( 
+                    name        => $input->{name},
+                    description => "we will add description to the config file later",
+                    required    => $input->{required} ? $input->{required} : 1,
+                    multiple    => 1,
+                    pattern     => $GRNOC::WebService::Regex::TEXT
+                );
+            }
         }
+        
 
         $dispatcher->register_method($method);
     }
 
     $self->config->{'force_array'} = 0;
 
-    #--------------------------------------------------------------------------
-
+    # Create the RabbitMQ method
     my $method2 = GRNOC::RabbitMQ::Method->new(
-        name => "ping",
-        callback =>  sub { $self->_ping() },
+        name        => "ping",
+        callback    =>  sub { $self->_ping() },
         description => "function to test latency"
     );
 
     $dispatcher->register_method( $method2 );
     $self->_set_rmq_dispatcher( $dispatcher );
 
-    #--- go into event loop handing requests that come in over rabbit  
+    # Begin the event loop that handles requests coming in from the RabbitMQ queue
     $self->logger->debug( 'Entering RabbitMQ event loop' );
     $dispatcher->start_consuming();
     
-    #--- you end up here if one of the handlers called stop_consuming
+    # If a handler calls "stop_consuming()" it removes the dispatcher definition and returns
     $self->_set_rmq_dispatcher( undef );
     return;
 }
@@ -296,67 +292,63 @@ sub _get {
     }
 
     my %results;
-
-    #--- Figure out host_type for instances: Feature Not Implemented!)
-    my $host_type = "default";
-
-    #--- Get the XPath context for the config
-    my $conf_xpc = XML::LibXML::XPathContext->new($self->config->{doc});
-
-    #--- Get the instance
-    my $instance_path = "/config/composite[\@id=\"$composite\"]/instance"; #[\@hostType=\"$host_type\"]";
-    my $instance = $conf_xpc->find($instance_path);
-
     ### PROCESS OVERVIEW ###
     # Processes within simp-comp work asynchronously.
     # A series of callbacks and functions use the $cv[*] AnyEvent condition variables
     # to signal the beginning and end of a process, triggering the next process when ready.
     #
     #--- Here is the process order:
-    #    1. _do_scans -> _scan_cb / Processes the scan configs and then gets their data via callback
+    #    1. _get_scans -> _scan_cb / Processes the scan configs and then gets their data via callback
     #    2. _digest_scans         / Combines the scan data for all scans into a single OID tree
-    #    3. _do_vals  -> _val_cb  / Processes the val configs and then gets their data via callback
-    #    4. _digest_vals          / Builds data objects from all val data and then extracts them from the tree into a flat array
-    #    5. _do_functions         / Applies functions specified in configs to their val data
+    #    3. _get_data  -> _data_cb  / Processes the val configs and then gets their data via callback
+    #    4. _digest_data          / Builds data objects from all val data and then extracts them from the tree into a flat array
+    #    5. _do_conversions         / Applies functions specified in configs to their val data
     #
     ### DATA STRUCTURE ###
     #
     # Data is accumulated in a global %results hash:
     #
-    #--- Results from the _do_scans -> _scan_cb -> _digest_scans phase:
+    #--- Results from the _get_scans -> _scan_cb -> _digest_scans phase:
     # $results{scan_tree}{$node}{$scan_id} = { OID element tree returned from scans with empty leaves }
     # $results{scan_vals}{$node}{$scan_id} = { OID element tree returned from scans with hashes of their values }
     #
     # This is from legacy code, no performance is gained with it. Leaving if hidden meaning is revealed...
     # $results{scan_exclude}{$node}{$oid} = 1 (Any value here marks an oid to be excluded)
     #
-    #--- Results from the _do_vals -> _val_cb -> _digest_vals phase:
-    # $results{val}{$host}{$val_id} = { OID element tree of hashes containting data returned for the val }
-    # $results{hostvar}{$host}{$hostvar_name} = The host variables (_do_vals and _hostvar_cb)
+    #--- Results from the _get_data -> _data_cb -> _digest_data phase:
+    # $results{data}{$host}{$val_id} = { OID element tree of hashes containting data returned for the val }
+    # $results{hostvar}{$host}{$hostvar_name} = The host variables (_get_data and _hostvar_cb)
     #
-    #--- Results from the _do_functions phase:
+    #--- Results from the _do_conversions phase:
     # $results{final}{$host} = [ Array of all data objects for the host that is passed back to the caller ]
     #
 
     # Make sure the final results hash exists, even if we get zero results
     $results{final} = {};
 
+    # Initialize the variables map and add any inputs to it
+    $results{var_map} = {};
+    my $inputs = $composite->get('/composite/variables/input');
+    foreach my $input (@$inputs) {
+        $results{var_map}{$input->{value}} = $input->{name};
+    }
+
     my $success_callback = $rpc_ref->{'success_callback'};
 
     my @cv = map { AnyEvent->condvar; } (0..5);
 
-    $cv[0]->begin(sub { $self->_do_scans($conf_xpc, $instance, $params, \%results, $cv[1]); });
-    $cv[1]->begin(sub { $self->_digest_scans($params, \%results, $cv[2]); });
-    $cv[2]->begin(sub { $self->_do_vals($conf_xpc, $instance, $params, \%results, $cv[3]); });
-    $cv[3]->begin(sub { $self->_digest_vals($params, \%results, $cv[4]); });
-    $cv[4]->begin(sub { $self->_do_functions($conf_xpc, $instance, $params, \%results, $cv[5]); });
+    $cv[0]->begin(sub { $self->_get_scans      ($composite, $params, \%results, $cv[1]); });
+    $cv[1]->begin(sub { $self->_digest_scans   ($params, \%results, $cv[2]); });
+    $cv[2]->begin(sub { $self->_get_data       ($composite, $params, \%results, $cv[3]); });
+    $cv[3]->begin(sub { $self->_digest_data    ($params, \%results, $cv[4]); });
+    $cv[4]->begin(sub { $self->_do_conversions ($composite, $params, \%results, $cv[5]); });
     $cv[5]->begin(sub { 
         my $end = [gettimeofday];
 	    my $resp_time = tv_interval($start, $end);
 	    $self->logger->info("REQTIME COMP $resp_time");
 		&$success_callback($results{'final'});
 		undef %results;
-		undef $instance;
+		undef $composite;
 		undef $params;
 		undef @cv;
 		undef $success_callback;
@@ -408,13 +400,18 @@ sub _map_oid {
     my $oid_attr = shift;
     my %oid_map;
 
-    $self->logger->debug("Creating a map for: $oid_attr->{id}");
+    $self->logger->debug("Creating a map for: $oid_attr->{name}");
 
     # Init the base OID for polling as the original OID
-    $oid_map{base_oid} = $oid_attr->{oid};
+    if ($oid_attr->{oid}) {
+        $oid_map{base_oid} = $oid_attr->{oid};
+    }
+    elsif ($oid_attr->{source}) {
+        $oid_map{base_oid} = $oid_attr->{source};
+    }
 
     # Split the oid and add that to our map
-    my @split_oid = split(/\./, $oid_attr->{oid});
+    my @split_oid = split(/\./, $oid_map{base_oid});
     $oid_map{split_oid} = \@split_oid;
 
     # For joining oid elements in sections
@@ -428,8 +425,8 @@ sub _map_oid {
 
         # Change * to the name of the elem for backward compatibility
         if ( $oid_elem eq '*' ) { 
-            $oid_elem      = $oid_attr->{id};
-            $split_oid[$i] = $oid_attr->{id};
+            $oid_elem      = $oid_attr->{oid_suffix};
+            $split_oid[$i] = $oid_attr->{oid_suffix};
         }
 
         # Check if the OID element is a var or * (Regex matches on std var naming conventions)
@@ -572,16 +569,15 @@ sub _transform_oids {
 
 
 # Polls for the scan elements of a composite
-sub _do_scans {
+sub _get_scans {
 
     my $self      = shift;
-    my $conf_xpc  = shift; # The XPath context for the config
-    my $instances = shift; # The instance XPath from the config
+    my $composite = shift; # The instance XPath from the config
     my $params    = shift; # Parameters to request
     my $results   = shift; # Global $results hash
     my $cv        = shift; # AnyEvent condition var (assumes it's been begin()'ed)
 
-    $self->logger->debug("Running _do_scans");
+    $self->logger->debug("Running _get_scans");
 
     # Get the array of hosts from params
     my $hosts = $params->{'node'}{'value'};
@@ -602,92 +598,80 @@ sub _do_scans {
     foreach my $host (@$hosts) {
         $results->{scan_tree}{$host}    = {};
         $results->{scan_vals}{$host}    = {};
-        $results->{val}{$host}          = {};
+        $results->{data}{$host}         = {};
         $results->{hostvar}{$host}      = {};
-        #$results->{scan_exclude}{$host} = {}; # scan_exclude blacklist only applied in legacy code
     }
 
-    foreach my $instance ($instances->get_nodelist) {
+    my $scans = $composite->get('/composite/variables/scan');
 
-        # Get the name of the instance we're scanning as an ID
-        my $instance_id = $instance->getAttribute("id");
+    $self->logger->debug(Dumper($scans));
 
-        # Get <scan> elements from the instance instance for oids to scan
-        my $scans = $conf_xpc->find("./scan", $instance);
+    foreach my $scan ( @$scans ) {
+    # Example Scan: <scan oid_suffix="ifIdx" poll_value="ifName" oid="1.3.6.1.2.1.31.1.1.1.18.*"/>
+        $results->{var_map}->{$scan->{poll_value}} = $scan->{oid_suffix};
 
-        foreach my $scan ($scans->get_nodelist) {
-            # Example Scan: <scan id="ifIdx" oid="1.3.6.1.2.1.31.1.1.1.18.*" var="ifAlias" />
+        # Add any targets or exclusion patterns to our scan attributes
+        if ( defined($scan->{var}) ) {
 
-            # Create hash of the basic scan attributes
-	        my %scan_attr = (
-                id      => $scan->getAttribute("id"),
-	            oid     => $scan->getAttribute("oid"),
-	            var     => $scan->getAttribute("var"),
-                ex_only => $scan->getAttribute("exclude-only")
-            );
-
-            # Add any targets or exclusion patterns to our scan attributes
-            if ( defined($scan_attr{var}) ){
-
-                if ( defined($params->{$scan_attr{var}}) ) {
-                    $scan_attr{targets} = $params->{$scan_attr{var}}{value};
-                }
-
-                if ( defined($exclude_patterns{$scan_attr{var}}) ) {
-                    $scan_attr{excludes} = $exclude_patterns{$scan_attr{var}};
-                }
-            } 
-            else {
-                $scan_attr{excludes} = [];
+            if ( defined($params->{$scan->{var}}) ) {
+                $scan->{targets} = $params->{$scan->{var}}{value};
             }
 
-            # Add a map of the scan OID to our scan attributes
-            $scan_attr{map} = $self->_map_oid(\%scan_attr);
-            if ( !defined $scan_attr{map} ) {
-                $self->logger->error("A map could not be generated for scan $scan_attr{id}!");
-                next;
+            if ( defined($exclude_patterns{$scan->{var}}) ) {
+                $scan->{excludes} = $exclude_patterns{$scan->{var}};
             }
-
-            # Get the base oid to poll, (defaults to the original OID if no vars)
-            my $base_oid = $scan_attr{map}{base_oid};
-
-            # Callback to get the polling data for the base oid of the scan into results
-            $cv->begin;
-            $self->client->get(
-                node           => $hosts, 
-                oidmatch       => $base_oid,
-                async_callback => sub { 
-                    my $data = shift;
-                    $self->_scan_cb($data->{'results'},$hosts,$results,\%scan_attr);
-                    $cv->end;
-                }
-            );
+        } 
+        else {
+            $scan->{excludes} = [];
         }
+
+        # Add a map of the scan OID to our scan attributes
+        $scan->{map} = $self->_map_oid($scan);
+        if ( !defined $scan->{map} ) {
+            $self->logger->error("A map could not be generated for scan $scan->{oid_suffix}!");
+            next;
+        }
+
+        # Get the base oid to poll, (defaults to the original OID if no vars)
+        my $base_oid = $scan->{map}{base_oid};
+
+        # Callback to get the polling data for the base oid of the scan into results
+        $cv->begin;
+        $self->client->get(
+            node           => $hosts, 
+            oidmatch       => $base_oid,
+            async_callback => sub { 
+                my $data = shift;
+                $self->_scan_cb($data->{'results'},$hosts,$results,$scan);
+                $cv->end;
+            }
+        );
     }
+
     # Signals _digest_scans to start when all callbacks complete
     $cv->end;
-    $self->logger->debug("Completed _do_scans");
+    $self->logger->debug("Completed _get_scans");
 }
 
 
 # Gets data for a scan for the OIDs we want to scan and sets scan_tree and scan_vals
 sub _scan_cb {
 
-    my $self      = shift;
-    my $data      = shift;
-    my $hosts     = shift;
-    my $results   = shift;
-    my $scan_attr = shift;
+    my $self    = shift;
+    my $data    = shift;
+    my $hosts   = shift;
+    my $results = shift;
+    my $scan    = shift;
 
-    my $scan_map     = $scan_attr->{map};
-    my $scan_id      = $scan_attr->{id};
-    my $scan_oid     = $scan_attr->{oid};
-    my $targets      = $scan_attr->{targets};
-    my $excludes     = $scan_attr->{excludes};
-    my $exclude_only = $scan_attr->{ex_only}; # True = Add no results, but possibly blacklist OID values
+    my $scan_map     = $scan->{map};
+    my $scan_suffix  = $scan->{oid_suffix};
+    my $scan_oid     = $scan->{oid};
+    my $targets      = $scan->{targets};
+    my $excludes     = $scan->{excludes};
+    my $exclude_only = $scan->{ex_only}; # True = Add no results, but possibly blacklist OID values
 
 
-    $self->logger->debug("Running _scan_cb for $scan_id");
+    $self->logger->debug("Running _scan_cb for $scan_suffix");
 
     for my $host (@$hosts) {
 
@@ -737,15 +721,15 @@ sub _scan_cb {
             my $scan_transform = $self->_transform_oids(\@oids, $data->{$host}, $scan_map, 'scan');
 
             # Set scan_tree with the blank OID tree and legend from the scan
-            $results->{scan_tree}{$host}{$scan_id}{vals}   = $scan_transform->{blanks};
-            $results->{scan_tree}{$host}{$scan_id}{legend} = $scan_transform->{legend};
+            $results->{scan_tree}{$host}{$scan_suffix}{vals}   = $scan_transform->{blanks};
+            $results->{scan_tree}{$host}{$scan_suffix}{legend} = $scan_transform->{legend};
 
             # Set scan_vals to the tree of values from the scan
-            $results->{scan_vals}{$host}{$scan_id}         = $scan_transform->{vals};
+            $results->{scan_vals}{$host}{$scan_suffix}         = $scan_transform->{vals};
             
         }
     }
-    $self->logger->debug("Finished running _scan_cb for $scan_id");
+    $self->logger->debug("Finished running _scan_cb for $scan_suffix");
     return;
 }
 
@@ -845,16 +829,15 @@ sub _digest_scans {
 
 
 # Fetches the host variables and SNMP values for <val> elements
-sub _do_vals {
+sub _get_data {
 
     my $self      = shift;
-    my $conf_xpc  = shift; # The XPath context for the config
-    my $instances = shift; # The instance XPath from the config
+    my $composite = shift; # The instance XPath from the config
     my $params    = shift; # Parameters to request
     my $results   = shift; # Global $results hash
     my $cv        = shift; # AnyEvent condition var (assumes it's been begin()'ed)
 
-    $self->logger->debug("Running _do_vals");
+    $self->logger->debug("Running _get_data");
 
     # Get the set of required variables
     my $hosts = $params->{'node'}{'value'};
@@ -872,125 +855,127 @@ sub _do_vals {
         },
     );
 
-    for my $instance ($instances->get_nodelist) {
+    # Initialize data elements 
+    my @data_elements;
+    
+    my $value_data = $composite->get('/composite/data/value');
+    my $meta_data  = $composite->get('/composite/data/meta');
 
-        # Get the <val> elements and loop through them
-        my $vals = $conf_xpc->find("./result/val",$instance);
-        foreach my $val ($vals->get_nodelist) {
+    # Create a name map for metadata elements to handle the TSDS asterisk notation
+    foreach my $meta_elem (@$meta_data) {
+        # Map the original name to the adjusted one for functions
+        $results->{meta}->{$meta_elem->{name}} = "*$meta_elem->{name}";
+    }
 
-        # Notes for <val> Elements ------------------------------------------
-        # The <val> tag can have a couple of different forms:
-        #
-        # <val id="var_name" var="scan_var_name">
-        #     - use a value from the scan phase
-        # <val id="var_name" type="rate" oid="1.2.3.4.scan_var_name">
-        #     - use OID suffixes from the scan phase, and lookup other OIDs,
-        #       optionally doing a rate calculation
-        #--------------------------------------------------------------------
+    push(@data_elements, @$value_data);
+    push(@data_elements, @$meta_data);
+    $self->logger->debug(Dumper(\@data_elements));
 
-            # Get the attributes of the val element
-            my %val_attr = (
-                id   => $val->getAttribute("id"),
-                var  => $val->getAttribute("var"),
-                oid  => $val->getAttribute("oid"),
-                type => $val->getAttribute("type")
-            );
-            
-            # Check if the val has an ID	    
-            if (!defined $val_attr{id}) {
-                $self->logger->error('no ID specified in a <val> element');
+    foreach my $elem (@data_elements) {
+
+    # Attributes for <meta> and <value> Elements --------------------------------------------
+    #
+    #   "name" (required): 
+    #       - Should be the name of a metadata or value field from the TSDS measurement type.
+    #       - The use of a meta or value tag determines if a field is metadata or a value.
+    #
+    #   "source" (required):
+    #       - Has four possible options:
+    #           1. The poll_value name of a scan from the variables.
+    #           2. The name of an input from the variables.
+    #           3. A variable OID that uses oid_suffixes from scans.
+    #           4. A regular OID that is static and returns one result.
+    #
+    #   "type" (optional):
+    #       - Must be set equal to "rate", it is the only option right now.
+    #       - This is used to indicate that a numeric value should be calculated as a rate.
+    #       - Typically used for bit and packet rates that need a difference calculation.
+    #
+    #----------------------------------------------------------------------------------------
+
+
+        # Check if the element source isn't an OID
+        unless ( $elem->{source} =~ /.*\.+.*/ ) {
+
+            # If the val is the "node" var, create a val object in results with one value set to the host
+            if ( $elem->{name} eq 'node' ) {
+                foreach my $host (@$hosts) {
+                    $results->{data}{$host}{node}{value} = $host;
+                }
                 next;
             }
-
-            # Check if the val doesn't have an OID
-            if ( !defined $val_attr{oid} ) {
-
-                # Check if the val's OID and var are undefined, skipping the val if true
-                if ( !defined $val_attr{var} ) {
-                    $self->logger->error("no 'var' param specified for <val id='$val_attr{id}'>");
-                    next;
-                }
-                
-                # If the val is the "node" var, create a val object in results with one value set to the host
-                if ( $val_attr{var} eq 'node' ) {
-                    foreach my $host (@$hosts) {
-                        $results->{val}{$host}{$val_attr{id}}{value} = $host;
-                    }
-                    next;
-                }
-
-                # If the val has a defined var attribute 
-                if ( defined($val_attr{var}) ) {
-                    # Add the scan_vals hash for it to the results val hash under its val ID
-                    foreach my $host (@$hosts) {
-                        if ( exists $results->{scan_vals}{$host}{$val_attr{var}} ) {
-                            $results->{val}{$host}{$val_attr{id}} = $results->{scan_vals}{$host}{$val_attr{var}};
-                        }
-                    }
-                    next;
-                }
-            }
-            # Pull the val's OID data from Simp
             else {
-
-                # Create a map of the val OID for use
-                $val_attr{map} = $self->_map_oid(\%val_attr);
-                if ( !defined $val_attr{map} ) {
-                    $self->logger->error("A map could not be generated for val $val_attr{id}!");
-                    next;
-                };
-
-                # Add the val's ID to the val_map
-                $val_attr{map}{id} = $val_attr{id};
-
-                # Get the base OID of the val for polling 
-                my $base_oid = $val_attr{map}{base_oid};
-
+                # Add the scan_vals hash for it to the results val hash under its val ID
+                my $val_key = $results->{var_map}->{$elem->{source}};
+                $self->logger->debug("Getting data for source $elem->{source} from the $val_key values");
                 foreach my $host (@$hosts) {
-
-                    if ( scalar(keys %{$results->{scan_tree}{$host}}) < 1 ) {
-                        $self->logger->error("ERROR: No scan data! Skipping vals for $host");
-                        next;
+                    if ( exists $results->{scan_vals}{$host}{$val_key} ) {
+                        $results->{data}{$host}{$elem->{name}} = $results->{scan_vals}{$host}{$val_key};
                     }
+                }
+                next;
+            }
+        }
+        # Pull the element's OID data from Simp
+        else {
 
-                    # Get the data for these OIDs from Simp
-                    $cv->begin;
+            # Create a map of the val OID for use
+            $elem->{map} = $self->_map_oid($elem);
+            if ( !defined $elem->{map} ) {
+                $self->logger->error("A map could not be generated for val $elem->{name}!");
+                next;
+            };
 
-                    # It is tempting to request just the OIDs you know you want,
-                    # instead of asking for the whole subtree, but requesting
-                    # a bunch of individual OIDs takes SimpData a *whole* lot
-                    # more time and CPU, so we go for the subtree.
-                    if ( defined($val_attr{type}) && $val_attr{type} eq 'rate' ) {
+            # Add the element's name to the val_map
+            $elem->{map}{name} = $elem->{name};
 
-                        $self->client->get_rate(
-                            node     => [$host],
-                            period   => $params->{'period'}{'value'},
-                            oidmatch => [$base_oid],
-                            async_callback => sub {
-                                my $data = shift;
-                                $self->_val_cb($data->{'results'},$results,$host,$val_attr{map});
-                                $cv->end;
-                            }
-                        );
+            # Get the base OID of the val for polling 
+            my $base_oid = $elem->{map}{base_oid};
 
-                    } 
-                    else {
-                        $self->client->get(
-                            node     => [$host],
-                            oidmatch => [$base_oid],
-                            async_callback => sub {
-                                my $data = shift;
-                                $self->_val_cb($data->{'results'},$results,$host,$val_attr{map});
-                                $cv->end;
-                            }
-                        );
-                    }
+            foreach my $host (@$hosts) {
+
+                if ( scalar(keys %{$results->{scan_tree}{$host}}) < 1 ) {
+                    $self->logger->error("ERROR: No scan data! Skipping vals for $host");
+                    next;
+                }
+
+                # Get the data for these OIDs from Simp
+                $cv->begin;
+
+                # It is tempting to request just the OIDs you know you want,
+                # instead of asking for the whole subtree, but requesting
+                # a bunch of individual OIDs takes SimpData a *whole* lot
+                # more time and CPU, so we go for the subtree.
+                if ( defined($elem->{type}) && $elem->{type} eq 'rate' ) {
+
+                    $self->client->get_rate(
+                        node     => [$host],
+                        period   => $params->{'period'}{'value'},
+                        oidmatch => [$base_oid],
+                        async_callback => sub {
+                            my $data = shift;
+                            $self->_data_cb($data->{'results'},$results,$host,$elem->{map});
+                            $cv->end;
+                        }
+                    );
+
+                } 
+                else {
+                    $self->client->get(
+                        node     => [$host],
+                        oidmatch => [$base_oid],
+                        async_callback => sub {
+                            my $data = shift;
+                            $self->_data_cb($data->{'results'},$results,$host,$elem->{map});
+                            $cv->end;
+                        }
+                    );
                 }
             }
         }
     }
     $cv->end;
-    $self->logger->debug("Finished running _do_vals");
+    $self->logger->debug("Finished running _get_data");
 }
 
 # Not sure what the point of this is, perhaps to queue data?
@@ -1015,19 +1000,19 @@ sub _hostvar_cb {
 
 
 # Callback to get data for a val
-sub _val_cb {
+sub _data_cb {
 
-    my $self      = shift;
-    my $data      = shift;
-    my $results   = shift;
-    my $host      = shift;
-    my $val_map   = shift;
+    my $self     = shift;
+    my $data     = shift;
+    my $results  = shift;
+    my $host     = shift;
+    my $elem_map = shift;
 
     # Get the scan data for the host
     my $scan_data = $results->{scan_tree}{$host};
-    $self->logger->debug("Scan data found for _val_cb: " . scalar(keys %{$scan_data}));
+    $self->logger->debug("Scan data found for _data_cb: " . scalar(keys %{$scan_data}));
 
-    $self->logger->debug("Running _val_cb");
+    $self->logger->debug("Running _data_cb");
 
     # Stop here early when there's no data defined for the host
     return if !defined($data->{$host});
@@ -1044,8 +1029,8 @@ sub _val_cb {
     };
 
     # Get the transformed data for the val using the wanted OIDs
-    my $val_data = $self->_transform_oids(\@oids, $data->{$host}, $val_map);
-    $self->logger->debug("Translated raw val data into data tree for $val_map->{id}");
+    my $val_data = $self->_transform_oids(\@oids, $data->{$host}, $elem_map);
+    $self->logger->debug("Translated raw val data into data tree for $elem_map->{name}");
 
     # Check translated data, removing leaves and branches that were not wanted
     # !!! By design, this shouldn't be necessary as unwanted vals wont match
@@ -1055,7 +1040,7 @@ sub _val_cb {
     #$self->logger->debug("Trimmed unwanted vals for $val_map->{id}");
 
     # Add the translated, cleaned data to to the val results for the host, at the val_id
-    $results->{val}{$host}{$val_map->{id}} = $val_data->{vals};
+    $results->{data}{$host}{$elem_map->{name}} = $val_data->{vals};
 
     return;
 }
@@ -1131,7 +1116,7 @@ sub _extract_data {
 
 
 # Digests the val data and transforms it into an array of data objects after all callbacks complete
-sub _digest_vals {
+sub _digest_data {
 
     my $self       = shift;
     my $params     = shift; # Parameters to request
@@ -1147,7 +1132,7 @@ sub _digest_vals {
 
         if (! keys %{$results->{scan_tree}{$host}} ) {
             $self->logger->error("No vals were returned for $host");
-            $results->{val}{$host} = [];
+            $results->{data}{$host} = [];
             next;
         }
 
@@ -1155,7 +1140,7 @@ sub _digest_vals {
         my $val_tree = $results->{scan_tree}{$host}{vals};
 
         # Get the vals polled for the host
-        my $vals = $results->{val}{$host};
+        my $vals = $results->{data}{$host};
 
         # Add the data for all vals to the appropriate leaves of val_tree
         for my $val_id ( keys %{$vals} ) {
@@ -1169,104 +1154,247 @@ sub _digest_vals {
         $self->_extract_data($val_tree, \@val_data);
         $self->logger->debug("Extracted val data objects for $host");
         # Set the results for val for the host to the data
-        $results->{val}{$host} = \@val_data;
+        $results->{data}{$host} = \@val_data;
     }
     $self->logger->debug("Finished digesting vals");
     $cv->end;
 }
 
 
-# Applies functions to values gathered by _do_vals
-sub _do_functions {
+# Applies conversion functions to values gathered by _get_data
+sub _do_conversions {
 
     my $self      = shift;
-    my $conf_xpc  = shift; # The XPath context for the config
-    my $instances = shift; # The instance XPath from the config
+    my $composite = shift; # The instance XPath from the config
     my $params    = shift; # Parameters to request
     my $results   = shift; # Global $results hash
     my $cv        = shift; # AnyEvent condition var (assumes it's been begin()'ed)
 
-    $self->logger->debug("Applying functions to the val data");
+    # Get array of all conversions in-order
+    my $conversions = $composite->get('/composite/conversions/*');
+
+    foreach my $c (@$conversions) {
+        if (exists $c->{definition}) {
+            $c->{type} = 'function';
+        } 
+        elsif (exists $c->{this}) {
+            $c->{type} = 'replace';
+        } 
+        elsif (exists $c->{pattern}) {
+            $c->{type} = 'match';
+        }
+    }
+    $self->logger->debug(Dumper($conversions));
+
+    $self->logger->debug("Applying conversions to the data");
 
     my $now = time;
 
-    # Create a hash map of functions to their val IDs from the config
-    my %f_map;
-    my $val_elems = $conf_xpc->find("./result/val", $instances->get_nodelist);
-
-    for my $val_elem ($val_elems->get_nodelist) {
-
-        my $val_id = $val_elem->getAttribute('id');
-
-        my @fctns  = $conf_xpc->find('./fctn', $val_elem)->get_nodelist;
-
-        if ( @fctns ) {
-            $f_map{$val_id} = \@fctns;
-        }
-    }
-
     # Iterate over the data array for each host
-    for my $host (keys %{$results->{'val'}}) {
+    foreach my $host (keys %{$results->{data}}) {
 
         # Initialise the final data array for the host
         $results->{final}{$host} = [];
 
-        if ( !$results->{val}{$host} || (ref($results->{val}{$host}) ne ref([])) ) {
-            $self->logger->error("No data array was generated for $host!");
+        # Skip and use empty results if host has no data
+        if ( !$results->{data}{$host} || (ref($results->{data}{$host}) ne ref([])) ) {
+            $self->logger->error("ERROR: No data array was generated for $host!");
             next;
         }
 
-        if ( !%f_map ) {
-            $results->{final}{$host} = $results->{val}{$host};
+        # Set final values if no functions are being applied to the hosts's data 
+        unless ( $conversions ) {
+            $results->{final}{$host} = $results->{data}{$host};
             next; 
         }
 
-        # Ensure all data objects have a time
-        for my $data ( @{$results->{val}{$host}} ) {
-            if ( !exists $data->{time} ) {
-                $data->{time} = $now;
-            }
-        }
+        # Apply each function included in conversions
+        foreach my $conversion (@$conversions) {
 
-        # Apply functions for each val with functions
-        for my $val_id (keys %f_map) {
+            # Get the target data for the conversion
+            my $targets = $conversion->{data};
 
-            my $function_warn = 0;
+            # Apply the conversion to each data target
+            foreach my $target (keys %$targets) {
 
-            # Check each data object for the val with functions
-            for my $data ( @{$results->{val}{$host}} ) {
-                if ( exists $data->{$val_id} ) {
+                # Make a hash of all var names mentioned in the conversion (avoids dupes)
+                my %vars;
 
-                    # Apply each function to that val
-                    for my $fctn ( @{$f_map{$val_id}} ) {
+                # Initialize all conversion attributes specific to the target
+                my $target_def     = $conversion->{definition};
+                my $target_with    = $conversion->{with};
+                my $target_this    = $conversion->{this};
+                my $target_pattern = $conversion->{pattern};
 
-                        my $fid = $fctn->getAttribute('name');
+                # Functions
+                if ($conversion->{type} eq 'function') {
+                    
+                    $target_def =~ s/\$\{\}/\$\{$target\}/g;
 
-                        if ( !defined($_FUNCTIONS{$fid}) ) {
-                            if ( !$function_warn ) {
-                                $self->logger->error("Unknown function name \"$fid\" for val \"$val_id\"!");
-                            }
-                            $function_warn   = 1;
-                            $data->{$val_id} = undef;
-                            last;
+                    %vars = map {$_ => 1} $target_def =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
+
+                    $self->logger->debug("Function has the following definition and vars:");
+                    $self->logger->debug(Dumper($target_def));
+                    $self->logger->debug(Dumper(\%vars));
+                }
+                # Replacements
+                elsif ($conversion->{type} eq 'replace') {
+
+                    $target_with =~ s/\$\{\}/\$\{$target\}/g;
+                    $target_this =~ s/\$\{\}/\$\{$target\}/g;
+
+                    # Combine strings so vars can be found easier in both
+                    my $combo = $target_with . $target_this;
+
+                    %vars = map {$_ => 1} $combo =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
+                    
+                    $self->logger->debug("Replacement has the follwing vars:");
+                    $self->logger->debug(Dumper(\%vars));
+                }
+                # Matches
+                elsif ($conversion->{type} eq 'match') {
+
+                    $target_pattern =~ s/\$\{\}/\$\{$target\}/g;
+                    
+                    %vars = map {$_ => 1} $target_pattern =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
+ 
+                    unless (scalar(keys %vars)) {
+                        $target_pattern = $conversion->{pattern};
+                    }
+                    $self->logger->debug("Match has the following pattern and vars:");
+                    $self->logger->debug($target_pattern);
+                    $self->logger->debug(Dumper(\%vars));
+                }
+
+                # Apply the conversion for the target to each data object for the host
+                foreach my $data ( @{$results->{data}{$host}} ) {
+
+                    $self->logger->debug(Dumper($data));
+                    # Initialize all temporary conversion attributes for the data object
+                    my $temp_def     = $target_def;
+                    my $temp_this    = $target_this;
+                    my $temp_with    = $target_with;
+                    my $temp_pattern = $target_pattern;
+
+                    # Track any missing variable values or errors
+                    my $data_errors = 0;
+
+                    # Ensure the data object has a time stamp
+                    unless (exists $data->{time}) {
+                        $data->{time} = $now;
+                    }
+
+                    # Skip if the target data element doesn't exist in the object
+                    unless (exists $data->{$target} && defined $data->{$target}) {
+                        #$self->logger->error("ERROR: The target data \"$target\" doesn't exist for $host!");
+                        next;
+                    }
+
+                    # Replace data variables in the definition with their value
+                    foreach my $var (keys %vars) {
+
+                        # Add error and skip the var if there's no data for it
+                        unless (exists($data->{$var}) && defined($data->{$var})) {
+                            $data_errors++;
+                            next;
                         }
+                        $self->logger->debug("Checking value for $var: \"$data->{$var}\"");
 
-                        my $operand = $fctn->getAttribute("value");
-                        my $val     = $_FUNCTIONS{$fid}([$data->{$val_id}], $operand, $fctn, $data, $results, $host);
+                        # Get the data's value for the var
+                        my $var_value = $data->{$var};
 
-                        if ( defined $val ) {
-                            # Assign the computed val back to the data object for the val_id
-                            $data->{$val_id} = $val->[0];
+                        # Functions
+                        if ($conversion->{type} eq 'function') {
+
+                            # Replace the var indicators with their value
+                            $temp_def =~ s/\$\{$var\}/$var_value/;
+                            $self->logger->debug("Applying function: $temp_def");
+                        }
+                        # Replacements
+                        elsif ($conversion->{type} eq 'replace') {
+
+                            # Replace the var indicators with their value
+                            $temp_with =~ s/\$\{$var\}/$var_value/g;
+                            $temp_this =~ s/\$\{$var\}/$var_value/g;
+                            $self->logger->debug("Replacing \"$temp_this\" with \"$temp_with\"");
+                        }
+                        # Matches
+                        elsif ($conversion->{type} eq 'match') {
+
+                            # Replace the var indicators with their value
+                            $temp_pattern =~ s/\$\{$var\}/\Q$var_value\E/;
+                            $self->logger->debug($temp_pattern);
+                        }
+                        
+                    }
+
+                    # If the function can't be completed, don't send a value for the data
+                    if ($data_errors) {
+                        #$self->logger->error("ERROR: There were $data_errors missing data points!");
+                        $data->{$target} = undef;
+                        next;
+                    }
+                
+                    # Store the converted value
+                    my $new_value;
+ 
+                    # Function application
+                    if ($conversion->{type} eq 'function') {
+
+                        # Use the FUNCTIONS object rpn definition
+                        $new_value = $_FUNCTIONS{rpn}([$data->{$target}],$temp_def,$conversion,$data,$results,$host)->[0];
+                    }
+                    # Replacement application
+                    elsif ($conversion->{type} eq 'replace') {
+
+                        # Use the replace module to replace the value
+                        $new_value =  Data::Munge::replace($data->{$target}, $temp_this, $temp_with);
+                    }
+                    # Match application
+                    elsif ($conversion->{type} eq 'match') {
+
+                        # Change the output of the match where exclusion on match is desired
+                        my $exclude = exists($conversion->{exclude}) ? $conversion->{exclude} : 0;
+
+                        # Set new value to pattern match or assign as undef
+                        if ( $data->{$target} =~ /$temp_pattern/ ) {
+                            unless ($exclude == 1) {
+                                $new_value = $1;
+                            }
+                            else {
+                                $new_value = undef;
+                            }
+                        }
+                        else {
+                            unless ($exclude == 1) {
+                                $new_value = undef;
+                            }
+                            else {
+                                $new_value = $data->{$target};
+                            }
                         }
                     }
+                    $self->logger->debug("Set value for $target to $new_value");
+                    # Assign the new value to the data target
+                    $data->{$target} = $new_value;
+                    
+                }
+            }
+        } 
+
+        foreach my $meta_name ( keys %{$results->{meta}} ) {
+            foreach my $data (@{$results->{data}{$host}}) {
+                if (exists $data->{$meta_name}) {
+                    $data->{$results->{meta}->{$meta_name}} = delete $data->{$meta_name};
                 }
             }
         }
+        
         # Once any/all functions are applied in results->val for the host, we set the final data to that hash
-        $results->{final}{$host} = $results->{val}{$host};
+        $results->{final}{$host} = $results->{data}{$host};
     }
-    $self->logger->debug("Finished applying functions to the data");
-    #$self->logger->debug(Dumper($results->{final}));
+    $self->logger->debug(Dumper($results->{final}));
+    $self->logger->debug("Finished applying conversions to the data");
     $cv->end;
 }
 
@@ -1372,7 +1500,7 @@ sub _do_functions {
 	    return [$val];
 	}
     },
-    'regexp' => sub { # regular-expression match and extract first group
+    'match' => sub { # regular-expression match and extract first group
         my ($vals, $operand) = @_;
 	foreach my $val (@$vals){
 	    if($val =~ /$operand/){
@@ -1382,9 +1510,8 @@ sub _do_functions {
 	}
     },
     'replace' => sub { # regular-expression replace
-        my ($vals, $operand, $elem) = @_;
+        my ($vals, $operand, $replace_with) = @_;
 	foreach my $val (@$vals){
-	    my $replace_with = $elem->getAttribute("with");
 	    $val = Data::Munge::replace($val, $operand, $replace_with);
 	    return [$val];
 	}

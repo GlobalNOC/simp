@@ -1,18 +1,18 @@
 #!/bin/sh
 #
-# simp-comp   init file for starting up simp-comp
+# simp-tsds   init file for starting up simp-tsds
 #
-# chkconfig 2345 90 9
-# description: Starts and stops simp-comp
+# chkconfig 2345 95 10
+# description: Starts and stops simp-tsds
 
 # Source function library
 . /etc/rc.d/init.d/functions
 
-name="simp-comp"
+name="simp-tsds"
 exec="/usr/bin/$name.pl"
-pidfile="/var/run/simp_comp.pid"
-CONFIG="/etc/simp/compDataConfig.xml"
-LOGGING="/etc/simp/comp_logging.conf"
+pidfile="/var/run/$name.pid"
+CONFIG="/etc/simp/tsds/config.xml"
+LOGGING="/etc/simp/tsds/logging.conf"
 USER="simp"
 GROUP="simp"
 
@@ -20,7 +20,7 @@ start() {
     [ -f $CONFIG ] || exit 6
     [ -x $exec ] || exit 5
     echo -n $"Starting $name: "
-    daemon $exec --config "$CONFIG" --logging "$LOGGING" --user "$USER" --group "$GROUP"
+    daemon $exec --config "$CONFIG" --logging "$LOGGING" --pidfile "$pidfile" --user "$USER" --group "$GROUP"
     retval=$?
     echo
     return $retval

@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+    <!-- Composite definition (document root) -->    
+    <xsd:element name="composite" type="COMPOSITE"/>
+
+    <xsd:complexType name="COMPOSITE">
+        <xsd:sequence>
+            <xsd:element name="variables"   type="VARIABLES"   minOccurs="0" maxOccurs="1"/>
+            <xsd:element name="data"        type="DATA"        minOccurs="1" maxOccurs="1"/>
+            <xsd:element name="conversions" type="CONVERSIONS" minOccurs="0" maxOccurs="1"/>
+        </xsd:sequence>
+    </xsd:complexType>
+
+    <!-- Variables element definitions -->
+    <xsd:complexType name="VARIABLES">
+        <xsd:choice minOccurs="0" maxOccurs="unbounded">
+            <xsd:element name="scan"  type="SCAN"  minOccurs="0" maxOccurs="unbounded"/>
+            <xsd:element name="input" type="INPUT" minOccurs="0" maxOccurs="unbounded"/>
+        </xsd:choice>
+    </xsd:complexType>
+
+    <xsd:complexType name="SCAN">
+        <xsd:attribute name="oid"        type="VAR_OID" use="required"/>
+        <xsd:attribute name="oid_suffix" type="VAR_NAME" use="required"/>
+        <xsd:attribute name="poll_value" type="VAR_NAME" use="required"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="INPUT">
+        <xsd:attribute name="name"     type="VAR_NAME" use="required"/>
+        <xsd:attribute name="value"    type="VAR_NAME" use="required"/>
+        <xsd:attribute name="required" type="INT_BOOL" />
+    </xsd:complexType>
+
+
+    <!-- Data element definitions -->
+    <xsd:complexType name="DATA">
+        <xsd:choice minOccurs="2" maxOccurs="unbounded">
+            <xsd:element name="meta"  type="META"   minOccurs="1" maxOccurs="unbounded"/>
+            <xsd:element name="value" type="VALUE"  minOccurs="1" maxOccurs="unbounded"/>
+        </xsd:choice>
+    </xsd:complexType>
+
+    <xsd:complexType name="META">
+        <xsd:attribute name="name"   type="VAR_NAME"   use="required"/>
+        <xsd:attribute name="source" type="VAR_SOURCE" use="required"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="VALUE">
+        <xsd:attribute name="name"   type="VAR_NAME"   use="required"/>
+        <xsd:attribute name="source" type="VAR_SOURCE" use="required"/>
+	<xsd:attribute name="type"   type="VAR_TYPE"/>
+    </xsd:complexType>
+
+    <!-- Conversions element definitions -->
+    <xsd:complexType name="CONVERSIONS">
+        <xsd:choice minOccurs="1" maxOccurs="unbounded">
+            <xsd:element name="function" type="FUNCTION" minOccurs="0" maxOccurs="unbounded"/>
+            <xsd:element name="replace"  type="REPLACE"  minOccurs="0" maxOccurs="unbounded"/>
+            <xsd:element name="match"    type="MATCH"    minOccurs="0" maxOccurs="unbounded"/>
+        </xsd:choice>
+    </xsd:complexType>
+
+    <xsd:complexType name="FUNCTION">
+        <xsd:sequence>
+            <xsd:element name="data" type="CONVERSION_DATA" minOccurs="1" maxOccurs="unbounded"/>
+        </xsd:sequence>
+        <xsd:attribute name="definition" use="required">
+            <xsd:simpleType>
+                <xsd:restriction base="xsd:string">
+                    <!-- "${}" is required in the definition -->
+                    <xsd:pattern  value=".*$\{\}.*"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+        </xsd:attribute>
+    </xsd:complexType>
+
+    <xsd:complexType name="CONVERSION_DATA">
+        <xsd:attribute name="name" type="VAR_NAME" use="required"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="REPLACE">
+        <xsd:sequence>
+            <xsd:element name="data" type="CONVERSION_DATA" minOccurs="1" maxOccurs="unbounded"/>
+        </xsd:sequence>
+        <xsd:attribute name="this" type="xsd:string" use="required"/>
+      	<xsd:attribute name="with" type="xsd:string" use="required"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="MATCH">
+        <xsd:sequence>
+            <xsd:element name="data" type="CONVERSION_DATA" minOccurs="1" maxOccurs="unbounded"/>
+        </xsd:sequence>
+        <xsd:attribute name="pattern" type="xsd:string" use="required"/>
+        <xsd:attribute name="exclude" type="INT_BOOL"/>
+    </xsd:complexType>
+
+    
+
+
+<!-- Global simpleType Definitions -->
+
+    <!-- Validates Variable Names -->
+    <xsd:simpleType name="VAR_NAME">
+        <xsd:restriction base="xsd:string">
+            <xsd:pattern value="[a-zA-Z]+[a-zA-Z0-9_-]*[a-zA-Z0-9]+|[a-zA-Z]+[a-zA-Z0-9]*"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <!-- Validates Variable OIDs -->
+    <xsd:simpleType name="VAR_OID">
+        <xsd:restriction base="xsd:string">
+            <xsd:pattern value="\.?([0-9]+\.|[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]\.|[a-zA-Z][a-zA-Z0-9]*\.)+([0-9]+|[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]|[a-zA-Z][a-zA-Z0-9]*)(\.\*)?"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <!-- Validates Variable OIDs -->
+    <xsd:simpleType name="VAR_SOURCE">
+        <xsd:restriction base="xsd:string">
+            <xsd:pattern value="\.?([0-9]+\.|[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]\.|[a-zA-Z][a-zA-Z0-9]*\.)+([0-9]+|[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]|[a-zA-Z][a-zA-Z0-9]*)(\.\*)?|[a-zA-Z]+[a-zA-Z0-9_-]*[a-zA-Z0-9]+|[a-zA-Z]+[a-zA-Z0-9]*"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <!-- Validates Data Value Types -->
+    <xsd:simpleType name="VAR_TYPE">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="rate"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <!-- Validates 1/0 Booleans -->
+    <xsd:simpleType name="INT_BOOL">
+        <xsd:restriction base="xsd:integer">
+            <xsd:enumeration value="0"/>
+            <xsd:enumeration value="1"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:simpleType name="REGEX_TYPE">
+        <xsd:restriction base="xsd:string">
+            <xsd:enumeration value="match"/>
+            <xsd:enumeration value="replace"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+</xsd:schema>

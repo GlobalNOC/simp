@@ -3,7 +3,7 @@ Description=SIMP Collector
 After=syslog.target network.target
 
 [Service]
-ExecStart=/usr/bin/simp-tsds.pl --config /etc/simp/simp-tsds.xml --logging /etc/simp/simp_tsds_logging.conf --pidfile /var/run/simp-tsds.pid --user simp --group simp
+ExecStart=/usr/bin/simp-tsds.pl --config /etc/simp/tsds/config.xml --logging /etc/simp/tsds/logging.conf --pidfile /var/run/simp-tsds.pid --user simp --group simp
 Type=forking
 PIDFile=/var/run/simp-tsds.pid
 

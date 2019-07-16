@@ -1,6 +1,6 @@
 Summary: A small system for gathering large amounts of SNMP data and pushing them into redis
 Name: simp-poller
-Version: 1.1.0
+Version: 1.2.0
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -45,7 +45,10 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 %install
 rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller
-%{__install} -d -p %{buildroot}/etc/simp/hosts.d
+%{__install} -d -p %{buildroot}/etc/simp/poller/
+%{__install} -d -p %{buildroot}/etc/simp/poller/hosts.d/
+%{__install} -d -p %{buildroot}/etc/simp/poller/groups.d/
+%{__install} -d -p %{buildroot}/etc/simp/poller/validation.d/
 %{__install} -d -p %{buildroot}/etc/init.d/
 %{__install} -d -p %{buildroot}/usr/bin/
 %{__install} -d -p %{buildroot}/etc/systemd/system/
@@ -54,14 +57,18 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} lib/GRNOC/Simp/Poller.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller.pm
 %{__install} lib/GRNOC/Simp/Poller/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
 %{__install} bin/simp-poller.pl %{buildroot}/usr/bin/simp-poller.pl
-%{__install} conf/config.xml %{buildroot}/etc/simp/
-%{__install} conf/logging.conf %{buildroot}/etc/simp/poller_logging.conf
-%{__install} conf/hosts.d/*.xml %{buildroot}/etc/simp/hosts.d/
+%{__install} conf/poller/config.xml %{buildroot}/etc/simp/poller/config.xml
+%{__install} conf/poller/config.xsd %{buildroot}/etc/simp/poller/validation.d/config.xsd
+%{__install} conf/logging.conf %{buildroot}/etc/simp/poller/logging.conf
+%{__install} conf/poller/hosts.xml.example %{buildroot}/etc/simp/poller/hosts.d/hosts.xml.example
+%{__install} conf/poller/group.xml.example %{buildroot}/etc/simp/poller/groups.d/group.xml.example
+%{__install} conf/poller/hosts.xsd %{buildroot}/etc/simp/poller/validation.d/hosts.xsd
+%{__install} conf/poller/group.xsd %{buildroot}/etc/simp/poller/validation.d/group.xsd
 
 %if 0%{?rhel} >= 7
-%{__install} conf/simp-poller.systemd %{buildroot}/etc/systemd/system/simp-poller.service
+%{__install} conf/poller/simp-poller.systemd %{buildroot}/etc/systemd/system/simp-poller.service
 %else
-%{__install} conf/simp-poller.service %{buildroot}/etc/init.d/simp-poller
+%{__install} conf/poller/simp-poller.service %{buildroot}/etc/init.d/simp-poller
 %endif
 
 %clean
@@ -82,9 +89,11 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %defattr(644,root,root,755)
-%config(noreplace) /etc/simp/config.xml
-%config(noreplace) /etc/simp/hosts.d/hosts.xml
-%config(noreplace) /etc/simp/poller_logging.conf
+%config(noreplace) /etc/simp/poller/config.xml
+%config(noreplace) /etc/simp/poller/hosts.d/*
+%config(noreplace) /etc/simp/poller/groups.d/*
+%config(noreplace) /etc/simp/poller/logging.conf
+%config(noreplace) /etc/simp/poller/validation.d/*
 
 %defattr(755,simp,simp,755)
 %dir /var/lib/simp/
