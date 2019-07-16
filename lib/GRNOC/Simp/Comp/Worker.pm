@@ -1357,7 +1357,7 @@ sub _do_conversions {
                             $new_value = $1;
                         }
                         else {
-                            $new_value = $data->{$target};
+                            $new_value = undef;
                         }
                     }
                     $self->logger->debug("Set value for $target to $new_value");
