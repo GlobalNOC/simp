@@ -1172,6 +1172,7 @@ sub _do_conversions {
 
     # Get array of all conversions in-order
     my $conversions = $composite->get('/composite/conversions/*');
+
     foreach my $c (@$conversions) {
         if (exists $c->{definition}) {
             $c->{type} = 'function';
@@ -1351,13 +1352,26 @@ sub _do_conversions {
                     }
                     # Match application
                     elsif ($conversion->{type} eq 'match') {
-                        
+
+                        # Change the output of the match where exclusion on match is desired
+                        my $exclude = exists($conversion->{exclude}) ? $conversion->{exclude} : 0;
+
                         # Set new value to pattern match or assign as undef
                         if ( $data->{$target} =~ /$temp_pattern/ ) {
-                            $new_value = $1;
+                            unless ($exclude == 1) {
+                                $new_value = $1;
+                            }
+                            else {
+                                $new_value = undef;
+                            }
                         }
                         else {
-                            $new_value = undef;
+                            unless ($exclude == 1) {
+                                $new_value = undef;
+                            }
+                            else {
+                                $new_value = $data->{$target};
+                            }
                         }
                     }
                     $self->logger->debug("Set value for $target to $new_value");
