@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+    <!-- Main Config Element -->    
+    <xsd:element name="config" type="CONFIG"/>
+
+    <xsd:complexType name="CONFIG">
+        <xsd:sequence>
+            <xsd:element name="collection"   type="COLLECTION"   minOccurs="1" maxOccurs="unbounded"/>
+        </xsd:sequence>
+    </xsd:complexType>
+
+    <!-- Collection Elements -->
+    <xsd:complexType name="COLLECTION">
+        <xsd:sequence>
+            <xsd:element name="host"  type="HOST"  minOccurs="1" maxOccurs="unbounded"/>
+        </xsd:sequence>
+        <xsd:attribute name="workers"          type="WORKERS"     use="required"/>
+        <xsd:attribute name="measurement_type" type="xsd:string"  use="required"/>
+        <xsd:attribute name="interval"         type="INTERVAL"    use="required"/>
+        <xsd:attribute name="composite"        type="xsd:string"  use="required"/>
+        <xsd:attribute name="required_values"  type="xsd:string"/>
+        <xsd:attribute name="filter_name"      type="xsd:string"/>
+        <xsd:attribute name="filter_value"     type="xsd:string"/>
+    </xsd:complexType>
+
+    <xsd:simpleType name="HOST">
+        <xsd:restriction base="xsd:string">
+            <xsd:minLength value="1"/>
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:simpleType name="WORKERS">
+        <xsd:restriction base="xsd:integer">
+            <xsd:minInclusive value="1" />
+            <xsd:maxInclusive value="100" />
+        </xsd:restriction>
+    </xsd:simpleType>
+
+    <xsd:simpleType name="INTERVAL">
+        <xsd:restriction base="xsd:integer">
+            <xsd:minInclusive value="10" />
+        </xsd:restriction>
+    </xsd:simpleType>
+
+</xsd:schema>

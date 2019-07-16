@@ -19,7 +19,9 @@ use GRNOC::Simp::TSDS::Worker;
 
 =over 12
 
-=item config_file
+=item config
+
+=item collections_dir
 
 =item pidfile
 
@@ -29,18 +31,51 @@ use GRNOC::Simp::TSDS::Worker;
 
 =item run_group
 
-=item tsds_dir
-
 =back
 
 =cut
 
-has config_file => (is => 'ro', isa => Str, required => 1);
-has pidfile => (is => 'ro', isa => Str, required => 1);
-has daemonize => (is => 'ro', isa => Bool, required => 1);
-has run_user => (is => 'ro', required => 0);
-has run_group => (is => 'ro', required => 0);
-has tsds_dir => (is => 'ro', required => 1, isa => Str, default => "/etc/simp/tsds.d/");
+has config => (
+    is       => 'ro', 
+    isa      => Str, 
+    required => 1
+);
+
+has collections_dir => (
+    is       => 'ro',
+    isa      => Str,
+    required => 1,
+    default  => "/etc/simp/tsds/collections.d/"
+);
+
+has validation_dir => (
+    is => 'ro',
+    isa => Str,
+    required => 1,
+    default => '/etc/simp/tsdds/validation.d/'
+);
+
+has pidfile => (
+    is       => 'ro', 
+    isa      => Str, 
+    required => 1
+);
+
+has daemonize => (
+    is       => 'ro', 
+    isa      => Bool, 
+    required => 1
+);
+
+has run_user => (
+    is       => 'ro', 
+    required => 0
+);
+
+has run_group => (
+    is       => 'ro', 
+    required => 0
+);
 
 =head2 private attributes
 
@@ -48,9 +83,9 @@ has tsds_dir => (is => 'ro', required => 1, isa => Str, default => "/etc/simp/ts
 
 =item logger
 
-=item simp_config
+=item rabbitmq
 
-=item tsds_config
+=item tsds_instance
 
 =item collections
 
@@ -66,21 +101,49 @@ has tsds_dir => (is => 'ro', required => 1, isa => Str, default => "/etc/simp/ts
 
 =cut
 
-has logger => (is => 'rwp');
-has simp_config => (is => 'rwp');
-has tsds_config => (is => 'rwp');
-has collections => (is => 'rwp', default => sub { [] });
-has worker_client => (is => 'rwp');
-has children => (is => 'rwp', default => sub {[]});
-has hup => (is => 'rwp', default => 0);
-has stagger_interval => (is => 'rwp', required => 0, default => 5, isa => Int);
+has logger => (
+    is => 'rwp'
+);
+
+has rabbitmq => (
+    is => 'rwp'
+);
+
+has tsds_instance => (
+    is => 'rwp'
+);
+
+has collections => (
+    is      => 'rwp', 
+    default => sub {[]}
+);
+
+has worker_client => (
+    is => 'rwp'
+);
+
+has children => (
+    is      => 'rwp', 
+    default => sub {[]}
+);
+
+has hup => (
+    is      => 'rwp', 
+    default => 0
+);
+
+has stagger_interval => (
+    is       => 'rwp',
+    isa      => Int,
+    required => 0, 
+    default  => 5, 
+);
 
 my $running;
 
 =head2 BUILD
 
 =cut
-
 sub BUILD {
     my $self = shift;
     
@@ -89,10 +152,9 @@ sub BUILD {
     return $self;
 }
 
+
 =head2 start
-
     start the master process
-
 =cut
 sub start {
     my ($self) = @_;
@@ -100,6 +162,8 @@ sub start {
     $self->logger->info('Starting.');
     $self->logger->debug('Setting up signal handlers.');
 
+
+    $0 = "simp_tsds [master]";
 
     # Daemonize if needed
     if ($self->daemonize) {
@@ -143,121 +207,114 @@ sub start {
         $self->_set_hup(0);
 	$self->_load_config();
 	$self->_create_workers();
+
 	last unless $self->hup;
     }
 
     $self->logger->info("Master terminating");
 }
 
-#
+# Helper function that returns a GRNOC Config object from a file
+sub _get_conf {
+    my $self = shift;
+    return GRNOC::Config->new(config_file => shift, force_array => shift || 1);
+}
+
+
+sub _validate_config {
+
+    my $self   = shift;
+    my $file   = shift;
+    my $config = shift;
+    my $xsd    = shift;
+
+    # Validate the config
+    my $validation_code = $config->validate($xsd);
+
+    # Use the validation code to log the outcome and exit if any errors occur
+    if ($validation_code == 1) {
+        $self->logger->debug("Successfully validated " . $file);
+        return 1;
+    }
+    else {
+        if ($validation_code == 0) {
+            $self->logger->error("ERROR: Failed to validate " . $file . "!\n" . $config->{error}->{backtrace});
+        }
+        else {
+            $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $config->{error}->{backtrace});
+        }
+        exit(1);
+    }
+
+}
+
+
 # Load config and set up Master object
-#
 sub _load_config {
+
     my ($self) = @_;
 
-    $self->logger->info("Reading configuration from " . $self->config_file);
+    $self->logger->info("Reading configuration from " . $self->config);
+        
+    # Get the settings for the RabbitMQ server, TSDS services instance, and stagger time
+    my $config = $self->_get_conf($self->config);
 
-    my $conf = GRNOC::Config->new(config_file => $self->config_file,
-				       force_array => 1);
+    # Get the validation file for config.xml
+    my $config_xsd = $self->validation_dir . 'config.xsd';
 
-    $self->_set_simp_config($conf->get('/config/simp')->[0]);
+    # Validate the config file or exit
+    $self->_validate_config($self->config, $config, $config_xsd);
 
-    $self->_set_tsds_config($conf->get('/config/tsds')->[0]);
+    # Set parameters from the config
+    $self->_set_rabbitmq($config->get('/config/rabbitmq')->[0]);
+    $self->_set_tsds_instance($config->get('/config/tsds')->[0]);
+    $self->_set_stagger_interval($config->get('/config/stagger/@seconds')->[0]);
 
-    $self->logger->info("Setting config.d dir to " .  $self->tsds_dir);
-
-    my $stagger = $conf->get('/config/stagger');
-    if ($stagger){
-	$stagger = $stagger->[0];
-	$self->logger->debug("Setting stagger interval to $stagger");
-	$self->_set_stagger_interval($stagger);
-    }
-
-    #collections are loaded from the tsds.d directory!
-    opendir my $dir, $self->tsds_dir;
-    my @files = readdir $dir;
+    # Read all collections XML files from the collections.d directory
+    opendir my $dir, $self->collections_dir or $self->logger->error("Could not open $self->collections_dir");
+        my @collections_files = grep {$_ =~ /\.xml$/} readdir $dir;
     closedir $dir;
-    
+
+    # Set collections to an array of collection XPath config objects assigned to their filename
     my @collections;
+    my $collection_xsd = $self->validation_dir . 'collection.xsd';
+    foreach my $file (@collections_files) {
 
-    foreach my $file (@files){
-	next if $file !~ /\.xml$/; # so we don't ingest editor tempfiles, etc.
+        my $collection_config = $self->_get_conf($self->collections_dir . $file);
 
-	$self->logger->info("Reading .d file " . $self->tsds_dir . "$file");
-	my $conf = GRNOC::Config->new( config_file => $self->tsds_dir . "/" . $file,
-                                       force_array => 1);
-	
-	my $collections = $conf->get("/config/collection");
+        # Validate the collection file and exit if errors
+        $self->_validate_config($file, $collection_config, $collection_xsd);
 
-	$self->logger->info("Adding " . scalar(@$collections) . " collections");
+        foreach my $collection ( @{$collection_config->get('/config/collection')} ) {
 
-	foreach my $coll (@$collections){
-	    push(@collections,$coll);
-	}
+            $collection->{'host'} = [] if !defined($collection->{'host'});
+            push(@collections, $collection);
+        }
     }
-
     $self->_set_collections(\@collections);
-
-    # Sanity-check some of the collection parameters
-    foreach my $collection (@{$self->collections}) {
-        my $should_die = 0;
-
-        if (!defined($collection->{'tsds_type'}) || ($collection->{'tsds_type'} eq '')) {
-            $self->logger->error('No or invalid TSDS measurement type defined for a collection! Exiting.');
-            $should_die = 1;
-        }
-        if (!defined($collection->{'interval'})) {
-            $self->logger->error('Interval not defined for a collection! Exiting.');
-            $should_die = 1;
-        } elsif ($collection->{'interval'} < 1) {
-            $self->logger->error("Invalid interval '$collection->{'interval'}'! Exiting.");
-            $should_die = 1;
-        }
-        if (!defined($collection->{'composite-name'})) {
-            $self->logger->error('Composite for a collection not defined! Exiting.');
-            $should_die = 1;
-        }
-        if ($collection->{'filter_value'} xor $collection->{'filter_name'}) {
-            $self->logger->error('If filtering, both filter_name and filter_value must be specified! Exiting.');
-            $should_die = 1;
-        }
-        if (!defined($collection->{'workers'})) {
-            $self->logger->error('Number of workers not defined for a collection! Exiting.');
-            $should_die = 1;
-        } elsif ($collection->{'workers'} < 1) {
-            $self->logger->error("Invalid number of workers '$collection->{'workers'}'! Exiting.");
-            $should_die = 1;
-        }
-
-        die if $should_die;
-
-        $collection->{'host'} = [] if !defined($collection->{'host'});
-    }
-
     $self->_set_worker_client(undef);
 }
 
-#
-# _create_workers creates and starts a number of Workers. When this
-# process receives TERM, INT, or HUP the Workers are told exactly once
-# to quit. Once all workers have joined this function returns.
-#
+
+# Creates and starts all collection workers
+# When a TERM, INT, or HUP is received, the workers are told to quit once
+# Returns once all workers have joined
 sub _create_workers {
     my $self = shift;
 
     # Create separate groups of workers for each collection
-    foreach my $collection (@{$self->collections}) {
-        $self->_create_workers_for_one_collection($collection);
+    foreach my $collection ( @{$self->collections} ) {
+        $self->_create_collection_workers($collection);
     }
 
     $running = AnyEvent->condvar;
 
     $SIG{'TERM'} = sub {
-	$self->logger->info('Received SIGTERM.');
-	foreach my $worker (@{$self->children}){
-	    $worker->kill();
-	}
-	exit;
+	    $self->logger->info('Received SIGTERM.');
+	    foreach my $worker (@{$self->children}) {
+	        $worker->kill();
+	    }
+	    exit;
     };
 
     $SIG{'INT'} = sub {
@@ -269,52 +326,60 @@ sub _create_workers {
     };
 
     $SIG{'HUP'} = sub {
-	$self->logger->info('Received SIGHUP.');
-	$self->_set_hup(1);	
-	while(my $worker = pop @{$self->children}){
+	    $self->logger->info('Received SIGHUP.');
+	    $self->_set_hup(1);	
+    	while (my $worker = pop @{$self->children}) {
             $worker->kill();
-	    my $pid = $worker->child_pid();
-	    $self->logger->info("Waiting for $pid to exit...");
-	    waitpid($pid, 0);
-	    $self->logger->info("Child $pid has exited.");
-        }
-       
-	$running->send;
+	        my $pid = $worker->child_pid();
+	        $self->logger->info("Waiting for $pid to exit...");
+	        waitpid($pid, 0);
+	        $self->logger->info("Child $pid has exited.");
+        } 
+	    $running->send;
     };
 
     $running->recv;
 }
 
-sub _create_workers_for_one_collection {
-    my ($self, $collection) = @_;
 
-    my %hosts_by_worker;
-    my $idx = 0;
+# Creates workers for a single collection
+sub _create_collection_workers {
+
+    my ($self, $collection) = @_;
+    my %worker_hosts;
 
     # Divide up hosts in config among number of workers defined in config
+    my $i = 0;
     foreach my $host (@{$collection->{'host'}}) {
-        next if !defined($host) || (ref($host) ne '');
-	push(@{$hosts_by_worker{$idx}}, $host);
-	$idx++;
-	if ($idx >= $collection->{'workers'}) {
-	    $idx = 0;
-	}
+
+	    push(@{$worker_hosts{$i}}, $host);
+
+	    $i++;
+	    if ($i >= $collection->{'workers'}) {
+	        $i = 0;
+	    }
     }
 
     # Spawn workers
-    foreach my $worker_id (keys %hosts_by_worker) {
-	my $worker_name = "$collection->{'composite-name'} ($worker_id)";
+    foreach my $worker_id (keys %worker_hosts) {
 
-	$self->logger->info("Staggering creation of worker by " . $self->stagger_interval . "sec...");
-	sleep($self->stagger_interval);
+	    my $worker_name = "$collection->{'composite'} [$worker_id]";
 
-	$self->_create_worker( name       => $worker_name,
-                               collection => $collection,
-			       hosts      => $hosts_by_worker{$worker_id});
+	    $self->logger->info("Staggering creation of $worker_name by " . $self->stagger_interval . "sec...");
+	    sleep($self->stagger_interval);
+
+	    $self->_create_worker(
+            name       => $worker_name,
+            collection => $collection,
+			hosts      => $worker_hosts{$worker_id}
+        );
     }
 }
 
+
+# Creates an individual worker
 sub _create_worker{
+
     my $self = shift;
     my %params = @_;
 
@@ -323,23 +388,20 @@ sub _create_worker{
     my $init_proc = AnyEvent::Subprocess->new(
         on_completion => sub {
             $self->logger->error("Child " . $params{'name'} . " has died");
-	    # This auto restarts a worker in the event of a problem
-	    # except if we're in a HUP situation where we don't since
-	    # we're going to call create workers again
-	    if (! $self->hup()){
-		$self->_create_worker( %params );
-	    }
+	        # This auto restarts a worker in the event of a problem
+	        # except if we're in a HUP situation where we don't since
+	        # we're going to call create workers again
+	        if (! $self->hup()) {
+		        $self->_create_worker( %params );
+	        }
         },
         code => sub {
             use GRNOC::Log;
             use GRNOC::Simp::TSDS::Worker;
 
-            my $required_vals = $collection->{'required_values'};
-            $required_vals = '' if !defined($required_vals);
+            my $required_vals = defined $collection->{required_values} ? $collection->{'required_values'} : '';
 
-            my $excludes = $collection->{'exclude'};
-            $excludes = [] if !defined($excludes);
-
+            my $excludes = defined $collection->{'exclude'} ? $collection->{exclude} : [];
             my @excludes = grep { defined($_->{'var'}) &&
                                   defined($_->{'pattern'}) &&
                                   (length($_->{'var'}) > 0) } @$excludes;
@@ -347,17 +409,17 @@ sub _create_worker{
 
             $self->logger->info("Creating Collector for " . $params{'name'});
             my $worker = GRNOC::Simp::TSDS::Worker->new(
-                worker_name => $params{'name'},
-                logger => $self->logger,
-                composite_name => $collection->{'composite-name'},
-                hosts => $params{'hosts'},
-                simp_config => $self->simp_config,
-                tsds_config => $self->tsds_config,
-                tsds_type => $collection->{'tsds_type'},
-                interval => $collection->{'interval'},
-                filter_name => $collection->{'filter_name'},
-                filter_value => $collection->{'filter_value'},
-                required_value_fields => [ split(',', $required_vals) ],
+                worker_name      => $params{name},
+                hosts            => $params{hosts},
+                logger           => $self->logger,
+                rabbitmq         => $self->rabbitmq,
+                tsds_config      => $self->tsds_instance,
+                composite        => $collection->{'composite'},
+                measurement_type => $collection->{'measurement_type'},
+                interval         => $collection->{'interval'},
+                filter_name      => $collection->{'filter_name'},
+                filter_value     => $collection->{'filter_value'},
+                required_values  => [ split(',', $required_vals) ],
                 exclude_patterns => \@excludes,
             );
             $worker->run();

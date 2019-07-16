@@ -1,6 +1,6 @@
 Summary: A small system for fetching SNMP data from redis and returning it via RabbitMQ
 Name: simp-data
-Version: 1.1.0
+Version: 1.2.0
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -49,17 +49,20 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}/etc/init.d/
 %{__install} -d -p %{buildroot}/usr/bin/
 %{__install} -d -p %{buildroot}/etc/simp
+%{__install} -d -p %{buildroot}/etc/simp/data
+%{__install} -d -p %{buildroot}/etc/simp/data/validation.d
 
 %{__install} lib/GRNOC/Simp/Data.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data.pm
 %{__install} lib/GRNOC/Simp/Data/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
 %{__install} bin/simp-data.pl %{buildroot}/usr/bin/simp-data.pl
-%{__install} conf/simpDataConfig.xml %{buildroot}/etc/simp/
-%{__install} conf/logging.conf %{buildroot}/etc/simp/data_logging.conf
+%{__install} conf/data/config.xml %{buildroot}/etc/simp/data/config.xml
+%{__install} conf/data/config.xsd %{buildroot}/etc/simp/data/validation.d/config.xsd
+%{__install} conf/logging.conf %{buildroot}/etc/simp/data/logging.conf
 
 %if 0%{?rhel} >= 7
-%{__install} conf/simp-data.systemd %{buildroot}/etc/systemd/system/simp-data.service
+%{__install} conf/data/simp-data.systemd %{buildroot}/etc/systemd/system/simp-data.service
 %else
-%{__install} conf/simp-data.service %{buildroot}/etc/init.d/simp-data
+%{__install} conf/data/simp-data.service %{buildroot}/etc/init.d/simp-data
 %endif
 
 %clean
@@ -79,8 +82,9 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %defattr(644,root,root,755)
-%config(noreplace) /etc/simp/simpDataConfig.xml
-%config(noreplace) /etc/simp/data_logging.conf
+%config(noreplace) /etc/simp/data/config.xml
+%config(noreplace) /etc/simp/data/logging.conf
+%config(noreplace) /etc/simp/data/validation.d/config.xsd
 %doc
 
 
