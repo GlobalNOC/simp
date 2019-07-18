@@ -547,6 +547,7 @@ sub _transform_oids {
                 # On the last key (leaf), assign the data 
                 if ( $i == $#split_oid ) {
                     $ref->{$oid_elem} = $value;
+                    $ref->{$oid_elem}{suffix} = $oid_elem;
                 }
                 # Otherwise init a new hash in that key for another var and set it in val results
                 else {
@@ -920,8 +921,18 @@ sub _get_data {
             else {
                 # Add the scan_vals hash for it to the results val hash under its val ID
                 my $val_key = $results->{var_map}->{$elem->{source}};
+
                 $self->logger->debug("Getting data for source $elem->{source} from the $val_key values");
+
                 foreach my $host (@$hosts) {
+                    # Assign oid node values to the data name
+                    if ( exists $results->{scan_vals}{$host}{$elem->{source}} ) {
+                        my $suffix_data = $results->{scan_vals}{$host}{$elem->{source}};
+                        foreach my $key (keys %$suffix_data) {
+                            $results->{data}{$host}{$elem->{name}}{$key}{value} = $suffix_data->{$key}{suffix};
+                        }
+                    }
+                    # Assign retrieved values from the scan to the data name
                     if ( exists $results->{scan_vals}{$host}{$val_key} ) {
                         $results->{data}{$host}{$elem->{name}} = $results->{scan_vals}{$host}{$val_key};
                     }
