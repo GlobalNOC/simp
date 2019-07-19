@@ -1,5 +1,5 @@
 NAME=simp
-VERSION=1.2.0
+VERSION=1.2.2
 .PHONY: dist
 rpm:	dist
 	rpmbuild -ta dist/simp-poller-$(VERSION).tar.gz
