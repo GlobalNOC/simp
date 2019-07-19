@@ -15,8 +15,9 @@
     <!-- Variables element definitions -->
     <xsd:complexType name="VARIABLES">
         <xsd:choice minOccurs="0" maxOccurs="unbounded">
-            <xsd:element name="scan"  type="SCAN"  minOccurs="0" maxOccurs="unbounded"/>
-            <xsd:element name="input" type="INPUT" minOccurs="0" maxOccurs="unbounded"/>
+            <xsd:element name="scan"     type="SCAN"     minOccurs="0" maxOccurs="unbounded"/>
+            <xsd:element name="input"    type="INPUT"    minOccurs="0" maxOccurs="unbounded"/>
+            <xsd:element name="constant" type="CONSTANT" minOccurs="0" maxOccurs="unbounded"/>
         </xsd:choice>
     </xsd:complexType>
 
@@ -30,6 +31,11 @@
         <xsd:attribute name="name"     type="VAR_NAME" use="required"/>
         <xsd:attribute name="value"    type="VAR_NAME" use="required"/>
         <xsd:attribute name="required" type="INT_BOOL" />
+    </xsd:complexType>
+
+    <xsd:complexType name="CONSTANT">
+        <xsd:attribute name="name"  type="VAR_NAME"   use="required"/>
+        <xsd:attribute name="value" type="xsd:string" use="required"/>
     </xsd:complexType>
 
 

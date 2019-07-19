@@ -13,7 +13,8 @@
     <!-- Variables element definitions -->
     <xsd:complexType name="HOST">
         <xsd:sequence>
-            <xsd:element name="group"  type="GROUP"  minOccurs="1" maxOccurs="unbounded"/>
+            <xsd:element name="group"         type="GROUP"    minOccurs="1" maxOccurs="unbounded"/>
+            <xsd:element name="host_variable" type="HOST_VAR" minOccurs="0" maxOccurs="unbounded"/>
         </xsd:sequence>
         <xsd:attribute name="name"         type="xsd:string"   use="required"/>
         <xsd:attribute name="ip"           type="IP_ADDR"      use="required"/>
@@ -28,6 +29,11 @@
             <xsd:element name="context_id" type="xsd:string"/>
         </xsd:choice>
         <xsd:attribute name="id" type="xsd:string" use="required"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="HOST_VAR">
+        <xsd:attribute name="name"  type="xsd:string"/>
+        <xsd:attribute name="value" type="xsd:string"/>
     </xsd:complexType>
 
     <xsd:simpleType name="SNMP_VERSION">
