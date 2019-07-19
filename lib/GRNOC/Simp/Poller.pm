@@ -14,7 +14,7 @@ use POSIX qw( setuid setgid );
 use GRNOC::Config;
 use GRNOC::Log;
 
-our $VERSION = '1.2.2';
+our $VERSION = '1.2.3';
 
 use GRNOC::Simp::Poller::Worker;
 
