@@ -79,6 +79,11 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/Poller.pm
 %{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
 
+%defattr(644,root,root,644)
+/etc/simp/poller/validation.d/config.xsd
+/etc/simp/poller/validation.d/hosts.xsd
+/etc/simp/poller/validation.d/group.xsd
+
 %defattr(755,root,root,755)
 /usr/bin/simp-poller.pl
 
