@@ -1,5 +1,5 @@
 Name: simp-monitor
-Version: 1.2.2
+Version: 1.2.3
 Release: 1%{?dist}
 Summary: A functionality to monitor SIMP
 License: GRNOC

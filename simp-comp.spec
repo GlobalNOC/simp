@@ -1,6 +1,6 @@
 Summary: A system for fetching data from simp and compiling the data into a composite 
 Name: simp-comp
-Version: 1.2.2
+Version: 1.2.3
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -86,7 +86,6 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) /etc/simp/comp/logging.conf
 %config(noreplace) /etc/simp/comp/config.xml
 %config(noreplace) /etc/simp/comp/composites.d/*
-%config(noreplace) /etc/simp/comp/validation.d/*
 
 %doc
 

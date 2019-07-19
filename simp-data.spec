@@ -1,6 +1,6 @@
 Summary: A small system for fetching SNMP data from redis and returning it via RabbitMQ
 Name: simp-data
-Version: 1.2.2
+Version: 1.2.3
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -84,7 +84,6 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %config(noreplace) /etc/simp/data/config.xml
 %config(noreplace) /etc/simp/data/logging.conf
-%config(noreplace) /etc/simp/data/validation.d/config.xsd
 %doc
 
 

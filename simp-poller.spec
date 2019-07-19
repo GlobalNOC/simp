@@ -1,6 +1,6 @@
 Summary: A small system for gathering large amounts of SNMP data and pushing them into redis
 Name: simp-poller
-Version: 1.2.2
+Version: 1.2.3
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -93,7 +93,6 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) /etc/simp/poller/hosts.d/*
 %config(noreplace) /etc/simp/poller/groups.d/*
 %config(noreplace) /etc/simp/poller/logging.conf
-%config(noreplace) /etc/simp/poller/validation.d/*
 
 %defattr(755,simp,simp,755)
 %dir /var/lib/simp/
