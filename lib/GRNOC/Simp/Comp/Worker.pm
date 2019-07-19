@@ -333,6 +333,12 @@ sub _get {
         $results{var_map}{$input->{value}} = $input->{name};
     }
 
+    $results{constants} = {};
+    my $constants = $composite->get('/composite/variables/constant');
+    foreach my $constant (@$constants) {
+        $results{constants}{$constant->{name}} = $constant->{value};
+    }
+
     my $success_callback = $rpc_ref->{'success_callback'};
 
     my @cv = map { AnyEvent->condvar; } (0..5);
@@ -541,6 +547,7 @@ sub _transform_oids {
                 # On the last key (leaf), assign the data 
                 if ( $i == $#split_oid ) {
                     $ref->{$oid_elem} = $value;
+                    $ref->{$oid_elem}{suffix} = $oid_elem;
                 }
                 # Otherwise init a new hash in that key for another var and set it in val results
                 else {
@@ -676,7 +683,7 @@ sub _scan_cb {
     for my $host (@$hosts) {
 
         if ( !$data->{$host} ) {
-            $self->logger->error("No scan data could be retrieved for $host");
+            $self->logger->error("No scan data could be retrieved for $host in callback for $scan_oid");
             next;
         }
         
@@ -904,11 +911,28 @@ sub _get_data {
                 }
                 next;
             }
+            # If the element points to a constant use the value of the constant
+            elsif ( exists $results->{constants}{$elem->{source}} ) {
+                foreach my $host (@$hosts) {
+                    $results->{data}{$host}{$elem->{name}}{value} = $results->{constants}{$elem->{source}};
+                }
+                next;
+            }
             else {
                 # Add the scan_vals hash for it to the results val hash under its val ID
                 my $val_key = $results->{var_map}->{$elem->{source}};
+
                 $self->logger->debug("Getting data for source $elem->{source} from the $val_key values");
+
                 foreach my $host (@$hosts) {
+                    # Assign oid node values to the data name
+                    if ( exists $results->{scan_vals}{$host}{$elem->{source}} ) {
+                        my $suffix_data = $results->{scan_vals}{$host}{$elem->{source}};
+                        foreach my $key (keys %$suffix_data) {
+                            $results->{data}{$host}{$elem->{name}}{$key}{value} = $suffix_data->{$key}{suffix};
+                        }
+                    }
+                    # Assign retrieved values from the scan to the data name
                     if ( exists $results->{scan_vals}{$host}{$val_key} ) {
                         $results->{data}{$host}{$elem->{name}} = $results->{scan_vals}{$host}{$val_key};
                     }
@@ -1276,9 +1300,6 @@ sub _do_conversions {
                     my $temp_with    = $target_with;
                     my $temp_pattern = $target_pattern;
 
-                    # Track any missing variable values or errors
-                    my $data_errors = 0;
-
                     # Ensure the data object has a time stamp
                     unless (exists $data->{time}) {
                         $data->{time} = $now;
@@ -1290,18 +1311,27 @@ sub _do_conversions {
                         next;
                     }
 
+                    my $conversion_err = 0;
+
                     # Replace data variables in the definition with their value
                     foreach my $var (keys %vars) {
 
-                        # Add error and skip the var if there's no data for it
-                        unless (exists($data->{$var}) && defined($data->{$var})) {
-                            $data_errors++;
-                            next;
-                        }
-                        $self->logger->debug("Checking value for $var: \"$data->{$var}\"");
+                        # The value associated with the var for the data object
+                        my $var_value;
 
-                        # Get the data's value for the var
-                        my $var_value = $data->{$var};
+                        # Check if there is data for the var, then assign it
+                        if ( exists($data->{$var}) && defined($data->{$var}) ) {
+                            $var_value = $data->{$var};                          
+                        }
+                        # If not, see if the var is a user-defined constant, then assign it
+                        elsif ( exists($results->{constants}{$var}) ) {
+                            $var_value = $results->{constants}{$var};
+                        }
+                        # If the var isnt anywhere, flag a conversion err and end the loop
+                        else {
+                            $conversion_err++;
+                            last;
+                        }
 
                         # Functions
                         if ($conversion->{type} eq 'function') {
@@ -1328,9 +1358,8 @@ sub _do_conversions {
                         
                     }
 
-                    # If the function can't be completed, don't send a value for the data
-                    if ($data_errors) {
-                        #$self->logger->error("ERROR: There were $data_errors missing data points!");
+                    # Don't send a value for the data if the conversion can't be completed as requested
+                    if ($conversion_err) {
                         $data->{$target} = undef;
                         next;
                     }
