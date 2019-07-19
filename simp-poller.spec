@@ -93,7 +93,6 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) /etc/simp/poller/hosts.d/*
 %config(noreplace) /etc/simp/poller/groups.d/*
 %config(noreplace) /etc/simp/poller/logging.conf
-%config(noreplace) /etc/simp/poller/validation.d/*
 
 %defattr(755,simp,simp,755)
 %dir /var/lib/simp/

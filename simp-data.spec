@@ -84,7 +84,6 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %config(noreplace) /etc/simp/data/config.xml
 %config(noreplace) /etc/simp/data/logging.conf
-%config(noreplace) /etc/simp/data/validation.d/config.xsd
 %doc
 
 

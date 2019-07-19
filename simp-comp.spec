@@ -86,7 +86,6 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) /etc/simp/comp/logging.conf
 %config(noreplace) /etc/simp/comp/config.xml
 %config(noreplace) /etc/simp/comp/composites.d/*
-%config(noreplace) /etc/simp/comp/validation.d/*
 
 %doc
 

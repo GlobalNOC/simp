@@ -91,9 +91,9 @@ rm -rf $RPM_BUILD_ROOT
 %{perl_vendorlib}/GRNOC/Simp/TSDS/Master.pm
 %{perl_vendorlib}/GRNOC/Simp/TSDS/Worker.pm
 %{perl_vendorlib}/GRNOC/Simp/TSDS/Pusher.pm
-%config(noreplace) %{configdir}/*
+%config(noreplace) %{configdir}/config.xml
+%config(noreplace) %{configdir}/logging.conf
 %config(noreplace) %{configdir}/collections.d/*
-%config(noreplace) %{configdir}/validation.d/*
 
 %changelog
 * Mon May 06 2019 Vincent Orlowski <vincentorlowski@gmail.com> - 1.1.0
