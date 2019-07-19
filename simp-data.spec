@@ -72,8 +72,12 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %{perl_vendorlib}/GRNOC/Simp/Data.pm
 %{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
+
 %defattr(755,root,root,755)
 /usr/bin/simp-data.pl
+
+%defattr(644,root,root,644)
+/etc/simp/data/validation.d/config.xsd
 
 %if 0%{?rhel} >= 7
 /etc/systemd/system/simp-data.service
@@ -84,6 +88,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %config(noreplace) /etc/simp/data/config.xml
 %config(noreplace) /etc/simp/data/logging.conf
+
 %doc
 
 
