@@ -95,6 +95,10 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{configdir}/logging.conf
 %config(noreplace) %{configdir}/collections.d/*
 
+%defattr(644,root,root,644)
+/etc/simp/tsds/validation.d/config.xsd
+/etc/simp/tsds/validation.d/collection.xsd
+
 %changelog
 * Mon May 06 2019 Vincent Orlowski <vincentorlowski@gmail.com> - 1.1.0
   - Poller now writes status files for each polling group per host for simp-poller-monitoring
