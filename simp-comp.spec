@@ -73,8 +73,13 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %{perl_vendorlib}/GRNOC/Simp/Comp.pm
 %{perl_vendorlib}/GRNOC/Simp/Comp/Worker.pm
+
 %defattr(755,root,root,755)
 /usr/bin/simp-comp.pl
+
+%defattr(644,root,root,644)
+/etc/simp/comp/validation.d/config.xsd
+/etc/simp/comp/validation.d/composite.xsd
 
 %if 0%{?rhel} >= 7
 /etc/systemd/system/simp-comp.service
