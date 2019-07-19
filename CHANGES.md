@@ -1,3 +1,17 @@
+## SIMP 1.2.1 and 1.2.2
+July 19
+
+## Features:
+
+*Comp can now use user-defined constants as variables and values within a composite
+
+*Comp can now use OID suffix values as data values
+
+*Validation bug for host variables in poller has been fixed
+
+*Minor bug fixes
+
+
 ## SIMP 1.2.0
 July 15 2019
 
