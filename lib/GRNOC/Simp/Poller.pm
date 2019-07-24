@@ -347,6 +347,7 @@ sub _process_hosts_config {
    
     # Once status dirs for configured hosts have been made...
     # Remove any dirs for hosts that are not included in any hosts.d file
+    # Remove any status files in a valid host dir for groups the host doesn't have configured
     foreach my $host_dir ( glob($self->status_dir . '*') ) {
 
         my $dir_name = (split(/\//, $host_dir))[-1];
@@ -361,6 +362,23 @@ sub _process_hosts_config {
                 $self->logger->error("Attempted to remove $host_dir, but failed!");
             } else {
                 $self->logger->debug("Successfully removed $host_dir");
+            }
+        }
+        # The hosts' status dir exists, make sure there are only status files for active groups
+        else {
+            foreach my $status_file ( glob($host_dir . '/*') ) {
+
+                # Get the filename
+                my $file  = (split(/\//, $status_file))[-1];
+
+                # Get the polling group's name 
+                my $group = substr($file,0,-12);
+
+                # Unless the host is configured for the group, delete the status file
+                unless (exists $hosts->{$dir_name}{group}{$group}) {
+                    unlink $status_file;
+                    $self->logger->debug("Removed status file $file in $host_dir");
+                }
             }
         }
 
