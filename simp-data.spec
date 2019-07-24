@@ -1,6 +1,6 @@
 Summary: A small system for fetching SNMP data from redis and returning it via RabbitMQ
 Name: simp-data
-Version: 1.2.3
+Version: 1.2.4
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC

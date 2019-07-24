@@ -10,7 +10,7 @@ use Proc::Daemon;
 use POSIX qw( setuid setgid );
 use Data::Dumper;
 
-our $VERSION='1.2.3';
+our $VERSION='1.2.4';
 use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Comp::Worker;
