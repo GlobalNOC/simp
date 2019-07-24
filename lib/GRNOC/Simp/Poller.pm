@@ -372,10 +372,10 @@ sub _process_hosts_config {
                 my $file  = (split(/\//, $status_file))[-1];
 
                 # Get the polling group's name 
-                my $group = substr($file,0,-12);
+                $file =~ /^(.+)_status\.json$/;
 
                 # Unless the host is configured for the group, delete the status file
-                unless (exists $hosts->{$dir_name}{group}{$group}) {
+                unless (exists $hosts->{$dir_name}{group}{$1}) {
                     unlink $status_file;
                     $self->logger->debug("Removed status file $file in $host_dir");
                 }
