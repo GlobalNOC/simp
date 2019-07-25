@@ -12,7 +12,7 @@ use POSIX qw( setuid setgid );
 use GRNOC::Config;
 use GRNOC::Log;
 
-our $VERSION='1.2.4';
+our $VERSION='1.2.5';
 
 use GRNOC::Simp::Data::Worker;
 
