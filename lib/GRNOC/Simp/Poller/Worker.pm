@@ -99,6 +99,8 @@ has interval => (
 
 =item main_cv
 
+=item first_run
+
 =back
 
 =cut
@@ -140,6 +142,11 @@ has timeout => (
 
 has main_cv => (
     is => 'rwp'
+);
+
+has first_run => (
+    is      => 'rwp',
+    default => 1
 );
 
 ### Public Methods ###
@@ -534,6 +541,9 @@ sub _write_mon_data {
     my $host = shift;
     my $name = shift;
 
+    # Skip writing if it's the worker's first poll cycle to avoid clearing active alarm status'
+    return if $self->first_run;
+    
     # Set dir for writing status files to status_dir defined in simp-poller.pl
     my $mon_dir = $self->status_dir . $name . '/';
 
@@ -713,6 +723,10 @@ sub _collect_data {
         
     }
     $self->logger->debug("----  END OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----" );
+
+    if ($self->first_run) {
+        $self->_set_first_run(0);
+    }
 }
 
 1;
