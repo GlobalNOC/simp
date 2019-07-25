@@ -1,3 +1,11 @@
+## SIMP 1.2.4 and 1.2.5
+July 25 2019
+
+## Features:
+* Updated poller to delete status files for groups that are no longer configured for a host
+* Updated poller to write statuses only after the initial run to prevent it from clearing active alarm status
+
+
 ## SIMP 1.2.3
 July 19 2019
 
