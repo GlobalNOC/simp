@@ -598,20 +598,20 @@ sub _collect_data {
 
         my $host = $hosts->{$host_name};
         
-        # Write mon data out for the host's last poll cycle
-        $self->_write_mon_data($host, $host_name);
-        # Reset the failed OIDs after writing out the status
-        $host->{failed_oids} = {};
-
         # Used to stagger each request to a specific host, spread load.
         # This does mean you can't collect more OID bases than your interval
         my $delay = 0;
 
         # Log error and skip collections for the host if it has an OID key in pending response with a val of 1
         if ( scalar(keys %{$host->{'pending_replies'}}) > 0 ) {
-            $self->logger->error("Unable to query device " . $host->{'ip'} . ":" . $host_name . " in poll cycle for group: " . $self->group_name . " remaining oids = " . Dumper($host->{'pending_replies'}));
+            $self->logger->info("Unable to query device " . $host->{'ip'} . ":" . $host_name . " in poll cycle for group: " . $self->group_name . " remaining oids = " . Dumper($host->{'pending_replies'}));
             next;
         }
+
+        # Write mon data out for the host's last completed poll cycle
+        $self->_write_mon_data($host, $host_name);
+        # Reset the failed OIDs after writing out the status
+        $host->{failed_oids} = {};
 
         my $snmp_session  = $self->{'snmp'}{$host_name};
         my $snmp_contexts = $host->{'group'}{$self->group_name}{'context_id'};
