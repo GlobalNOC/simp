@@ -1,3 +1,11 @@
+## SIMP 1.2.6
+July 29 2019
+
+## Features:
+* Comp no longer writes logs in /tmp/
+* Poller no longer writes status files for a group unless there are no pending replies left for the host
+
+
 ## SIMP 1.2.4 and 1.2.5
 July 25 2019
 
