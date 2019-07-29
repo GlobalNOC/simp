@@ -242,10 +242,9 @@ sub start {
         }
 
         $self->logger->debug("PID FILE: " . $pid_file);
-        my $daemon = Proc::Daemon->new( pid_file => $pid_file,
-            child_STDOUT => '/tmp/simp_comp.out',
-            child_STDERR => '/tmp/simp_comp.err'
-         );
+
+        my $daemon = Proc::Daemon->new( pid_file => $pid_file);
+
         my $pid = $daemon->Init();
 
         # in child/daemon process
