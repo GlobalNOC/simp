@@ -22,3 +22,4 @@ redis_config.xml
 conf/redis_config.xml
 redis_config.xml
 redis_config.xml
+./conf/tsds/config.xsd
