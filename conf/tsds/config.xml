@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+
+<!-- Main Simp-TSDS Config -->
+<config>
+    <!-- RabbitMQ host being used by Simp -->
+    <rabbitmq ip="127.0.0.1" port="5672" user="" password=""/>
+
+    <!-- TSDS Credentials -->
+    <tsds url="" user="" password=""/>
+
+    <!-- Separate worker creation to reduce request load -->
+    <stagger seconds="5"/>
+
+</config>
