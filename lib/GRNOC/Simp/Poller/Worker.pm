@@ -621,8 +621,10 @@ sub _collect_data {
             next;
         }
         
-        for my $oid (@$oids) {
-            
+        for my $oid_info (@$oids) {
+            my $oid     = $oid_info->{oid};
+            my $is_leaf = $oid_info->{single} || 0;
+
             # Log an error if the OID is failing
             if ( exists $host->{'failed_oids'}->{$oid} ) {
                 $self->logger->error($host->{'failed_oids'}->{$oid}->{'error'});
@@ -635,25 +637,34 @@ sub _collect_data {
             my $res;
             my $res_err = "Unable to issue get_table for group \"" . $self->group_name . "\"";
 
-            # V3 without Context and V2C (They work the same way)
+
+            my $get_method = $is_leaf ? "get_request" : "get_table";
+            my %args = (-delay => $delay++);
+
+            # get_request args
+            if ($is_leaf){
+                $args{-varbindlist} = [$oid];
+            }
+            else {
+                $args{-baseoid} = $oid;
+                $args{-maxrepetitions} = $self->request_size;
+            }
+
             if ( $host->{'snmp_version'} eq '2c' || ! defined($snmp_contexts) ) {
-                $self->logger->debug($self->worker_name . " requesting " . $reqstr);
-                $res = $snmp_session->get_table(
-                    -baseoid         => $oid,
-                    -maxrepetitions  => $self->request_size,
-                    -delay           => $delay++,
-                    -callback        => sub {
-                        my $session = shift;
-                        $self->_poll_cb( 
-                            host        => $host,
-                            host_name   => $host_name,
-                            timestamp   => $timestamp,
-                            reqstr      => $reqstr,
-                            oid         => $oid,
-                            session     => $session
+                $args{-callback} = sub {
+                    my $session = shift;
+                    $self->_poll_cb(
+                        host        => $host,
+                        host_name   => $host_name,
+                        timestamp   => $timestamp,
+                        reqstr      => $reqstr,
+                        oid         => $oid,
+                        session     => $session
                         );
-                    }
-                );
+                };
+
+                $self->logger->debug($self->worker_name . " requesting " . $reqstr . " with method $get_method");
+                $res = $snmp_session->$get_method(%args);
 
                 if ( !$res ) {
                     # Add oid and info to failed_oids if it failed during request
@@ -675,26 +686,21 @@ sub _collect_data {
                 # For each context engine specified for the group, also use the context
                 # specific snmp_session established in _connect_to_snmp
                 foreach my $ctxEngine (@$snmp_contexts) {
-                    $host->{'pending_replies'}->{$oid . "," . $ctxEngine} = 1;
-                    $res = $snmp_session->{$ctxEngine}->get_table(
-                        -baseoid            => $oid,
-                        -maxrepetitions     => $self->request_size,
-                        -contextengineid    => $ctxEngine,
-                        -delay              => $delay++,
-                        -callback           => sub {
-                            my $session = shift;
-                            $self->_poll_cb( 
-                                host        => $host,
-                                host_name   => $host_name,
-                                timestamp   => $timestamp,
-                                reqstr      => $reqstr,
-                                oid         => $oid,
-                                context_id  => $ctxEngine,
-                                session     => $session
+                    $args{-contextengineid} = $ctxEngine;
+                    $args{-callback} = sub {
+                        my $session = shift;
+                        $self->_poll_cb(
+                            host        => $host,
+                            host_name   => $host_name,
+                            timestamp   => $timestamp,
+                            reqstr      => $reqstr,
+                            oid         => $oid,
+                            context_id  => $ctxEngine,
+                            session     => $session
                             );
-                            $self->logger->debug("Created _poll_cb for $oid");
-                        }
-                    );
+                    };
+
+                    $res = $snmp_session->{$ctxEngine}->$get_method(%args);
 
                     if ( !$res ) {
                         # Add oid and info to failed_oids if it failed during request

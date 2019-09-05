@@ -414,7 +414,7 @@ sub _process_groups_config {
         # Set the oids for the group from the mib elements 
         $group->{oids} = [];
         foreach my $mib (@{$group->{mib}}) {
-            push($group->{oids}, $mib->{oid});
+            push($group->{oids}, $mib);
         }
         delete $group->{mib};
 
