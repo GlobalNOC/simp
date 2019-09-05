@@ -8,6 +8,7 @@ use Data::Dumper;
 use Try::Tiny;
 use Moo;
 use Redis;
+use Scalar::Util qw(looks_like_number);
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::WebService::Regex;
@@ -27,14 +28,20 @@ use POSIX;
 
 =cut
 
-has config => ( is => 'ro',
-                required => 1 );
+has config => ( 
+    is       => 'ro',
+    required => 1
+);
 
-has logger => ( is => 'ro',
-                required => 1 );
+has logger => (
+    is       => 'ro',
+    required => 1
+);
 
-has worker_id => ( is => 'ro',
-               required => 1 );
+has worker_id => (
+    is       => 'ro',
+    required => 1
+);
 
 
 ### internal attributes ###
@@ -101,7 +108,11 @@ sub _start {
     # flag that we're running
     $self->_set_is_running( 1 );
 
-    # change our process name
+    #XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    # BEHOLD! TIS' THE FORSAKEN WORKER NAME FORMAT!
+    #XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    # ALL WHO CHANGE IT WILL BE CURSED BY REDIS...
+    # TO DEBUG FOR ALL ETERNITY!
     $0 = "simp_data ($worker_id) [worker]";
 
     # setup signal handlers
@@ -119,13 +130,13 @@ sub _start {
       $self->stop();
     };
 
-    my $redis_host = $self->config->get( '/config/redis/@host' );
+    my $redis_host = $self->config->get( '/config/redis/@ip' );
     my $redis_port = $self->config->get( '/config/redis/@port' );
   
-    my $rabbit_host = $self->config->get( '/config/rabbitMQ/@host' );
-    my $rabbit_port = $self->config->get( '/config/rabbitMQ/@port' );
-    my $rabbit_user = $self->config->get( '/config/rabbitMQ/@user' );
-    my $rabbit_pass = $self->config->get( '/config/rabbitMQ/@password' );
+    my $rabbit_host = $self->config->get( '/config/rabbitmq/@ip' );
+    my $rabbit_port = $self->config->get( '/config/rabbitmq/@port' );
+    my $rabbit_user = $self->config->get( '/config/rabbitmq/@user' );
+    my $rabbit_pass = $self->config->get( '/config/rabbitmq/@password' );
  
    
     # conect to redis
@@ -492,7 +503,9 @@ sub _get{
 }
 sub _rate{
   my ($self,$cur_val,$cur_ts,$pre_val,$pre_ts,$context) = @_;
-  my $et      = $cur_ts - $pre_ts;
+  my $et = $cur_ts - $pre_ts;
+  my $rate;
+
   if(!($cur_val =~ /\d+$/)){
       #not a number... 
       return $cur_val;
@@ -517,9 +530,18 @@ sub _rate{
       $self->logger->debug("  counter wrap: $context");
     }
     $delta = ($max_val - $pre_val) + $cur_val;
-  }  
+  }
 
-  return $delta / $et;
+
+  $rate = $delta / $et;
+
+  if ( $rate > 1000000000000 ) {
+    return undef;
+  }
+  else {
+    return $rate;
+  }
+
 }
 
 
@@ -571,10 +593,11 @@ sub _get_rate{
         next;
       } 
 
-      if(!($current_val =~/^\d+$/)){
-        #--- not a number
+      # Skip rate if it's NaN
+      unless (looks_like_number($current_val)) {
         next;
       }
+
 
       $results{$ip}{$oid}{'value'} = $self->_rate($current_val,$current_ts,
 						  $previous_val,$previous_ts,

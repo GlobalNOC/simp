@@ -1,18 +1,18 @@
 #!/bin/sh
 #
-# simp-poller	init file for starting up simp-poller
+# simp-data   init file for starting up simp-data
 #
-# chkconfig: 2345 50 8
-# description: Starts and stops simp-poller
+# chkconfig: 2345 80 7
+# description: Starts and stops simp-data
 
 # Source function library
 . /etc/rc.d/init.d/functions
 
-name="simp-poller"
+name="simp-data"
 exec="/usr/bin/$name.pl"
-pidfile="/var/run/simp_poller.pid"
-CONFIG="/etc/simp/config.xml"
-LOGGING="/etc/simp/poller_logging.conf"
+pidfile="/var/run/simp_data.pid"
+CONFIG="/etc/simp/data/config.xml"
+LOGGING="/etc/simp/data/logging.conf"
 USER="simp"
 GROUP="simp"
 

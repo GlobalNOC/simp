@@ -1,6 +1,6 @@
 Summary: A small system for fetching SNMP data from redis and returning it via RabbitMQ
 Name: simp-data
-Version: 1.0.11
+Version: 1.2.6
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -49,17 +49,20 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}/etc/init.d/
 %{__install} -d -p %{buildroot}/usr/bin/
 %{__install} -d -p %{buildroot}/etc/simp
+%{__install} -d -p %{buildroot}/etc/simp/data
+%{__install} -d -p %{buildroot}/etc/simp/data/validation.d
 
 %{__install} lib/GRNOC/Simp/Data.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data.pm
 %{__install} lib/GRNOC/Simp/Data/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
 %{__install} bin/simp-data.pl %{buildroot}/usr/bin/simp-data.pl
-%{__install} conf/simpDataConfig.xml %{buildroot}/etc/simp/
-%{__install} conf/logging.conf %{buildroot}/etc/simp/data_logging.conf
+%{__install} conf/data/config.xml %{buildroot}/etc/simp/data/config.xml
+%{__install} conf/data/config.xsd %{buildroot}/etc/simp/data/validation.d/config.xsd
+%{__install} conf/logging.conf %{buildroot}/etc/simp/data/logging.conf
 
 %if 0%{?rhel} >= 7
-%{__install} conf/simp-data.systemd %{buildroot}/etc/systemd/system/simp-data.service
+%{__install} conf/data/simp-data.systemd %{buildroot}/etc/systemd/system/simp-data.service
 %else
-%{__install} conf/simp-data.service %{buildroot}/etc/init.d/simp-data
+%{__install} conf/data/simp-data.service %{buildroot}/etc/init.d/simp-data
 %endif
 
 %clean
@@ -69,8 +72,12 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %{perl_vendorlib}/GRNOC/Simp/Data.pm
 %{perl_vendorlib}/GRNOC/Simp/Data/Worker.pm
+
 %defattr(755,root,root,755)
 /usr/bin/simp-data.pl
+
+%defattr(644,root,root,644)
+/etc/simp/data/validation.d/config.xsd
 
 %if 0%{?rhel} >= 7
 /etc/systemd/system/simp-data.service
@@ -79,12 +86,25 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %defattr(644,root,root,755)
-%config(noreplace) /etc/simp/simpDataConfig.xml
-%config(noreplace) /etc/simp/data_logging.conf
+%config(noreplace) /etc/simp/data/config.xml
+%config(noreplace) /etc/simp/data/logging.conf
+
 %doc
 
 
 %changelog
+* Mon May 06 2019 Vincent Orlowski <vincentorlowski@gmail.com> - 1.1.0
+  - Poller now writes status files for each polling group per host for simp-poller-monitoring
+  - Poller now has various error checks for monitoring
+  - Comp now has the ability to scan a static OID
+  - Comp now has the ability to use a scan's parameters within N other scans
+  - Comp scans dependent on other scans will now perserve dependencies
+  - Comp now has a refactored data structure for results
+  - Comp has had various optimizations added
+  - Comp now outputs an array of data objects instead of a hash
+  - TSDS has been adjusted to use new output from Comp
+  - Simp now has packaging and installation support for EL6
+  - Simp now has init.d scripts for simp-poller, simp-data, simp-comp, and simp-tsds to support EL6 hosts
 * Fri Mar 10 2017 Andrew Ragusa <aragusa@globalnoc.iu.edu> - 1.0.2
   - Fixes for holes in graphs
   - improvements in the poller

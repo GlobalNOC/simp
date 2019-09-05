@@ -1,18 +1,18 @@
 #!/bin/sh
 #
-# simp-tsds   init file for starting up simp-tsds
+# simp-poller	init file for starting up simp-poller
 #
-# chkconfig 2345 95 10
-# description: Starts and stops simp-tsds
+# chkconfig: 2345 50 8
+# description: Starts and stops simp-poller
 
 # Source function library
 . /etc/rc.d/init.d/functions
 
-name="simp-tsds"
+name="simp-poller"
 exec="/usr/bin/$name.pl"
-pidfile="/var/run/$name.pid"
-CONFIG="/etc/simp/simp-tsds.xml"
-LOGGING="/etc/simp/simp_tsds_logging.conf"
+pidfile="/var/run/simp_poller.pid"
+CONFIG="/etc/simp/poller/config.xml"
+LOGGING="/etc/simp/poller/logging.conf"
 USER="simp"
 GROUP="simp"
 
@@ -20,7 +20,7 @@ start() {
     [ -f $CONFIG ] || exit 6
     [ -x $exec ] || exit 5
     echo -n $"Starting $name: "
-    daemon $exec --config "$CONFIG" --logging "$LOGGING" --pidfile "$pidfile" --user "$USER" --group "$GROUP"
+    daemon $exec --config "$CONFIG" --logging "$LOGGING" --user "$USER" --group "$GROUP"
     retval=$?
     echo
     return $retval

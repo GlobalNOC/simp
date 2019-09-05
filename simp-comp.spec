@@ -1,6 +1,6 @@
 Summary: A system for fetching data from simp and compiling the data into a composite 
 Name: simp-comp
-Version: 1.0.11
+Version: 1.2.6
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -25,7 +25,8 @@ Requires: perl(POSIX)
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
 
-Provides: perl(GRNOC::Simp::CompData)
+Provides: perl(GRNOC::Simp::Comp)
+Provides: perl(GRNOC::Simp::Comp::Worker)
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
@@ -41,22 +42,28 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %install
 rm -rf $RPM_BUILD_ROOT
-%{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData
+%{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Comp
 %{__install} -d -p %{buildroot}/etc/systemd/system/
 %{__install} -d -p %{buildroot}/etc/init.d/
 %{__install} -d -p %{buildroot}/usr/bin/
 %{__install} -d -p %{buildroot}/etc/simp
+%{__install} -d -p %{buildroot}/etc/simp/comp
+%{__install} -d -p %{buildroot}/etc/simp/comp/composites.d
+%{__install} -d -p %{buildroot}/etc/simp/comp/validation.d
 
-%{__install} lib/GRNOC/Simp/CompData.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData.pm
-%{__install} lib/GRNOC/Simp/CompData/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
+%{__install} lib/GRNOC/Simp/Comp.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Comp.pm
+%{__install} lib/GRNOC/Simp/Comp/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Comp/Worker.pm
 %{__install} bin/simp-comp.pl %{buildroot}/usr/bin/simp-comp.pl
-%{__install} conf/compDataConfig.xml %{buildroot}/etc/simp/compDataConfig.xml
-%{__install} conf/logging.conf %{buildroot}/etc/simp/comp_logging.conf
+%{__install} conf/comp/config.xml %{buildroot}/etc/simp/comp/config.xml
+%{__install} conf/comp/composite.xml.example %{buildroot}/etc/simp/comp/composites.d/composite.xml.example
+%{__install} conf/logging.conf %{buildroot}/etc/simp/comp/logging.conf
+%{__install} conf/comp/config.xsd %{buildroot}/etc/simp/comp/validation.d/config.xsd
+%{__install} conf/comp/composite.xsd %{buildroot}/etc/simp/comp/validation.d/composite.xsd
 
 %if 0%{?rhel} >= 7
-%{__install} conf/simp-comp.systemd %{buildroot}/etc/systemd/system/simp-comp.service
+%{__install} conf/comp/simp-comp.systemd %{buildroot}/etc/systemd/system/simp-comp.service
 %else
-%{__install} conf/simp-comp.service %{buildroot}/etc/init.d/simp-comp
+%{__install} conf/comp/simp-comp.service %{buildroot}/etc/init.d/simp-comp
 %endif
 
 %clean
@@ -64,10 +71,15 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(644,root,root,755)
-%{perl_vendorlib}/GRNOC/Simp/CompData.pm
-%{perl_vendorlib}/GRNOC/Simp/CompData/Worker.pm
+%{perl_vendorlib}/GRNOC/Simp/Comp.pm
+%{perl_vendorlib}/GRNOC/Simp/Comp/Worker.pm
+
 %defattr(755,root,root,755)
 /usr/bin/simp-comp.pl
+
+%defattr(644,root,root,644)
+/etc/simp/comp/validation.d/config.xsd
+/etc/simp/comp/validation.d/composite.xsd
 
 %if 0%{?rhel} >= 7
 /etc/systemd/system/simp-comp.service
@@ -76,13 +88,26 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %defattr(644,root,root,755)
-%config(noreplace) /etc/simp/comp_logging.conf
-%config(noreplace) /etc/simp/compDataConfig.xml
+%config(noreplace) /etc/simp/comp/logging.conf
+%config(noreplace) /etc/simp/comp/config.xml
+%config(noreplace) /etc/simp/comp/composites.d/*
 
 %doc
 
 
 %changelog
+* Mon May 06 2019 Vincent Orlowski <vincentorlowski@gmail.com> - 1.1.0
+  - Poller now writes status files for each polling group per host for simp-poller-monitoring
+  - Poller now has various error checks for monitoring
+  - Comp now has the ability to scan a static OID
+  - Comp now has the ability to use a scan's parameters within N other scans
+  - Comp scans dependent on other scans will now perserve dependencies
+  - Comp now has a refactored data structure for results
+  - Comp has had various optimizations added
+  - Comp now outputs an array of data objects instead of a hash
+  - TSDS has been adjusted to use new output from Comp
+  - Simp now has packaging and installation support for EL6
+  - Simp now has init.d scripts for simp-poller, simp-data, simp-comp, and simp-tsds to support EL6 hosts
 * Fri Mar 10 2017 Andrew Ragusa <aragusa@globalnoc.iu.edu> - 1.0.2
   - Fixes for holes in graphs
   - improvements in the poller

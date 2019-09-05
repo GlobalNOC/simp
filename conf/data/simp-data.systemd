@@ -3,7 +3,7 @@ Description=SIMP Data Service
 After=syslog.target network.target
 
 [Service]
-ExecStart=/usr/bin/simp-data.pl --config /etc/simp/simpDataConfig.xml --logging /etc/simp/data_logging.conf --user simp --group simp
+ExecStart=/usr/bin/simp-data.pl --config /etc/simp/data/config.xml --logging /etc/simp/data/logging.conf --user simp --group simp
 Type=forking
 PIDFile=/var/run/simp_data.pid
 

@@ -12,7 +12,7 @@ use POSIX qw( setuid setgid );
 use GRNOC::Config;
 use GRNOC::Log;
 
-our $VERSION='1.0.7';
+our $VERSION='1.2.6';
 
 use GRNOC::Simp::Data::Worker;
 
@@ -35,25 +35,41 @@ use GRNOC::Simp::Data::Worker;
 
 =cut
 
-has config_file => ( is => 'ro',
-                     isa => Str,
-                     required => 1 );
+has config_file => ( 
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
 
-has logging_file => ( is => 'ro',
-                      isa => Str,
-                      required => 1 );
+has logging_file => ( 
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
+
+has validation_file => (
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
 
 ### optional attributes ###
 
-has daemonize => ( is => 'ro',
-                   isa => Bool,
-                   default => 1 );
+has daemonize => ( 
+    is      => 'ro',
+    isa     => Bool,
+    default => 1
+);
 
-has run_user => ( is => 'ro',
-                  required => 0 );
+has run_user => ( 
+    is       => 'ro',
+    required => 0
+);
 
-has run_group => ( is => 'ro',
-                   required => 0 );
+has run_group => ( 
+    is       => 'ro',
+    required => 0
+);
 
 ### private attributes ###
 =head2 private attributes
@@ -91,8 +107,30 @@ sub BUILD{
     $self->_set_logger( $logger );
 
     # create and store config object
-    my $config = GRNOC::Config->new( config_file => $self->config_file,
-                                     force_array => 0 );
+    my $config = GRNOC::Config->new( 
+        config_file => $self->config_file,
+        force_array => 0
+    );
+
+    # Validate the config, exiting if there are errors
+    my $validation_code = $config->validate($self->validation_file);
+
+    if ($validation_code == 1) {
+        $self->logger->debug("Successfully validated config file");
+    }
+    else {
+        if ($validation_code == 0) {
+            $self->logger->error("ERROR: Failed to validate $self->config_file!\n" . $config->{error}->{backtrace});
+        }
+        else {
+            $self->logger->error("ERROR: XML schema in $self->validation_file is invalid!\n" . $config->{error}->{backtrace});
+        }
+        exit(1);
+    }
+
+    
+
+
 
     $self->_set_config( $config );
 
@@ -145,7 +183,7 @@ sub start {
             $self->logger->debug( 'Created daemon process.' );
 
             # change process name
-            $0 = "SimpData";
+            $0 = "simp_data [master]";
 
             # figure out what user/group (if any) to change to
             my $user_name  = $self->run_user;
