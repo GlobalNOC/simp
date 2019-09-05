@@ -406,8 +406,6 @@ sub _map_oid {
     my $oid_attr = shift;
     my %oid_map;
 
-    $self->logger->debug("Creating a map for: $oid_attr->{name}");
-
     # Init the base OID for polling as the original OID
     if ($oid_attr->{oid}) {
         $oid_map{base_oid} = $oid_attr->{oid};
@@ -909,35 +907,33 @@ sub _get_data {
                 foreach my $host (@$hosts) {
                     $results->{data}{$host}{node}{value} = $host;
                 }
-                next;
             }
             # If the element points to a constant use the value of the constant
             elsif ( exists $results->{constants}{$elem->{source}} ) {
                 foreach my $host (@$hosts) {
                     $results->{data}{$host}{$elem->{name}}{value} = $results->{constants}{$elem->{source}};
                 }
-                next;
             }
             else {
                 # Add the scan_vals hash for it to the results val hash under its val ID
                 my $val_key = $results->{var_map}->{$elem->{source}};
+		if ($val_key) {
+			$self->logger->debug("Getting data for source $elem->{source} from the $val_key values");
 
-                $self->logger->debug("Getting data for source $elem->{source} from the $val_key values");
-
-                foreach my $host (@$hosts) {
-                    # Assign oid node values to the data name
-                    if ( exists $results->{scan_vals}{$host}{$elem->{source}} ) {
-                        my $suffix_data = $results->{scan_vals}{$host}{$elem->{source}};
-                        foreach my $key (keys %$suffix_data) {
-                            $results->{data}{$host}{$elem->{name}}{$key}{value} = $suffix_data->{$key}{suffix};
-                        }
-                    }
-                    # Assign retrieved values from the scan to the data name
-                    if ( exists $results->{scan_vals}{$host}{$val_key} ) {
-                        $results->{data}{$host}{$elem->{name}} = $results->{scan_vals}{$host}{$val_key};
-                    }
-                }
-                next;
+			foreach my $host (@$hosts) {
+				# Assign oid node values to the data name
+				if ( exists $results->{scan_vals}{$host}{$elem->{source}} ) {
+					my $suffix_data = $results->{scan_vals}{$host}{$elem->{source}};
+					foreach my $key (keys %$suffix_data) {
+						$results->{data}{$host}{$elem->{name}}{$key}{value} = $suffix_data->{$key}{suffix};
+					}
+				}
+				# Assign retrieved values from the scan to the data name
+				if ( exists $results->{scan_vals}{$host}{$val_key} ) {
+					$results->{data}{$host}{$elem->{name}} = $results->{scan_vals}{$host}{$val_key};
+				}
+			}
+		}
             }
         }
         # Pull the element's OID data from Simp
@@ -1403,7 +1399,9 @@ sub _do_conversions {
                             }
                         }
                     }
-                    $self->logger->debug("Set value for $target to $new_value");
+		    if(defined $new_value){
+			$self->logger->debug("Set value for $target to $new_value");
+		    }
                     # Assign the new value to the data target
                     $data->{$target} = $new_value;
                     
