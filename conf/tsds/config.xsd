@@ -25,6 +25,7 @@
         <xsd:attribute name="url"      type="xsd:string" use="required" />
         <xsd:attribute name="user"     type="xsd:string" use="required" />
         <xsd:attribute name="password" type="xsd:string" use="required" />
+	<xsd:attribute name="realm"    type="xsd:string" />
     </xsd:complexType>
 
     <xsd:complexType name="STAGGER">
