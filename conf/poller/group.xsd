@@ -49,6 +49,7 @@
         </xsd:restriction>
     </xsd:simpleType>
 
+
     <!-- Validates 1/0 Booleans -->
     <xsd:simpleType name="INT_BOOL">
         <xsd:restriction base="xsd:integer">
@@ -56,5 +57,6 @@
             <xsd:enumeration value="1"/>
         </xsd:restriction>
     </xsd:simpleType>
+
 
 </xsd:schema>

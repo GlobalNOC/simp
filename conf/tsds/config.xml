@@ -1,15 +1,15 @@
 <?xml version="1.0"?>
 
-<!-- Main Simp TSDS Configuration -->
+<!-- Main Simp-TSDS Config -->
 <config>
-
     <!-- RabbitMQ host being used by Simp -->
-    <rabbitmq ip="127.0.0.1" port="5672" user="guest" password="guest"/>
+    <rabbitmq ip="127.0.0.1" port="5672" user="" password=""/>
 
     <!-- TSDS Credentials -->
-    <tsds url="https://io3.bldc.grnoc.iu.edu/tsds-basic/services/push.cgi" user="oess_dev" password="Mayas11\glow" />
+    <tsds url="" user="" password=""/>
 
-    <!-- Separate worker creation to reduce load -->
+    <!-- Separate worker creation to reduce request load -->
+
     <stagger seconds="5"/>
 
 </config>

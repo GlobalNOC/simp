@@ -638,6 +638,7 @@ sub _collect_data {
             my $res_err = "Unable to issue get_table for group \"" . $self->group_name . "\"";
 
 
+
             my $get_method = $is_leaf ? "get_request" : "get_table";
             my %args = (-delay => $delay++);
 
