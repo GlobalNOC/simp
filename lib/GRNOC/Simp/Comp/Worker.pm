@@ -1155,8 +1155,12 @@ sub _digest_data {
 
     my $value_data = $composite->get('/composite/data/value');
     my $meta_data  = $composite->get('/composite/data/meta');
-    push(@data_elements, @$value_data);
-    push(@data_elements, @$meta_data);
+
+    # TODO: It's possible today that a composite today doesn't have values
+    # or doesn't have metadata, but should it? There are some defined like that
+    # today which causes this check to be required.
+    push(@data_elements, @$value_data) if ($value_data);
+    push(@data_elements, @$meta_data) if ($meta_data);
 
     for my $host ( @$hosts ) {
 
