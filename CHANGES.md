@@ -1,3 +1,14 @@
+## SIMP 1.3.0
+Sep 6 2019
+
+## Features:
+* Add support for single OID collections, indicated by adding the `single="1"` attribute to the OIDs
+in Poller configuration.
+* Comp output will now always include all fields defined in the composite, even if no associated value
+was returned from Data. This keeps the output data structure consistent regardless of what data has
+been polled. Missing fields are added with null values.
+
+
 ## SIMP 1.2.6
 July 29 2019
 
