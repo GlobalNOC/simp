@@ -346,7 +346,7 @@ sub _get {
     $cv[0]->begin(sub { $self->_get_scans      ($composite, $params, \%results, $cv[1]); });
     $cv[1]->begin(sub { $self->_digest_scans   ($params, \%results, $cv[2]); });
     $cv[2]->begin(sub { $self->_get_data       ($composite, $params, \%results, $cv[3]); });
-    $cv[3]->begin(sub { $self->_digest_data    ($params, \%results, $cv[4]); });
+    $cv[3]->begin(sub { $self->_digest_data    ($composite, $params, \%results, $cv[4]); });
     $cv[4]->begin(sub { $self->_do_conversions ($composite, $params, \%results, $cv[5]); });
     $cv[5]->begin(sub { 
         my $end = [gettimeofday];
@@ -1139,6 +1139,7 @@ sub _extract_data {
 sub _digest_data {
 
     my $self       = shift;
+    my $composite  = shift; # The instance XPath from the config
     my $params     = shift; # Parameters to request
     my $results    = shift; # Request-global $results hash
     my $cv         = shift; # Assumes that it's been begin()'ed with a callback
@@ -1147,6 +1148,15 @@ sub _digest_data {
 
     # Get the array of hosts from params
     my $hosts = $params->{'node'}{'value'};
+
+    # Initialize data elements, this is used to ensure
+    # all keys defined in the composite exist in the output
+    my @data_elements;
+
+    my $value_data = $composite->get('/composite/data/value');
+    my $meta_data  = $composite->get('/composite/data/meta');
+    push(@data_elements, @$value_data);
+    push(@data_elements, @$meta_data);
 
     for my $host ( @$hosts ) {
 
@@ -1173,6 +1183,18 @@ sub _digest_data {
         my @val_data;
         $self->_extract_data($val_tree, \@val_data);
         $self->logger->debug("Extracted val data objects for $host");
+
+        # At this point we need to scan the final data set to make sure
+        # all the keys are present. If some OIDs hadn't been collected
+        # we wouldn't have entries for them, but we always want the complete
+        # composite returned as defined.
+        foreach my $val_datum (@val_data){
+            foreach my $data_element (@data_elements){
+                my $data_el_name = $data_element->{'name'};
+                $val_datum->{$data_el_name} = undef if (! exists $val_datum->{$data_el_name});
+            }
+        }
+
         # Set the results for val for the host to the data
         $results->{data}{$host} = \@val_data;
     }
@@ -1851,6 +1873,5 @@ sub _bool_to_int {
         push @$stack, $stack->[-($a+0)]; # This pushes undef if $a is greater than the stack size, which is OK
     },
 );
-
 
 1;
