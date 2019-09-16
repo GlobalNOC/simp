@@ -146,6 +146,7 @@ sub _validate_config
         $self->logger->error("ERROR: XML schema in $xsd is invalid!\n"
               . $conf->{error}->{backtrace});
     }
+
     exit(1);
 }
 
@@ -213,6 +214,7 @@ sub _process_composites
     }
 
     $self->_set_composites(\%composites);
+
     $self->logger->info(
         "Composite definitions read successfully: " . scalar(keys %composites));
 }
@@ -300,8 +302,8 @@ sub start
     {
         $self->logger->debug('Running in foreground.');
 
-        # when in fg just act as a working directly with
-        # no sub processes so we can nytprof
+        # when in fg just act as a working directly with no sub-processes
+        # so we can nytprof
         my $worker = GRNOC::Simp::Comp::Worker->new(
             config     => $self->config,
             logger     => $self->logger,
@@ -326,7 +328,8 @@ sub _log_and_exit
     my $msg  = shift;
     $self->logger->error($msg);
     warn "$msg\n";
-    exit 1;
+
+    exit(1);
 }
 
 =head2 stop

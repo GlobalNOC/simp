@@ -118,11 +118,15 @@ sub start
 
     while (1)
     {
-#--- we use try catch to, react to issues such as com failure
-#--- when any error condition is found, the reactor stops and we then reinitialize
+        # we use try catch to, react to issues such as com failure
+        # when any error condition is found,
+        # the reactor stops and we then reinitialize
         $self->logger->debug($self->worker_id . " restarting.");
+
         $self->_start();
+
         exit(0) if $self->do_shutdown;
+
         sleep 2;
     }
 }
@@ -141,13 +145,11 @@ sub _start
 
     # setup signal handlers
     $SIG{'TERM'} = sub {
-
         $self->logger->info("Received SIG TERM.");
         $self->_stop();
     };
 
     $SIG{'HUP'} = sub {
-
         $self->logger->info("Received SIG HUP.");
     };
 
@@ -262,6 +264,7 @@ sub _start
     # If a handler calls "stop_consuming()" it removes
     # the dispatcher definition and returns
     $self->_set_rmq_dispatcher(undef);
+
     return;
 }
 
@@ -279,6 +282,7 @@ sub _stop
 sub _ping
 {
     my $self = shift;
+
     return gettimeofday();
 }
 
@@ -333,6 +337,7 @@ sub _get
     # Initialize the variables map and add any inputs to it
     $results{var_map} = {};
     my $inputs = $composite->get('/composite/variables/input');
+
     for my $input (@$inputs)
     {
         $results{var_map}{$input->{value}} = $input->{name};
@@ -340,6 +345,7 @@ sub _get
 
     $results{constants} = {};
     my $constants = $composite->get('/composite/variables/constant');
+
     for my $constant (@$constants)
     {
         $results{constants}{$constant->{name}} = $constant->{value};
