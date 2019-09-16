@@ -10,6 +10,7 @@ use warnings;
 
 use Getopt::Long;
 use Log::Log4perl;
+
 use GRNOC::Simp::TSDS::Master;
 
 my $config          = '/etc/simp/tsds/config.xml';
@@ -34,24 +35,26 @@ GetOptions(
     'help|h|?'      => \$help
 );
 
-usage() if ($help); 
+usage() if ($help);
 
 Log::Log4perl::init($logging);
 
 my $collector = GRNOC::Simp::TSDS::Master->new(
-     config          => $config,
-     collections_dir => $collections_dir,
-     validation_dir  => $validation_dir,
-     pidfile         => $pidfile,
-     daemonize       => !$nofork,
-     run_user        => $run_user,
-     run_group       => $run_group
+    config          => $config,
+    collections_dir => $collections_dir,
+    validation_dir  => $validation_dir,
+    pidfile         => $pidfile,
+    daemonize       => !$nofork,
+    run_user        => $run_user,
+    run_group       => $run_group
 );
 
 $collector->start();
 
-sub usage {
-    print "$0 [--config <config_file>] [--collections <dir path>] [--validation <dir path>] [--logging <logging_file>] [--pidfile pidfile]\n";
+sub usage
+{
+    print
+      "$0 [--config <config_file>] [--collections <dir path>] [--validation <dir path>] [--logging <logging_file>] [--pidfile pidfile]\n";
     print "\t[--group <group>] [--user <user>]\n";
     print "\t--nofork - Do not daemonize\n";
     exit(1);

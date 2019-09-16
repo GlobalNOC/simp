@@ -1,4 +1,5 @@
-#!/usr/bin/perl -I ../lib 
+#!/usr/bin/perl
+
 use strict;
 use warnings;
 
@@ -6,21 +7,23 @@ use warnings;
 use Getopt::Long;
 use GRNOC::Simp::Comp;
 
-sub usage {
+sub usage
+{
     my $text = <<"EOM";
 Usage: $0 [--config <file path>] [--logging <file path>] [--composites <composites dir>]
     [--nofork] [--user <user name>] [--group <group name>]
 EOM
     print $text;
-    exit( 1 );
+    exit(1);
 }
 
-
-use constant DEFAULT_CONFIG_FILE    => '/etc/simp/comp/config.xml';
-use constant DEFAULT_LOG_FILE       => '/etc/simp/comp/logging.conf';
-use constant DEFAULT_COMPOSITES_DIR => '/etc/simp/comp/composites.d/';
-use constant DEFAULT_CONFIG_XSD     => '/etc/simp/comp/validation.d/config.xsd';
-use constant DEFAULT_COMPOSITE_XSD  => '/etc/simp/comp/validation.d/composite.xsd';
+use constant {
+    DEFAULT_CONFIG_FILE    => '/etc/simp/comp/config.xml',
+    DEFAULT_LOG_FILE       => '/etc/simp/comp/logging.conf',
+    DEFAULT_COMPOSITES_DIR => '/etc/simp/comp/composites.d/',
+    DEFAULT_CONFIG_XSD     => '/etc/simp/comp/validation.d/config.xsd',
+    DEFAULT_COMPOSITE_XSD  => '/etc/simp/comp/validation.d/composite.xsd',
+};
 
 my $config        = DEFAULT_CONFIG_FILE;
 my $logging       = DEFAULT_LOG_FILE;
@@ -32,7 +35,7 @@ my $help;
 my $username;
 my $groupname;
 
-GetOptions( 
+GetOptions(
     'config_file=s'    => \$config,
     'logging_file=s'   => \$logging,
     'composites_dir=s' => \$composites,
@@ -56,4 +59,3 @@ my $data_services = GRNOC::Simp::Comp->new(
 );
 
 $data_services->start();
-

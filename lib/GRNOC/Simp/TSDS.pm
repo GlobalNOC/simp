@@ -12,24 +12,27 @@ GRNOC::Simp::TSDS
 =head2 new
 
 =cut
-sub new {
 
+sub new
+{
     my $caller = shift;
 
-    my $class  = ref($caller);
+    my $class = ref($caller);
     $class = $caller if (!$class);
-    
-    my $self = { @_ };
-    
+
+    my $self = {@_};
+
     bless($self, $class);
-    
+
     return $self;
 }
 
 =head2 get_version
 
 =cut
-sub get_version {
+
+sub get_version
+{
     my $self = shift;
     return $VERSION;
 }
@@ -37,9 +40,13 @@ sub get_version {
 =head2 error_message
 
 =cut
-sub error_message {
+
+sub error_message
+{
     my $res = shift;
-    if (!defined($res)) {
+
+    if (!defined($res))
+    {
         my $msg = ' [no response object]';
         $msg .= " \$!='$!'" if defined($!) && ($! ne '');
         return $msg;
@@ -47,7 +54,8 @@ sub error_message {
 
     my $msg = '';
     $msg .= " error=\"$res->{'error'}\"" if defined($res->{'error'});
-    $msg .= " error_text=\"$res->{'error_text'}\"" if defined($res->{'error_text'});
+    $msg .= " error_text=\"$res->{'error_text'}\""
+      if defined($res->{'error_text'});
     $msg .= " \$!=\"$!\"" if defined($!) && ($! ne '');
     $msg .= " \$@=\"$@\"" if defined($@) && ($@ ne '');
     return $msg;

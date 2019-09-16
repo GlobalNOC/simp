@@ -2,21 +2,21 @@ package GRNOC::Simp::Data;
 
 use strict;
 use warnings;
-use Moo;
-use Types::Standard qw( Str Bool );
 
+use Moo;
 use Parallel::ForkManager;
-use Proc::Daemon;
 use POSIX qw( setuid setgid );
+use Proc::Daemon;
+use Types::Standard qw( Str Bool );
 
 use GRNOC::Config;
 use GRNOC::Log;
-
-our $VERSION='1.3.0';
-
 use GRNOC::Simp::Data::Worker;
 
+our $VERSION = '1.3.0';
+
 ### required attributes ###
+
 =head2 public attributes
 
 =over 12
@@ -35,13 +35,13 @@ use GRNOC::Simp::Data::Worker;
 
 =cut
 
-has config_file => ( 
+has config_file => (
     is       => 'ro',
     isa      => Str,
     required => 1
 );
 
-has logging_file => ( 
+has logging_file => (
     is       => 'ro',
     isa      => Str,
     required => 1
@@ -55,23 +55,24 @@ has validation_file => (
 
 ### optional attributes ###
 
-has daemonize => ( 
+has daemonize => (
     is      => 'ro',
     isa     => Bool,
     default => 1
 );
 
-has run_user => ( 
+has run_user => (
     is       => 'ro',
     required => 0
 );
 
-has run_group => ( 
+has run_group => (
     is       => 'ro',
     required => 0
 );
 
 ### private attributes ###
+
 =head2 private attributes
 
 =over 12
@@ -86,28 +87,32 @@ has run_group => (
 
 =cut
 
-has config => ( is => 'rwp' );
+has config => (is => 'rwp');
 
-has logger => ( is => 'rwp' );
+has logger => (is => 'rwp');
 
-has children => ( is => 'rwp',
-                  default => sub { [] } );
+has children => (
+    is      => 'rwp',
+    default => sub { [] }
+);
 
 =head2 BUILD
 
 =cut
 
-sub BUILD{
+sub BUILD
+{
     my ($self) = @_;
 
     # create and store logger object
-    my $grnoc_log = GRNOC::Log->new( config => $self->logging_file, watch => 120 );
+    my $grnoc_log =
+      GRNOC::Log->new(config => $self->logging_file, watch => 120);
     my $logger = GRNOC::Log->get_logger();
 
-    $self->_set_logger( $logger );
+    $self->_set_logger($logger);
 
     # create and store config object
-    my $config = GRNOC::Config->new( 
+    my $config = GRNOC::Config->new(
         config_file => $self->config_file,
         force_array => 0
     );
@@ -115,24 +120,29 @@ sub BUILD{
     # Validate the config, exiting if there are errors
     my $validation_code = $config->validate($self->validation_file);
 
-    if ($validation_code == 1) {
+    if ($validation_code == 1)
+    {
         $self->logger->debug("Successfully validated config file");
     }
-    else {
-        if ($validation_code == 0) {
-            $self->logger->error("ERROR: Failed to validate $self->config_file!\n" . $config->{error}->{backtrace});
+    else
+    {
+        if ($validation_code == 0)
+        {
+            $self->logger->error(
+                "ERROR: Failed to validate $self->config_file!\n"
+                  . $config->{error}->{backtrace});
         }
-        else {
-            $self->logger->error("ERROR: XML schema in $self->validation_file is invalid!\n" . $config->{error}->{backtrace});
+        else
+        {
+            $self->logger->error(
+                "ERROR: XML schema in $self->validation_file is invalid!\n"
+                  . $config->{error}->{backtrace});
         }
+
         exit(1);
     }
 
-    
-
-
-
-    $self->_set_config( $config );
+    $self->_set_config($config);
 
     return $self;
 }
@@ -141,46 +151,47 @@ sub BUILD{
 
 =cut
 
-sub start {
+sub start
+{
 
-    my ( $self ) = @_;
+    my ($self) = @_;
 
-    $self->logger->info( 'Starting.' );
+    $self->logger->info('Starting.');
 
-    $self->logger->debug( 'Setting up signal handlers.' );
+    $self->logger->debug('Setting up signal handlers.');
 
     # setup signal handlers
     $SIG{'TERM'} = sub {
 
-        $self->logger->info( 'Received SIG TERM.' );
+        $self->logger->info('Received SIG TERM.');
         $self->stop();
     };
 
     $SIG{'HUP'} = sub {
 
-        $self->logger->info( 'Received SIG HUP.' );
+        $self->logger->info('Received SIG HUP.');
     };
 
     # need to daemonize
-    if ( $self->daemonize ) {
+    if ($self->daemonize)
+    {
+        $self->logger->debug('Daemonizing.');
 
-
-        $self->logger->debug( 'Daemonizing.' );
-
-        my $pid_file = $self->config->get( '/config/@pid-file' );
-        if(!defined($pid_file)){
+        my $pid_file = $self->config->get('/config/@pid-file');
+        if (!defined($pid_file))
+        {
             $pid_file = "/var/run/simp_data.pid";
         }
 
         $self->logger->debug("PID FILE: " . $pid_file);
-        my $daemon = Proc::Daemon->new( pid_file => $pid_file );
+        my $daemon = Proc::Daemon->new(pid_file => $pid_file);
 
         my $pid = $daemon->Init();
 
         # in child/daemon process
-        if ( !$pid ) {
-
-            $self->logger->debug( 'Created daemon process.' );
+        if (!$pid)
+        {
+            $self->logger->debug('Created daemon process.');
 
             # change process name
             $0 = "simp_data [master]";
@@ -189,22 +200,32 @@ sub start {
             my $user_name  = $self->run_user;
             my $group_name = $self->run_group;
 
-            if (defined($group_name)) {
+            if (defined($group_name))
+            {
                 my $gid = getgrnam($group_name);
-                $self->_log_err_then_exit("Unable to get GID for group '$group_name'") if !defined($gid);
+                $self->_log_err_then_exit(
+                    "Unable to get GID for group '$group_name'")
+                  if !defined($gid);
 
                 $! = 0;
                 setgid($gid);
-                $self->_log_err_then_exit("Unable to set GID to $gid ($group_name)") if $! != 0;
+                $self->_log_err_then_exit(
+                    "Unable to set GID to $gid ($group_name)")
+                  if $! != 0;
             }
 
-            if (defined($user_name)) {
+            if (defined($user_name))
+            {
                 my $uid = getpwnam($user_name);
-                $self->_log_err_then_exit("Unable to get UID for user '$user_name'") if !defined($uid);
+                $self->_log_err_then_exit(
+                    "Unable to get UID for user '$user_name'")
+                  if !defined($uid);
 
                 $! = 0;
                 setuid($uid);
-                $self->_log_err_then_exit("Unable to set UID to $uid ($user_name)") if $! != 0;
+                $self->_log_err_then_exit(
+                    "Unable to set UID to $uid ($user_name)")
+                  if $! != 0;
             }
 
             $self->_create_workers();
@@ -212,15 +233,19 @@ sub start {
     }
 
     # dont need to daemonize
-    else {
+    else
+    {
 
-        $self->logger->debug( 'Running in foreground.' );
+        $self->logger->debug('Running in foreground.');
 
-        #-- when in fg just act as a working directly with no sub processes so we can nytprof 
-        my $worker = GRNOC::Simp::Data::Worker->new( config    => $self->config,
-						     logger    => $self->logger,
-						     worker_id => 13 );
-	
+        # when in fg just act as a working directly with
+        # no sub processes so we can nytprof
+        my $worker = GRNOC::Simp::Data::Worker->new(
+            config    => $self->config,
+            logger    => $self->logger,
+            worker_id => 13
+        );
+
         # this should only return if we tell it to stop via TERM signal etc.
         $worker->start();
     }
@@ -228,7 +253,8 @@ sub start {
     return 1;
 }
 
-sub _log_err_then_exit {
+sub _log_err_then_exit
+{
     my $self = shift;
     my $msg  = shift;
 
@@ -241,63 +267,67 @@ sub _log_err_then_exit {
 
 =cut
 
-sub stop {
+sub stop
+{
+    my ($self) = @_;
 
-    my ( $self ) = @_;
-
-    $self->logger->info( 'Stopping.' );
+    $self->logger->info('Stopping.');
 
     my @pids = @{$self->children};
 
-    $self->logger->debug( 'Stopping child worker processes ' . join( ' ', @pids ) . '.' );
+    $self->logger->debug(
+        'Stopping child worker processes ' . join(' ', @pids) . '.');
 
-    return kill( 'TERM', @pids );
+    return kill('TERM', @pids);
 }
 
 #-------- end of multprocess boilerplate
-sub _create_workers {
+sub _create_workers
+{
+    my ($self) = @_;
 
-    my ( $self ) = @_;
+    my $workers = $self->config->get('/config/@workers');
 
-    my $workers = $self->config->get( '/config/@workers' );
+    $self->logger->info("Creating $workers child worker processes.");
 
-    $self->logger->info( "Creating $workers child worker processes." );
-
-    my $forker = Parallel::ForkManager->new( $workers );
+    my $forker = Parallel::ForkManager->new($workers);
 
     # keep track of children pids
-    $forker->run_on_start( sub {
+    $forker->run_on_start(
+        sub {
+            my ($pid) = @_;
+            $self->logger->debug("Child worker process $pid created.");
+            push(@{$self->children}, $pid);
+        }
+    );
 
-        my ( $pid ) = @_;
-        $self->logger->debug( "Child worker process $pid created." );
-        push( @{$self->children}, $pid );
-                           } );
     # create high res workers
-    for (my $worker_id=0; $worker_id<$workers;$worker_id++) {
-        
+    for (my $worker_id = 0; $worker_id < $workers; $worker_id++)
+    {
         $forker->start() and next;
 
+        # create worker in this process
+        my $worker = GRNOC::Simp::Data::Worker->new(
+            config    => $self->config,
+            logger    => $self->logger,
+            worker_id => $worker_id
+        );
 
-	# create worker in this process
-	my $worker = GRNOC::Simp::Data::Worker->new( config    => $self->config,
-						     logger    => $self->logger,
-						     worker_id => $worker_id );
-	
-	# this should only return if we tell it to stop via TERM signal etc.
-	$worker->start();
-	
-	# exit child process
+        # this should only return if we tell it to stop via TERM signal etc.
+        $worker->start();
+
+        # exit child process
         $forker->finish();
     }
 
-    $self->logger->debug( 'Waiting for all child worker processes to exit.' );
+    $self->logger->debug('Waiting for all child worker processes to exit.');
 
     # wait for all children to return
     $forker->wait_all_children();
 
-    $self->_set_children( [] );
+    $self->_set_children([]);
 
-    $self->logger->debug( 'All child workers have exited.' );
+    $self->logger->debug('All child workers have exited.');
 }
 
 1;

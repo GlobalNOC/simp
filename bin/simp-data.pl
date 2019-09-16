@@ -1,4 +1,5 @@
-#!/usr/bin/perl -I ../lib
+#!/usr/bin/perl
+
 use strict;
 use warnings;
 
@@ -6,18 +7,21 @@ use warnings;
 use Getopt::Long;
 use GRNOC::Simp::Data;
 
-sub usage {
+sub usage
+{
     my $text = <<"EOM";
 Usage: $0 [--config <file path>] [--logging <file path>] [--validation <file path>]
     [--nofork] [--user <user name>] [--group <group name>]
 EOM
     print $text;
-    exit( 1 );
+    exit(1);
 }
 
-use constant DEFAULT_CONFIG_FILE     => '/etc/simp/data/config.xml';
-use constant DEFAULT_LOG_FILE        => '/etc/simp/data/logging.conf';
-use constant DEFAULT_VALIDATION_FILE => '/etc/simp/data/validation.d/config.xsd';
+use constant {
+    DEFAULT_CONFIG_FILE     => '/etc/simp/data/config.xml',
+    DEFAULT_LOG_FILE        => '/etc/simp/data/logging.conf',
+    DEFAULT_VALIDATION_FILE => '/etc/simp/data/validation.d/config.xsd',
+};
 
 my $config     = DEFAULT_CONFIG_FILE;
 my $logging    = DEFAULT_LOG_FILE;
@@ -45,7 +49,7 @@ my $data_services = GRNOC::Simp::Data->new(
     validation_file => $validation,
     run_user        => $username,
     run_group       => $groupname,
-    daemonize       => !$nofork 
+    daemonize       => !$nofork
 );
 
 $data_services->start();

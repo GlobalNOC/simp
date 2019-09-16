@@ -1,14 +1,16 @@
 #/usr/bin/perl
-use Time::HiRes qw(usleep gettimeofday tv_interval);
+
 use strict;
 use warnings;
-use Data::Dumper;
-use GRNOC::RabbitMQ::Client;
-use AnyEvent;
-use JSON;
-use GRNOC::WebService::Client;
-use IO::File;
 
+use AnyEvent;
+use Data::Dumper;
+use IO::File;
+use JSON;
+use Time::HiRes qw(usleep gettimeofday tv_interval);
+
+use GRNOC::RabbitMQ::Client;
+use GRNOC::WebService::Client;
 
 my $fifo_file;
 my $fh;
@@ -18,51 +20,55 @@ my $svc;
 my $config_file;
 my $tsds_config;
 my $simp_config;
+
 #--- Main method
-sub main{
-
+sub main
+{
     $config_file = "/etc/simp/response-graph-config.xml";
-    my $config = GRNOC::Config->new(config_file => $config_file, force_array => 0, debug => 0); 
-
+    my $config = GRNOC::Config->new(
+        config_file => $config_file,
+        force_array => 0,
+        debug       => 0
+    );
 
     $fifo_file = $config->get("/config/pipe")->{'fifofile'};
     $fh = IO::File->new($fifo_file, 'r');
 
     $tsds_config = $config->get("/config/tsds");
-    $svc = GRNOC::WebService::Client->new(
-        url    => $tsds_config->{'url'},
-        uid    => $tsds_config->{'user'},
-        passwd    => $tsds_config->{'password'},
-        usePost    => 1,
-        debug => 0
+    $svc         = GRNOC::WebService::Client->new(
+        url     => $tsds_config->{'url'},
+        uid     => $tsds_config->{'user'},
+        passwd  => $tsds_config->{'password'},
+        usePost => 1,
+        debug   => 0
     );
-    $after = $tsds_config->{'refresh'};   
-    # $after = 5;   
+    $after = $tsds_config->{'refresh'};
+
+    # $after = 5;
 
     $simp_config = $config->get("/config/simp");
-    $client = GRNOC::RabbitMQ::Client->new(   host => $simp_config->{'host'},
-        port => $simp_config->{'port'},
-        user => $simp_config->{'user'},
-        pass => $simp_config->{'password'},
+    $client      = GRNOC::RabbitMQ::Client->new(
+        host     => $simp_config->{'host'},
+        port     => $simp_config->{'port'},
+        user     => $simp_config->{'user'},
+        pass     => $simp_config->{'password'},
         exchange => 'Simp',
-        timeout => 60,
-        topic => 'Simp.Data');
-
+        timeout  => 60,
+        topic    => 'Simp.Data'
+    );
 
     my $cv = AnyEvent->condvar;
 
-    my $once_per_second = AnyEvent->timer (
-        after => $after,
+    my $once_per_second = AnyEvent->timer(
+        after    => $after,
         interval => $after,
-        cb => sub {
-
+        cb       => sub {
             my ($simp_data, $comp_data) = _get_requests();
 
             # my $ping_latency = _get_ping_latency();
-            my $ping_latency = 0; # Uncomment above
+            my $ping_latency = 0;    # Uncomment above
 
             my $res = _push_results($simp_data, $comp_data, $ping_latency);
-
         }
     );
 
@@ -74,69 +80,83 @@ sub main{
 
 #--- An non-blocking filehandle read that returns an array of lines read
 my %nonblockGetLines_last;
-sub nonblockGetLines {
-    my ($fh,$timeout) = @_;
+
+sub nonblockGetLines
+{
+    my ($fh, $timeout) = @_;
     $timeout = 0 unless defined $timeout;
     my $rfd = '';
     $nonblockGetLines_last{$fh} = ''
-    unless defined $nonblockGetLines_last{$fh};
+      unless defined $nonblockGetLines_last{$fh};
 
-    vec($rfd,fileno($fh),1) = 1;
-    return unless select($rfd, undef, undef, $timeout)>=0;
+    vec($rfd, fileno($fh), 1) = 1;
+    return unless select($rfd, undef, undef, $timeout) >= 0;
+
     # I'm not sure the following is necessary?
-    return unless vec($rfd,fileno($fh),1);
+    return unless vec($rfd, fileno($fh), 1);
     my $buf = '';
-    my $n = sysread($fh,$buf,1024*1024);
+    my $n = sysread($fh, $buf, 1024 * 1024);
+
     # If we're done, make sure to send the last unfinished line
     return ($nonblockGetLines_last{$fh}) unless $n;
+
     # Prepend the last unfinished line
-    $buf = $nonblockGetLines_last{$fh}.$buf;
+    $buf = $nonblockGetLines_last{$fh} . $buf;
+
     # And save any newly unfinished lines
     $nonblockGetLines_last{$fh} =
-    (substr($buf,-1) !~ /[\r\n]/ && $buf =~ s/([^\r\n]*)$//) ? $1 : '';
-    $buf ? (0,split(/\n/,$buf)) : (0);
+      (substr($buf, -1) !~ /[\r\n]/ && $buf =~ s/([^\r\n]*)$//) ? $1 : '';
+    $buf ? (0, split(/\n/, $buf)) : (0);
 }
 
+#--- Get number of requests per minute and average response time
+sub _get_requests()
+{
 
-#--- Get number of requests per minute and average response time 
-sub _get_requests() {
-
-    my $simp_time = 0;
+    my $simp_time  = 0;
     my $simp_count = 0;
-    my $simp_avg = 0; 
-    
-    my $comp_time = 0;
+    my $simp_avg   = 0;
+
+    my $comp_time  = 0;
     my $comp_count = 0;
-    my $comp_avg = 0; 
-    
+    my $comp_avg   = 0;
+
     my (@lines) = nonblockGetLines($fh);
-    foreach my $line ( @lines ) {
-        if ($line eq 0) {
-            next;
-        } 
-        print "Line: $line \n"; 
+    for my $line (@lines)
+    {
+        next if ($line eq 0);
+
+        print "Line: $line \n";
         my @split_str = split / /, $line;
 
-        if ($split_str[-2] eq "SIMP") {
-            $simp_count++; 
+        if ($split_str[-2] eq "SIMP")
+        {
+            $simp_count++;
             $simp_time += $split_str[-1];
-         
-        } else {
+
+        }
+        else
+        {
             $comp_count++;
             $comp_time = $split_str[-1];
-        } 
+        }
     }
 
-    if ($simp_count != 0) {		
-        $simp_avg = $simp_time/$simp_count;
-    } else {
+    if ($simp_count != 0)
+    {
+        $simp_avg = $simp_time / $simp_count;
+    }
+    else
+    {
         $simp_avg = 0;
     }
 
-
-    if ($comp_count != 0) {		
-        $comp_avg = $comp_time/$comp_count;
-    } else {
+    if ($comp_count != 0)
+    {
+        $comp_avg = $comp_time / $comp_count;
+    }
+    else
+    {
         $comp_avg = 0;
     }
 
@@ -148,71 +168,76 @@ sub _get_requests() {
     print "Comp total time: $comp_time \n";
     print "Comp count: $comp_count \n";
     print "Comp average $comp_avg \n";
-    
 
-
-    return ({simp_avg => $simp_avg, simp_count => $simp_count}, {comp_avg => $comp_avg, comp_count => $comp_count});
+    return (
+        {simp_avg => $simp_avg, simp_count => $simp_count},
+        {comp_avg => $comp_avg, comp_count => $comp_count}
+    );
 }
 
-
 #--- Push data into TSDS
-sub _push_results {
-    
-    my $simp_data = shift;
-    my $comp_data = shift;
+sub _push_results
+{
+    my $simp_data    = shift;
+    my $comp_data    = shift;
     my $ping_latency = shift;
+
     print Dumper($simp_data);
     print Dumper($comp_data);
     print Dumper($ping_latency);
 
-    # For simp 
+    # For simp
     my %simp_meta_data;
     $simp_meta_data{'node'} = "simp.bldc.grnoc.iu.edu";
-    $simp_meta_data{'app'} = "simp-data";
+    $simp_meta_data{'app'}  = "simp-data";
 
     my %simp_values;
-    $simp_values{'requests'} = $simp_data->{'simp_count'};
+    $simp_values{'requests'}         = $simp_data->{'simp_count'};
     $simp_values{'average_response'} = $simp_data->{'simp_avg'};
-    $simp_values{'ping'} = $ping_latency;
+    $simp_values{'ping'}             = $ping_latency;
 
     my %simp_push_data;
     $simp_push_data{'interval'} = 60;
-    $simp_push_data{'time'} = time() ;
-    $simp_push_data{'type'} = "simp_requests" ;
-    $simp_push_data{'meta'} = \%simp_meta_data;
-    $simp_push_data{'values'} = \%simp_values ;
+    $simp_push_data{'time'}     = time();
+    $simp_push_data{'type'}     = "simp_requests";
+    $simp_push_data{'meta'}     = \%simp_meta_data;
+    $simp_push_data{'values'}   = \%simp_values;
 
-    # For comp 
-    my %comp_meta_data; 
+    # For comp
+    my %comp_meta_data;
     $comp_meta_data{'node'} = "simp.bldc.grnoc.iu.edu";
-    $comp_meta_data{'app'} = "simp-comp";
+    $comp_meta_data{'app'}  = "simp-comp";
 
     my %comp_values;
-    $comp_values{'requests'} = $comp_data->{'comp_count'};
+    $comp_values{'requests'}         = $comp_data->{'comp_count'};
     $comp_values{'average_response'} = $comp_data->{'comp_avg'};
-    $comp_values{'ping'} = $ping_latency;
+    $comp_values{'ping'}             = $ping_latency;
 
     my %comp_push_data;
     $comp_push_data{'interval'} = 60;
-    $comp_push_data{'time'} = time() ;
-    $comp_push_data{'type'} = "simp_requests" ;
-    $comp_push_data{'meta'} = \%comp_meta_data;
-    $comp_push_data{'values'} = \%comp_values ;
+    $comp_push_data{'time'}     = time();
+    $comp_push_data{'type'}     = "simp_requests";
+    $comp_push_data{'meta'}     = \%comp_meta_data;
+    $comp_push_data{'values'}   = \%comp_values;
 
-    my @push =  (\%simp_push_data, \%comp_push_data);
-    
-    print Dumper(@push); 
-    my $data    = encode_json \@push;
-    
+    my @push = (\%simp_push_data, \%comp_push_data);
+
+    print Dumper(@push);
+    my $data = encode_json \@push;
+
     print Dumper($data);
+
     # Push data
     my $result = $svc->add_data(data => $data);
+
     # print Dumper($result);
 
     print "--------------------\n";
 }
+
 #--- Get the ping time
-sub _get_ping_latency() {
+sub _get_ping_latency()
+{
     my $results;
     my $start = [gettimeofday];
     $results = $client->ping();
