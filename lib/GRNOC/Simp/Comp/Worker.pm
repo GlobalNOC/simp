@@ -1358,13 +1358,28 @@ sub _digest_data
         # all the keys are present. If some OIDs hadn't been collected
         # we wouldn't have entries for them, but we always want the complete
         # composite returned as defined.
-        for my $val_datum (@val_data)
+
+        # We also take this opportunity to throw away results where a field
+        # was marked required, but it doesn't match the require regex
+        for (my $i = $#val_data; $i >= 0; $i--)
         {
+            my $val_datum = $val_data[$i];
+
             for my $data_element (@data_elements)
             {
                 my $data_el_name = $data_element->{'name'};
+
                 $val_datum->{$data_el_name} = undef
-                  if (!exists $val_datum->{$data_el_name});
+                  if (!exists($val_datum->{$data_el_name}));
+
+                if (exists($data_element->{'require_match'})
+                    && $val_datum->{$data_el_name} !~
+                    $data_element->{'require_match'})
+                {
+                    splice(@val_data, $i, 1);
+
+                    last;
+                }
             }
         }
 

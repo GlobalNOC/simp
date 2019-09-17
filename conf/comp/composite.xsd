@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
 
-    <!-- Composite definition (document root) -->    
+    <!-- Composite definition (document root) -->
     <xsd:element name="composite" type="COMPOSITE"/>
 
     <xsd:complexType name="COMPOSITE">
@@ -38,7 +38,6 @@
         <xsd:attribute name="value" type="xsd:string" use="required"/>
     </xsd:complexType>
 
-
     <!-- Data element definitions -->
     <xsd:complexType name="DATA">
         <xsd:choice minOccurs="2" maxOccurs="unbounded">
@@ -48,14 +47,16 @@
     </xsd:complexType>
 
     <xsd:complexType name="META">
-        <xsd:attribute name="name"   type="VAR_NAME"   use="required"/>
-        <xsd:attribute name="source" type="VAR_SOURCE" use="required"/>
+        <xsd:attribute name="name"          type="VAR_NAME"   use="required"/>
+        <xsd:attribute name="source"        type="VAR_SOURCE" use="required"/>
+        <xsd:attribute name="require_match" type="xsd:string" />
     </xsd:complexType>
 
     <xsd:complexType name="VALUE">
-        <xsd:attribute name="name"   type="VAR_NAME"   use="required"/>
-        <xsd:attribute name="source" type="VAR_SOURCE" use="required"/>
-	<xsd:attribute name="type"   type="VAR_TYPE"/>
+        <xsd:attribute name="name"          type="VAR_NAME"   use="required"/>
+        <xsd:attribute name="source"        type="VAR_SOURCE" use="required"/>
+        <xsd:attribute name="require_match" type="xsd:string" />
+	    <xsd:attribute name="type"          type="VAR_TYPE"/>
     </xsd:complexType>
 
     <!-- Conversions element definitions -->
@@ -101,9 +102,6 @@
         <xsd:attribute name="exclude" type="INT_BOOL"/>
     </xsd:complexType>
 
-    
-
-
 <!-- Global simpleType Definitions -->
 
     <!-- Validates Variable Names -->
@@ -148,5 +146,4 @@
             <xsd:enumeration value="replace"/>
         </xsd:restriction>
     </xsd:simpleType>
-
 </xsd:schema>
