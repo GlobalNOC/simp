@@ -864,6 +864,7 @@ sub _digest_scans
         if (scalar(keys %{$scans}) < 1)
         {
             $self->logger->error("There is no scan data for $host!");
+
             next;
         }
         else
@@ -882,6 +883,7 @@ sub _digest_scans
             {
                 $results->{scan_tree}{$host} =
                   $results->{scan_tree}{$host}{$scan_id};
+
                 last;
             }
 
@@ -899,6 +901,7 @@ sub _digest_scans
             for my $scan (keys %{$scans})
             {
                 my $legend = $scans->{$scan}{legend};
+
                 if (!@main_legend || $#main_legend < $#$legend)
                 {
                     @main_legend = @{$legend};
@@ -932,6 +935,8 @@ sub _digest_scans
     }
 
     $self->logger->debug("Finished digesting scans");
+
+    # trigger the _get_data callback
     $cv->end;
 }
 
@@ -968,7 +973,8 @@ sub _get_data
     my $value_data = $composite->get('/composite/data/value');
     my $meta_data  = $composite->get('/composite/data/meta');
 
-  # Create a name map for metadata elements to handle the TSDS asterisk notation
+    # Create a name map for metadata elements to handle
+    # the TSDS asterisk notation
     for my $meta_elem (@$meta_data)
     {
         # Map the original name to the adjusted one for functions
@@ -1026,8 +1032,10 @@ sub _get_data
             }
             else
             {
-        # Add the scan_vals hash for it to the results val hash under its val ID
+                # Add the scan_vals hash for it to the results
+                # val hash under its val ID
                 my $val_key = $results->{var_map}->{$elem->{source}};
+
                 if ($val_key)
                 {
                     $self->logger->debug(
@@ -1043,6 +1051,7 @@ sub _get_data
                         {
                             my $suffix_data =
                               $results->{scan_vals}{$host}{$elem->{source}};
+
                             for my $key (keys %$suffix_data)
                             {
                                 $results->{data}{$host}{$elem->{name}}{$key}
@@ -1064,13 +1073,14 @@ sub _get_data
         # Pull the element's OID data from Simp
         else
         {
-
             # Create a map of the val OID for use
             $elem->{map} = $self->_map_oid($elem);
+
             if (!defined $elem->{map})
             {
                 $self->logger->error(
                     "A map could not be generated for val $elem->{name}!");
+
                 next;
             }
 
@@ -1086,6 +1096,7 @@ sub _get_data
                 {
                     $self->logger->error(
                         "ERROR: No scan data! Skipping vals for $host");
+
                     next;
                 }
 
@@ -1127,8 +1138,11 @@ sub _get_data
             }
         }
     }
-    $cv->end;
+
     $self->logger->debug("Finished running _get_data");
+
+    # trigger the _digest_data callback
+    $cv->end;
 }
 
 # Not sure what the point of this is, perhaps to queue data?
@@ -1303,9 +1317,9 @@ sub _digest_data
     my $value_data = $composite->get('/composite/data/value');
     my $meta_data  = $composite->get('/composite/data/meta');
 
-    # TODO: It's possible today that a composite today doesn't have values
-    # or doesn't have metadata, but should it? There are some defined like that
-    # today which causes this check to be required.
+    # TODO: it's possible that a composite doesn't have values or metadata
+    #       defined. But should it?
+    # there are some defined like that which causes this check to be required.
     push(@data_elements, @$value_data) if ($value_data);
     push(@data_elements, @$meta_data)  if ($meta_data);
 
@@ -1315,6 +1329,7 @@ sub _digest_data
         {
             $self->logger->error("No vals were returned for $host");
             $results->{data}{$host} = [];
+
             next;
         }
 
@@ -1355,7 +1370,10 @@ sub _digest_data
         # Set the results for val for the host to the data
         $results->{data}{$host} = \@val_data;
     }
+
     $self->logger->debug("Finished digesting vals");
+
+    # trigger _do_conversions callback
     $cv->end;
 }
 
@@ -1395,7 +1413,6 @@ sub _do_conversions
     # Iterate over the data array for each host
     for my $host (keys %{$results->{data}})
     {
-
         # Initialise the final data array for the host
         $results->{final}{$host} = [];
 
@@ -1405,6 +1422,7 @@ sub _do_conversions
         {
             $self->logger->error(
                 "ERROR: No data array was generated for $host!");
+
             next;
         }
 
@@ -1412,6 +1430,7 @@ sub _do_conversions
         unless ($conversions)
         {
             $results->{final}{$host} = $results->{data}{$host};
+
             next;
         }
 
@@ -1451,7 +1470,6 @@ sub _do_conversions
                 # Replacements
                 elsif ($conversion->{type} eq 'replace')
                 {
-
                     $target_with =~ s/\$\{\}/\$\{$target\}/g;
                     $target_this =~ s/\$\{\}/\$\{$target\}/g;
 
@@ -1477,6 +1495,7 @@ sub _do_conversions
                     {
                         $target_pattern = $conversion->{pattern};
                     }
+
                     $self->logger->debug(
                         "Match has the following pattern and vars:");
                     $self->logger->debug($target_pattern);
@@ -1506,7 +1525,6 @@ sub _do_conversions
                     # in the object
                     unless (exists $data->{$target} && defined $data->{$target})
                     {
-# $self->logger->error("ERROR: The target data \"$target\" doesn't exist for $host!");
                         next;
                     }
 
@@ -1531,7 +1549,7 @@ sub _do_conversions
                             $var_value = $results->{constants}{$var};
                         }
 
-                        # If the var isnt anywhere, flag a conversion err
+                        # If the var isn't anywhere, flag a conversion err
                         # and end the loop
                         else
                         {
@@ -1568,10 +1586,12 @@ sub _do_conversions
 
                     }
 
-# Don't send a value for the data if the conversion can't be completed as requested
+                    # Don't send a value for the data if the conversion
+                    # can't be completed as requested
                     if ($conversion_err)
                     {
                         $data->{$target} = undef;
+
                         next;
                     }
 
@@ -1631,6 +1651,7 @@ sub _do_conversions
                             }
                         }
                     }
+
                     if (defined $new_value)
                     {
                         $self->logger->debug(
@@ -1639,7 +1660,6 @@ sub _do_conversions
 
                     # Assign the new value to the data target
                     $data->{$target} = $new_value;
-
                 }
             }
         }
@@ -1660,8 +1680,11 @@ sub _do_conversions
         # we set the final data to that hash
         $results->{final}{$host} = $results->{data}{$host};
     }
+
     $self->logger->debug(Dumper($results->{final}));
     $self->logger->debug("Finished applying conversions to the data");
+
+    # trigger final callback -- send data to simp-tsds
     $cv->end;
 }
 
@@ -1813,13 +1836,15 @@ sub _rpn_calc
 
     for my $val (@$vals)
     {
-   # As a convenience, we initialize the stack with a copy of $val on it already
+        # As a convenience, we initialize the stack with
+        # a copy of $val on it already
         my @stack = ($val);
 
         # Split the RPN program's text into tokens (quoted strings,
         # or sequences of non-space chars beginning with a non-quote):
         my @prog;
         my $progtext = $operand;
+
         while (length($progtext) > 0)
         {
             $progtext =~
@@ -1837,9 +1862,10 @@ sub _rpn_calc
         {
             # Handle some special cases of tokens:
             if ($token =~ /^[\'\"]/)
-            {    # quoted strings
-                    # Take off the start and end quotes, including
-                    # the handling of unterminated strings:
+            {
+                # quoted strings
+                # Take off the start and end quotes, including
+                # the handling of unterminated strings:
                 if ($token =~ /^\"/)
                 {
                     $token =~ s/^\"(([^\"\\]|\\.)*)[\"\\]?$/$1/;
@@ -1848,38 +1874,47 @@ sub _rpn_calc
                 {
                     $token =~ s/^\'(([^\'\\]|\\.)*)[\'\\]?$/$1/;
                 }
+
                 $token =~ s/\\(.)/$1/g;    # unescape escapes
                 push @stack, $token;
             }
             elsif ($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/)
-            {                              # decimal numbers
+            {
+                # decimal numbers
                 push @stack, ($token + 0);
             }
             elsif ($token =~ /^\$/)
-            {   # name of a value associated with the current (host, OID suffix)
+            {
+                # name of a value associated with the current (host, OID suffix)
                 push @stack, $val_set->{substr $token, 1};
             }
             elsif ($token =~ /^\#/)
-            {    # host variable
+            {
+                # host variable
                 push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
             }
             elsif ($token eq '@')
-            {    # push hostname
+            {
+                # push hostname
                 push @stack, $host;
             }
             else
-            {    # treat as a function
+            {
+                # treat as a function
                 if (!defined($_RPN_FUNCS{$token}))
                 {
                     GRNOC::Log::log_error("RPN function $token not defined!")
                       if !$func_lookup_errors{$token};
                     $func_lookup_errors{$token} = 1;
+
                     next;
                 }
+
                 $_RPN_FUNCS{$token}(\@stack);
             }
 
-# We copy, as in certain cases Dumper() can affect the elements of values passed to it
+            # We copy, as in certain cases Dumper() can affect the
+            # elements of values passed to it
             my @stack_copy = @stack;
         }
 
