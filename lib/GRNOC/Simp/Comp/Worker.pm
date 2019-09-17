@@ -464,7 +464,6 @@ sub _map_oid
         # (Regex matches on std var naming conventions)
         if ($oid_elem =~ /^((?![\s\d])\$?[a-z]+[\da-z_-]*)*$/i)
         {
-
             # Add the var name and it's index to the map,
             # dependency derived from its var_num
             $oid_map{vars}{$oid_elem}{index} = $i;
@@ -704,6 +703,7 @@ sub _get_scans
         {
             $self->logger->error(
                 "A map could not be generated for scan $scan->{oid_suffix}!");
+
             next;
         }
 
@@ -724,9 +724,10 @@ sub _get_scans
         );
     }
 
+    $self->logger->debug("Completed _get_scans");
+
     # Signals _digest_scans to start when all callbacks complete
     $cv->end;
-    $self->logger->debug("Completed _get_scans");
 }
 
 # Gets data for a scan for the OIDs we want to scan
