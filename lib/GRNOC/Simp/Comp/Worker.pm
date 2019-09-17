@@ -264,8 +264,6 @@ sub _start
     # If a handler calls "stop_consuming()" it removes
     # the dispatcher definition and returns
     $self->_set_rmq_dispatcher(undef);
-
-    return;
 }
 
 ### PRIVATE METHODS ###
@@ -701,6 +699,7 @@ sub _get_scans
 
         # Add a map of the scan OID to our scan attributes
         $scan->{map} = $self->_map_oid($scan);
+
         if (!defined $scan->{map})
         {
             $self->logger->error(
@@ -777,10 +776,6 @@ sub _scan_cb
             # Blacklist the value if it matches an exclude
             if (any { $oid_value =~ /$_/ } @$excludes)
             {
-            #$results->{scan_exclude}{$host}{$oid} = 1;
-            # !!! The scan_exclude blacklist above is from legacy code
-            # !!! Now that OIDs are only evaluated by pushing to the @oids array
-            # !!! Skipping over them has the same effect
                 next;
             }
 
@@ -788,10 +783,9 @@ sub _scan_cb
             # is using target matches or the value matches a target
             if ($exclude_only)
             {
-                unless (!$has_targets || (any { $scan_oid =~ /$_/ } @$targets))
-                {
-                    next;
-                }
+                next
+                  unless (!$has_targets
+                    || (any { $scan_oid =~ /$_/ } @$targets));
             }
 
             # If we didn't exclude the oid, add it to our OIDs to translate
@@ -824,8 +818,6 @@ sub _scan_cb
     }
 
     $self->logger->debug("Finished running _scan_cb for $scan_suffix");
-
-    return;
 }
 
 # Recursively combine the OID tree for a scan with one of another scan
@@ -1209,8 +1201,6 @@ sub _data_cb
     # Add the translated, cleaned data to to the val results for the host,
     # at the val_id
     $results->{data}{$host}{$elem_map->{name}} = $val_data->{vals};
-
-    return;
 }
 
 # Adds all value leaves of a val_tree to the data_tree's hash leaves
