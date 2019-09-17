@@ -1372,13 +1372,22 @@ sub _digest_data
                 $val_datum->{$data_el_name} = undef
                   if (!exists($val_datum->{$data_el_name}));
 
-                if (exists($data_element->{'require_match'})
-                    && $val_datum->{$data_el_name} !~
-                    $data_element->{'require_match'})
+                if (exists($data_element->{'require_match'}))
                 {
-                    splice(@val_data, $i, 1);
+                    my $inverted =
+                      exists($data_element->{'invert_match'})
+                      ? $data_element->{'invert_match'}
+                      : 0;
+                    my $match =
+                      $val_datum->{$data_el_name} =~
+                      $data_element->{'require_match'};
 
-                    last;
+                    if ((!$match && !$inverted) || ($match && $inverted))
+                    {
+                        splice(@val_data, $i, 1);
+
+                        last;
+                    }
                 }
             }
         }

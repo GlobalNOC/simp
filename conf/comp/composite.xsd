@@ -50,12 +50,14 @@
         <xsd:attribute name="name"          type="VAR_NAME"   use="required"/>
         <xsd:attribute name="source"        type="VAR_SOURCE" use="required"/>
         <xsd:attribute name="require_match" type="xsd:string" />
+        <xsd:attribute name="invert_match"  type="INT_BOOL" />
     </xsd:complexType>
 
     <xsd:complexType name="VALUE">
         <xsd:attribute name="name"          type="VAR_NAME"   use="required"/>
         <xsd:attribute name="source"        type="VAR_SOURCE" use="required"/>
         <xsd:attribute name="require_match" type="xsd:string" />
+        <xsd:attribute name="invert_match"  type="INT_BOOL" />
 	    <xsd:attribute name="type"          type="VAR_TYPE"/>
     </xsd:complexType>
 
