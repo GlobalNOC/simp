@@ -1517,17 +1517,13 @@ sub _do_conversions
                     my $temp_pattern = $target_pattern;
 
                     # Ensure the data object has a time stamp
-                    unless (exists $data->{time})
-                    {
-                        $data->{time} = $now;
-                    }
+                    $data->{time} = $now unless (exists $data->{time});
 
                     # Skip if the target data element doesn't exist
                     # in the object
-                    unless (exists $data->{$target} && defined $data->{$target})
-                    {
-                        next;
-                    }
+                    next
+                      unless (exists $data->{$target}
+                        && defined $data->{$target});
 
                     my $conversion_err = 0;
 
@@ -1555,6 +1551,7 @@ sub _do_conversions
                         else
                         {
                             $conversion_err++;
+
                             last;
                         }
 
@@ -1584,7 +1581,6 @@ sub _do_conversions
                             $temp_pattern =~ s/\$\{$var\}/\Q$var_value\E/;
                             $self->logger->debug($temp_pattern);
                         }
-
                     }
 
                     # Don't send a value for the data if the conversion
