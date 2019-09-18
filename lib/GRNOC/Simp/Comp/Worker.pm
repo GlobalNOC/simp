@@ -228,13 +228,13 @@ sub _start
 
         for my $input (@$inputs)
         {
-            unless (exists $predefined_param{$input->{name}})
+            unless (exists $predefined_param{$input->{'name'}})
             {
                 $method->add_input_parameter(
-                    name => $input->{name},
+                    name => $input->{'name'},
                     description =>
                       "we will add description to the config file later",
-                    required => $input->{required} ? $input->{required} : 1,
+                    required => $input->{'required'} ? $input->{'required'} : 1,
                     multiple => 1,
                     pattern => $GRNOC::WebService::Regex::TEXT
                 );
@@ -315,38 +315,39 @@ sub _get
 # Data is accumulated in a global %results hash:
 #
 #--- Results from the _get_scans -> _scan_cb -> _digest_scans phase:
-# $results{scan_tree}{$node}{$scan_id} = { OID element tree returned from scans with empty leaves }
-# $results{scan_vals}{$node}{$scan_id} = { OID element tree returned from scans with hashes of their values }
+# $results{'scan_tree'}{$node}{$scan_id} = { OID element tree returned from scans with empty leaves }
+# $results{'scan_vals'}{$node}{$scan_id} = { OID element tree returned from scans with hashes of their values }
 #
 # This is from legacy code, no performance is gained with it. Leaving if hidden meaning is revealed...
-# $results{scan_exclude}{$node}{$oid} = 1 (Any value here marks an oid to be excluded)
+# $results{'scan_exclude'}{$node}{$oid} = 1 (Any value here marks an oid to be excluded)
 #
 #--- Results from the _get_data -> _data_cb -> _digest_data phase:
-# $results{data}{$host}{$val_id} = { OID element tree of hashes containting data returned for the val }
-# $results{hostvar}{$host}{$hostvar_name} = The host variables (_get_data and _hostvar_cb)
+# $results{'data'}{$host}{$val_id} = { OID element tree of hashes containting data returned for the val }
+# $results{'hostvar'}{$host}{$hostvar_name} = The host variables (_get_data and _hostvar_cb)
 #
 #--- Results from the _do_conversions phase:
-# $results{final}{$host} = [ Array of all data objects for the host that is passed back to the caller ]
+# $results{'final'}{$host} = [ Array of all data objects for the host that is passed back to the caller ]
 #
 
     # Make sure the final results hash exists, even if we get zero results
-    $results{final} = {};
+    $results{'final'} = {};
 
     # Initialize the variables map and add any inputs to it
-    $results{var_map} = {};
+    $results{'var_map'} = {};
+
     my $inputs = $composite->get('/composite/variables/input');
 
     for my $input (@$inputs)
     {
-        $results{var_map}{$input->{value}} = $input->{name};
+        $results{'var_map'}{$input->{'value'}} = $input->{'name'};
     }
 
-    $results{constants} = {};
+    $results{'constants'} = {};
     my $constants = $composite->get('/composite/variables/constant');
 
     for my $constant (@$constants)
     {
-        $results{constants}{$constant->{name}} = $constant->{value};
+        $results{'constants'}{$constant->{'name'}} = $constant->{'value'};
     }
 
     my $success_callback = $rpc_ref->{'success_callback'};
@@ -431,18 +432,18 @@ sub _map_oid
     my %oid_map;
 
     # Init the base OID for polling as the original OID
-    if ($oid_attr->{oid})
+    if ($oid_attr->{'oid'})
     {
-        $oid_map{base_oid} = $oid_attr->{oid};
+        $oid_map{'base_oid'} = $oid_attr->{'oid'};
     }
-    elsif ($oid_attr->{source})
+    elsif ($oid_attr->{'source'})
     {
-        $oid_map{base_oid} = $oid_attr->{source};
+        $oid_map{'base_oid'} = $oid_attr->{'source'};
     }
 
     # Split the oid and add that to our map
-    my @split_oid = split(/\./, $oid_map{base_oid});
-    $oid_map{split_oid} = \@split_oid;
+    my @split_oid = split(/\./, $oid_map{'base_oid'});
+    $oid_map{'split_oid'} = \@split_oid;
 
     # For joining oid elements in sections
     my $last_var_idx;
@@ -456,8 +457,8 @@ sub _map_oid
         # Change * to the name of the elem for backward compatibility
         if ($oid_elem eq '*')
         {
-            $oid_elem = $oid_attr->{oid_suffix};
-            $split_oid[$i] = $oid_attr->{oid_suffix};
+            $oid_elem = $oid_attr->{'oid_suffix'};
+            $split_oid[$i] = $oid_attr->{'oid_suffix'};
         }
 
         # Check if the OID element is a var or *
@@ -466,7 +467,7 @@ sub _map_oid
         {
             # Add the var name and it's index to the map,
             # dependency derived from its var_num
-            $oid_map{vars}{$oid_elem}{index} = $i;
+            $oid_map{'vars'}{$oid_elem}{'index'} = $i;
 
             if (!defined $first_var_idx)
             {
@@ -482,8 +483,8 @@ sub _map_oid
         }
     }
 
-    $oid_map{first_var} = $first_var_idx;
-    $oid_map{last_var}  = $last_var_idx;
+    $oid_map{'first_var'} = $first_var_idx;
+    $oid_map{'last_var'}  = $last_var_idx;
 
     # If vars, make the base OID the elems from the first elem
     # until we reach the first var
@@ -492,11 +493,11 @@ sub _map_oid
         # The .* is appended or simp-data will match any OID suffix starting
         # with that num
         # i.e. (1.2.3.1 would get 1.2.3.10, 1.2.3.17, 1.2.3.108, etc.)
-        $oid_map{base_oid} =
+        $oid_map{'base_oid'} =
           (join '.', @split_oid[0 .. ($first_var_idx - 1)]) . '.*';
     }
 
-    # $self->logger->debug("Generated map for $oid_attr->{id}:\n" .
+    # $self->logger->debug("Generated map for $oid_attr->{'id'}:\n" .
     # Dumper(\%oid_map));
     return \%oid_map;
 }
@@ -510,13 +511,13 @@ sub _transform_oids
     my $map  = shift;
     my $type = shift;
 
-    my %trans;    # The final translation hash
-    $trans{vals} = {};
+    # The final translation hash
+    my %trans = ('vals' => {});
 
     my $is_scan = 0;
     if (defined $type && $type eq 'scan')
     {
-        $trans{blanks} = {};
+        $trans{'blanks'} = {};
         $is_scan++;
     }
     else
@@ -532,14 +533,14 @@ sub _transform_oids
         my $value = $data->{$oid};
         next if (!defined $value);
 
-        if (!defined $map->{first_var})
+        if (!defined $map->{'first_var'})
         {
-            $trans{vals}{static} = $value;
-            $trans{legend} = ['static'];
+            $trans{'vals'}{'static'} = $value;
+            $trans{'legend'} = ['static'];
 
             if ($is_scan)
             {
-                $trans{blanks}{static} = {};
+                $trans{'blanks'}{'static'} = {};
             }
 
             next;
@@ -548,32 +549,32 @@ sub _transform_oids
         my @split_oid = split(/\./, $oid);
 
         # Check if the last var happens before the end of the data OID elements
-        if (defined $map->{last_var} && $map->{last_var} < $#split_oid)
+        if (defined $map->{'last_var'} && $map->{'last_var'} < $#split_oid)
         {
             # Combine any tailing elements in the OID with the last var
             my $var_tail =
-              join('.', splice(@split_oid, $map->{last_var}, $#split_oid));
+              join('.', splice(@split_oid, $map->{'last_var'}, $#split_oid));
             push(@split_oid, $var_tail);
         }
 
         # Make a reference point to the base of %vals
-        my $ref = $trans{vals};
+        my $ref = $trans{'vals'};
         my $blank_ref;
 
         # Do the same for blanks if it's for a scan
         if ($is_scan)
         {
-            $blank_ref = $trans{blanks};
+            $blank_ref = $trans{'blanks'};
         }
 
         # Starting from the 1st var, loop over OID elements
-        for (my $i = $map->{first_var}; $i <= $#split_oid; $i++)
+        for (my $i = $map->{'first_var'}; $i <= $#split_oid; $i++)
         {
             # Get any matching var from the map's split OID
-            my $var = $map->{split_oid}[$i];
+            my $var = $map->{'split_oid'}[$i];
             if (defined $var)
             {
-                if (!exists $trans{legend})
+                if (!exists $trans{'legend'})
                 {
                     push @legend, $var;
                 }
@@ -594,7 +595,7 @@ sub _transform_oids
                 if ($i == $#split_oid)
                 {
                     $ref->{$oid_elem} = $value;
-                    $ref->{$oid_elem}{suffix} = $oid_elem;
+                    $ref->{$oid_elem}{'suffix'} = $oid_elem;
                 }
 
                 # Otherwise init a new hash in that key for another var
@@ -621,9 +622,9 @@ sub _transform_oids
         }
 
         # Set the legend if it hasn't been
-        if (!exists $trans{legend})
+        if (!exists $trans{'legend'})
         {
-            $trans{legend} = \@legend;
+            $trans{'legend'} = \@legend;
         }
     }
 
@@ -662,10 +663,10 @@ sub _get_scans
     # Make sure several root hashes exist
     for my $host (@$hosts)
     {
-        $results->{scan_tree}{$host} = {};
-        $results->{scan_vals}{$host} = {};
-        $results->{data}{$host}      = {};
-        $results->{hostvar}{$host}   = {};
+        $results->{'scan_tree'}{$host} = {};
+        $results->{'scan_vals'}{$host} = {};
+        $results->{'data'}{$host}      = {};
+        $results->{'hostvar'}{$host}   = {};
     }
 
     my $scans = $composite->get('/composite/variables/scan');
@@ -678,39 +679,39 @@ sub _get_scans
         # <scan oid_suffix="ifIdx"
         #       poll_value="ifName"
         #       oid="1.3.6.1.2.1.31.1.1.1.18.*" />
-        $results->{var_map}->{$scan->{poll_value}} = $scan->{oid_suffix};
+        $results->{'var_map'}->{$scan->{'poll_value'}} = $scan->{'oid_suffix'};
 
         # Add any targets or exclusion patterns to our scan attributes
-        if (defined($scan->{var}))
+        if (defined($scan->{'var'}))
         {
-            if (defined($params->{$scan->{var}}))
+            if (defined($params->{$scan->{'var'}}))
             {
-                $scan->{targets} = $params->{$scan->{var}}{value};
+                $scan->{'targets'} = $params->{$scan->{'var'}}{'value'};
             }
 
-            if (defined($exclude_patterns{$scan->{var}}))
+            if (defined($exclude_patterns{$scan->{'var'}}))
             {
-                $scan->{excludes} = $exclude_patterns{$scan->{var}};
+                $scan->{'excludes'} = $exclude_patterns{$scan->{'var'}};
             }
         }
         else
         {
-            $scan->{excludes} = [];
+            $scan->{'excludes'} = [];
         }
 
         # Add a map of the scan OID to our scan attributes
-        $scan->{map} = $self->_map_oid($scan);
+        $scan->{'map'} = $self->_map_oid($scan);
 
-        if (!defined $scan->{map})
+        if (!defined $scan->{'map'})
         {
             $self->logger->error(
-                "A map could not be generated for scan $scan->{oid_suffix}!");
+                "A map could not be generated for scan $scan->{'oid_suffix'}!");
 
             next;
         }
 
         # Get the base oid to poll, (defaults to the original OID if no vars)
-        my $base_oid = $scan->{map}{base_oid};
+        my $base_oid = $scan->{'map'}{'base_oid'};
 
         # Callback to get the polling data for the base oid
         # of the scan into results
@@ -742,14 +743,14 @@ sub _scan_cb
     my $results = shift;
     my $scan    = shift;
 
-    my $scan_map    = $scan->{map};
-    my $scan_suffix = $scan->{oid_suffix};
-    my $scan_oid    = $scan->{oid};
-    my $targets     = $scan->{targets};
-    my $excludes    = $scan->{excludes};
+    my $scan_map    = $scan->{'map'};
+    my $scan_suffix = $scan->{'oid_suffix'};
+    my $scan_oid    = $scan->{'oid'};
+    my $targets     = $scan->{'targets'};
+    my $excludes    = $scan->{'excludes'};
 
     # True = Add no results, but possibly blacklist OID values
-    my $exclude_only = $scan->{ex_only};
+    my $exclude_only = $scan->{'ex_only'};
 
     $self->logger->debug("Running _scan_cb for $scan_suffix");
 
@@ -774,7 +775,7 @@ sub _scan_cb
         # Check our oids and keep only the ones we want
         for my $oid (keys %{$data->{$host}})
         {
-            my $oid_value = $data->{$host}{$oid}{value};
+            my $oid_value = $data->{$host}{$oid}{'value'};
 
             # Blacklist the value if it matches an exclude
             if (any { $oid_value =~ /$_/ } @$excludes)
@@ -809,14 +810,14 @@ sub _scan_cb
               $self->_transform_oids(\@oids, $data->{$host}, $scan_map, 'scan');
 
             # Set scan_tree with the blank OID tree and legend from the scan
-            $results->{scan_tree}{$host}{$scan_suffix}{vals} =
-              $scan_transform->{blanks};
-            $results->{scan_tree}{$host}{$scan_suffix}{legend} =
-              $scan_transform->{legend};
+            $results->{'scan_tree'}{$host}{$scan_suffix}{'vals'} =
+              $scan_transform->{'blanks'};
+            $results->{'scan_tree'}{$host}{$scan_suffix}{'legend'} =
+              $scan_transform->{'legend'};
 
             # Set scan_vals to the tree of values from the scan
-            $results->{scan_vals}{$host}{$scan_suffix} =
-              $scan_transform->{vals};
+            $results->{'scan_vals'}{$host}{$scan_suffix} =
+              $scan_transform->{'vals'};
         }
     }
 
@@ -863,7 +864,7 @@ sub _digest_scans
         my %combined_scan;
 
         # Get the scans for the host
-        my $scans = $results->{scan_tree}{$host};
+        my $scans = $results->{'scan_tree'}{$host};
         if (scalar(keys %{$scans}) < 1)
         {
             $self->logger->error("There is no scan data for $host!");
@@ -884,8 +885,8 @@ sub _digest_scans
 
             for my $scan_id (keys %{$scans})
             {
-                $results->{scan_tree}{$host} =
-                  $results->{scan_tree}{$host}{$scan_id};
+                $results->{'scan_tree'}{$host} =
+                  $results->{'scan_tree'}{$host}{$scan_id};
 
                 last;
             }
@@ -903,7 +904,7 @@ sub _digest_scans
             # use its legend and scan val tree
             for my $scan (keys %{$scans})
             {
-                my $legend = $scans->{$scan}{legend};
+                my $legend = $scans->{$scan}{'legend'};
 
                 if (!@main_legend || $#main_legend < $#$legend)
                 {
@@ -916,8 +917,8 @@ sub _digest_scans
             # to combine parent scans with
             if (@main_legend && defined $main_scan)
             {
-                $combined_scan{legend} = \@main_legend;
-                $combined_scan{vals}   = $scans->{$main_scan}{vals};
+                $combined_scan{'legend'} = \@main_legend;
+                $combined_scan{'vals'}   = $scans->{$main_scan}{'vals'};
             }
             else
             {
@@ -928,13 +929,13 @@ sub _digest_scans
             # Loop over the parent scans, combining them into one OID tree
             for (my $i = 0; $i < $#main_legend; $i++)
             {
-                my $scan = $scans->{$main_legend[$i]}{vals};
-                $self->_combine_scans($scan, $combined_scan{vals});
+                my $scan = $scans->{$main_legend[$i]}{'vals'};
+                $self->_combine_scans($scan, $combined_scan{'vals'});
             }
         }
 
         # Replace our scanned OID trees for the host with one combined one
-        $results->{scan_tree}{$host} = \%combined_scan;
+        $results->{'scan_tree'}{$host} = \%combined_scan;
     }
 
     $self->logger->debug("Finished digesting scans");
@@ -981,7 +982,7 @@ sub _get_data
     for my $meta_elem (@$meta_data)
     {
         # Map the original name to the adjusted one for functions
-        $results->{meta}->{$meta_elem->{name}} = "*$meta_elem->{name}";
+        $results->{'meta'}->{$meta_elem->{'name'}} = "*$meta_elem->{'name'}";
     }
 
     push(@data_elements, @$value_data);
@@ -1012,61 +1013,62 @@ sub _get_data
 #----------------------------------------------------------------------------------------
 
         # Check if the element source isn't an OID
-        unless ($elem->{source} =~ /.*\.+.*/)
+        unless ($elem->{'source'} =~ /.*\.+.*/)
         {
             # If the val is the "node" var, create a val object in
             # results with one value set to the host
-            if ($elem->{name} eq 'node')
+            if ($elem->{'name'} eq 'node')
             {
                 for my $host (@$hosts)
                 {
-                    $results->{data}{$host}{node}{value} = $host;
+                    $results->{'data'}{$host}{'node'}{'value'} = $host;
                 }
             }
 
             # If the element points to a constant use the value of the constant
-            elsif (exists $results->{constants}{$elem->{source}})
+            elsif (exists $results->{'constants'}{$elem->{'source'}})
             {
                 for my $host (@$hosts)
                 {
-                    $results->{data}{$host}{$elem->{name}}{value} =
-                      $results->{constants}{$elem->{source}};
+                    $results->{'data'}{$host}{$elem->{'name'}}{'value'} =
+                      $results->{'constants'}{$elem->{'source'}};
                 }
             }
             else
             {
                 # Add the scan_vals hash for it to the results
                 # val hash under its val ID
-                my $val_key = $results->{var_map}->{$elem->{source}};
+                my $val_key = $results->{'var_map'}->{$elem->{'source'}};
 
                 if ($val_key)
                 {
                     $self->logger->debug(
-                        "Getting data for source $elem->{source} from the $val_key values"
+                        "Getting data for source $elem->{'source'} from the $val_key values"
                     );
 
                     for my $host (@$hosts)
                     {
                         # Assign oid node values to the data name
                         if (
-                            exists $results->{scan_vals}{$host}{$elem->{source}}
-                          )
+                            exists $results->{'scan_vals'}{$host}
+                            {$elem->{'source'}})
                         {
                             my $suffix_data =
-                              $results->{scan_vals}{$host}{$elem->{source}};
+                              $results->{'scan_vals'}{$host}{$elem->{'source'}};
 
                             for my $key (keys %$suffix_data)
                             {
-                                $results->{data}{$host}{$elem->{name}}{$key}
-                                  {value} = $suffix_data->{$key}{suffix};
+                                $results->{'data'}{$host}{$elem->{'name'}}
+                                  {$key}{'value'} =
+                                  $suffix_data->{$key}{'suffix'};
                             }
                         }
 
                         # Assign retrieved values from the scan to the data name
-                        if (exists $results->{scan_vals}{$host}{$val_key})
+                        if (exists $results->{'scan_vals'}{$host}{$val_key})
                         {
-                            $results->{data}{$host}{$elem->{name}} =
-                              $results->{scan_vals}{$host}{$val_key};
+                            $results->{'data'}{$host}{$elem->{'name'}} =
+                              $results->{'scan_vals'}{$host}{$val_key};
                         }
                     }
                 }
@@ -1077,25 +1079,25 @@ sub _get_data
         else
         {
             # Create a map of the val OID for use
-            $elem->{map} = $self->_map_oid($elem);
+            $elem->{'map'} = $self->_map_oid($elem);
 
-            if (!defined $elem->{map})
+            if (!defined $elem->{'map'})
             {
                 $self->logger->error(
-                    "A map could not be generated for val $elem->{name}!");
+                    "A map could not be generated for val $elem->{'name'}!");
 
                 next;
             }
 
             # Add the element's name to the val_map
-            $elem->{map}{name} = $elem->{name};
+            $elem->{'map'}{'name'} = $elem->{'name'};
 
             # Get the base OID of the val for polling
-            my $base_oid = $elem->{map}{base_oid};
+            my $base_oid = $elem->{'map'}{'base_oid'};
 
             for my $host (@$hosts)
             {
-                if (scalar(keys %{$results->{scan_tree}{$host}}) < 1)
+                if (scalar(keys %{$results->{'scan_tree'}{$host}}) < 1)
                 {
                     $self->logger->error(
                         "ERROR: No scan data! Skipping vals for $host");
@@ -1110,7 +1112,7 @@ sub _get_data
                 # instead of asking for the whole subtree, but requesting
                 # a bunch of individual OIDs takes SimpData a *whole* lot
                 # more time and CPU, so we go for the subtree.
-                if (defined($elem->{type}) && $elem->{type} eq 'rate')
+                if (defined($elem->{'type'}) && $elem->{'type'} eq 'rate')
                 {
                     $self->client->get_rate(
                         node           => [$host],
@@ -1119,7 +1121,7 @@ sub _get_data
                         async_callback => sub {
                             my $data = shift;
                             $self->_data_cb($data->{'results'}, $results,
-                                $host, $elem->{map});
+                                $host, $elem->{'map'});
                             $cv->end;
                         }
                     );
@@ -1133,7 +1135,7 @@ sub _get_data
                         async_callback => sub {
                             my $data = shift;
                             $self->_data_cb($data->{'results'}, $results,
-                                $host, $elem->{map});
+                                $host, $elem->{'map'});
                             $cv->end;
                         }
                     );
@@ -1180,7 +1182,7 @@ sub _data_cb
     my $elem_map = shift;
 
     # Get the scan data for the host
-    my $scan_data = $results->{scan_tree}{$host};
+    my $scan_data = $results->{'scan_tree'}{$host};
     $self->logger->debug(
         "Scan data found for _data_cb: " . scalar(keys %{$scan_data}));
 
@@ -1193,8 +1195,8 @@ sub _data_cb
     my @oids;
     for my $oid (keys %{$data->{$host}})
     {
-        my $oid_val  = $data->{$host}{$oid}{value};
-        my $oid_time = $data->{$host}{$oid}{time};
+        my $oid_val  = $data->{$host}{$oid}{'value'};
+        my $oid_time = $data->{$host}{$oid}{'time'};
 
         next if (!defined $oid_val || !defined $oid_time);
 
@@ -1204,18 +1206,18 @@ sub _data_cb
     # Get the transformed data for the val using the wanted OIDs
     my $val_data = $self->_transform_oids(\@oids, $data->{$host}, $elem_map);
     $self->logger->debug(
-        "Translated raw val data into data tree for $elem_map->{name}");
+        "Translated raw val data into data tree for $elem_map->{'name'}");
 
     # Check translated data, removing leaves and branches that were not wanted
     # !!! By design, this shouldn't be necessary as unwanted vals wont match
     # !!! This was made as a replacement for a step in the legacy code
     # !!! Running without this produces the same result
-    #$val_data = $self->_trim_data($val_data->{vals}, $scan_data->{vals});
-    #$self->logger->debug("Trimmed unwanted vals for $val_map->{id}");
+    #$val_data = $self->_trim_data($val_data->{'vals'}, $scan_data->{'vals'});
+    #$self->logger->debug("Trimmed unwanted vals for $val_map->{'id'}");
 
     # Add the translated, cleaned data to to the val results for the host,
     # at the val_id
-    $results->{data}{$host}{$elem_map->{name}} = $val_data->{vals};
+    $results->{'data'}{$host}{$elem_map->{'name'}} = $val_data->{'vals'};
 }
 
 # Adds all value leaves of a val_tree to the data_tree's hash leaves
@@ -1228,25 +1230,25 @@ sub _build_data
 
     # Check if our data tree reference is a leaf on the tree
     # if ( ref($data_tree) eq ref({}) &&
-    #      (!keys $data_tree || exists $data_tree->{time}) ) {
-    if (exists $data_tree->{time} || !scalar(%{$data_tree}))
+    #      (!keys $data_tree || exists $data_tree->{'time'}) ) {
+    if (exists $data_tree->{'time'} || !scalar(%{$data_tree}))
     {
         # Ensure that we have a value to add to the leaf
-        if (exists $val_tree->{value})
+        if (exists $val_tree->{'value'})
         {
             # Set the value for the val
-            $data_tree->{$val_id} = $val_tree->{value};
+            $data_tree->{$val_id} = $val_tree->{'value'};
 
             # Set time once per leaf
-            if (!exists $data_tree->{time})
+            if (!exists $data_tree->{'time'})
             {
-                if (exists $val_tree->{time})
+                if (exists $val_tree->{'time'})
                 {
-                    $data_tree->{time} = $val_tree->{time};
+                    $data_tree->{'time'} = $val_tree->{'time'};
                 }
                 else
                 {
-                    $data_tree->{time} = time;
+                    $data_tree->{'time'} = time;
                 }
             }
         }
@@ -1257,7 +1259,7 @@ sub _build_data
         for my $key (keys %{$data_tree})
         {
             # The data values haven't been reached yet
-            if (!exists $val_tree->{value})
+            if (!exists $val_tree->{'value'})
             {
                 # Check that the val_tree follows the path along the data tree
                 if (exists $val_tree->{$key})
@@ -1286,7 +1288,7 @@ sub _extract_data
 
     for my $key (keys %{$data_tree})
     {
-        if (exists $data_tree->{$key}{time})
+        if (exists $data_tree->{$key}{'time'})
         {
             push @{$output}, $data_tree->{$key};
         }
@@ -1326,19 +1328,19 @@ sub _digest_data
 
     for my $host (@$hosts)
     {
-        if (!keys %{$results->{scan_tree}{$host}})
+        if (!keys %{$results->{'scan_tree'}{$host}})
         {
             $self->logger->error("No vals were returned for $host");
-            $results->{data}{$host} = [];
+            $results->{'data'}{$host} = [];
 
             next;
         }
 
         # Reuse the scan tree for the host to build the data
-        my $val_tree = $results->{scan_tree}{$host}{vals};
+        my $val_tree = $results->{'scan_tree'}{$host}{'vals'};
 
         # Get the vals polled for the host
-        my $vals = $results->{data}{$host};
+        my $vals = $results->{'data'}{$host};
 
         # Add the data for all vals to the appropriate leaves of val_tree
         for my $val_id (keys %{$vals})
@@ -1393,7 +1395,7 @@ sub _digest_data
         }
 
         # Set the results for val for the host to the data
-        $results->{data}{$host} = \@val_data;
+        $results->{'data'}{$host} = \@val_data;
     }
 
     $self->logger->debug("Finished digesting vals");
@@ -1417,15 +1419,15 @@ sub _do_conversions
     # assign type based on xml element attributes
     for my $c (@$conversions)
     {
-        if (exists $c->{definition})
+        if (exists $c->{'definition'})
         {
             $c->{'type'} = 'function';
         }
-        elsif (exists $c->{this})
+        elsif (exists $c->{'this'})
         {
             $c->{'type'} = 'replace';
         }
-        elsif (exists $c->{pattern})
+        elsif (exists $c->{'pattern'})
         {
             $c->{'type'} = 'match';
         }
@@ -1442,14 +1444,14 @@ sub _do_conversions
     my $now = time();
 
     # Iterate over the data array for each host
-    for my $host (keys %{$results->{data}})
+    for my $host (keys %{$results->{'data'}})
     {
         # Initialise the final data array for the host
-        $results->{final}{$host} = [];
+        $results->{'final'}{$host} = [];
 
         # Skip and use empty results if host has no data
-        if (!$results->{data}{$host}
-            || (ref($results->{data}{$host}) ne ref([])))
+        if (!$results->{'data'}{$host}
+            || (ref($results->{'data'}{$host}) ne ref([])))
         {
             $self->logger->error(
                 "ERROR: No data array was generated for $host!");
@@ -1460,7 +1462,7 @@ sub _do_conversions
         # Set final values if no functions are being applied to the hosts's data
         unless ($conversions)
         {
-            $results->{final}{$host} = $results->{data}{$host};
+            $results->{'final'}{$host} = $results->{'data'}{$host};
 
             next;
         }
@@ -1469,7 +1471,7 @@ sub _do_conversions
         for my $conversion (@$conversions)
         {
             # Get the target data for the conversion
-            my $targets = $conversion->{data};
+            my $targets = $conversion->{'data'};
 
             # Apply the conversion to each data target
             for my $target (keys %$targets)
@@ -1479,10 +1481,10 @@ sub _do_conversions
                 my %vars;
 
                 # Initialize all conversion attributes specific to the target
-                my $target_def     = $conversion->{definition};
-                my $target_with    = $conversion->{with};
-                my $target_this    = $conversion->{this};
-                my $target_pattern = $conversion->{pattern};
+                my $target_def     = $conversion->{'definition'};
+                my $target_with    = $conversion->{'with'};
+                my $target_this    = $conversion->{'this'};
+                my $target_pattern = $conversion->{'pattern'};
 
                 # Functions
                 if ($conversion->{'type'} eq 'function')
@@ -1524,7 +1526,7 @@ sub _do_conversions
 
                     unless (scalar(keys %vars))
                     {
-                        $target_pattern = $conversion->{pattern};
+                        $target_pattern = $conversion->{'pattern'};
                     }
 
                     $self->logger->debug(
@@ -1535,7 +1537,7 @@ sub _do_conversions
 
                 # Apply the conversion for the target to each data object
                 # for the host
-                for my $data (@{$results->{data}{$host}})
+                for my $data (@{$results->{'data'}{$host}})
                 {
                     $self->logger->debug(Dumper($data));
 
@@ -1547,7 +1549,7 @@ sub _do_conversions
                     my $temp_pattern = $target_pattern;
 
                     # Ensure the data object has a time stamp
-                    $data->{time} = $now unless (exists $data->{time});
+                    $data->{'time'} = $now unless (exists $data->{'time'});
 
                     # Skip if the target data element doesn't exist
                     # in the object
@@ -1571,9 +1573,9 @@ sub _do_conversions
 
                         # If not, see if the var is a user-defined constant,
                         # then assign it
-                        elsif (exists($results->{constants}{$var}))
+                        elsif (exists($results->{'constants'}{$var}))
                         {
-                            $var_value = $results->{constants}{$var};
+                            $var_value = $results->{'constants'}{$var};
                         }
 
                         # If the var isn't anywhere, flag a conversion err
@@ -1626,17 +1628,17 @@ sub _do_conversions
                     my $new_value;
 
                     # Function application
-                    if ($conversion->{type} eq 'function')
+                    if ($conversion->{'type'} eq 'function')
                     {
                         # Use the FUNCTIONS object rpn definition
-                        $new_value = $_FUNCTIONS{rpn}(
+                        $new_value = $_FUNCTIONS{'rpn'}(
                             [$data->{$target}],
                             $temp_def, $conversion, $data, $results, $host
                         )->[0];
                     }
 
                     # Replacement application
-                    elsif ($conversion->{type} eq 'replace')
+                    elsif ($conversion->{'type'} eq 'replace')
                     {
                         # Use the replace module to replace the value
                         $new_value =
@@ -1645,13 +1647,13 @@ sub _do_conversions
                     }
 
                     # Match application
-                    elsif ($conversion->{type} eq 'match')
+                    elsif ($conversion->{'type'} eq 'match')
                     {
                         # Change the output of the match where exclusion
                         # on match is desired
                         my $exclude =
-                          exists($conversion->{exclude})
-                          ? $conversion->{exclude}
+                          exists($conversion->{'exclude'})
+                          ? $conversion->{'exclude'}
                           : 0;
 
                         # Set new value to pattern match or assign as undef
@@ -1687,7 +1689,7 @@ sub _do_conversions
                             "Dropping composite field $target");
 
                         delete $data->{$target};
-                        next
+                        next;
                     }
 
                     if (defined $new_value)
@@ -1702,13 +1704,13 @@ sub _do_conversions
             }
         }
 
-        for my $meta_name (keys %{$results->{meta}})
+        for my $meta_name (keys %{$results->{'meta'}})
         {
-            for my $data (@{$results->{data}{$host}})
+            for my $data (@{$results->{'data'}{$host}})
             {
                 if (exists $data->{$meta_name})
                 {
-                    $data->{$results->{meta}->{$meta_name}} =
+                    $data->{$results->{'meta'}->{$meta_name}} =
                       delete $data->{$meta_name};
                 }
             }
@@ -1716,10 +1718,10 @@ sub _do_conversions
 
         # Once any/all functions are applied in results->val for the host,
         # we set the final data to that hash
-        $results->{final}{$host} = $results->{data}{$host};
+        $results->{'final'}{$host} = $results->{'data'}{$host};
     }
 
-    $self->logger->debug(Dumper($results->{final}));
+    $self->logger->debug(Dumper($results->{'final'}));
     $self->logger->debug("Finished applying conversions to the data");
 
     # trigger final callback -- send data to simp-tsds
