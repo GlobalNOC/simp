@@ -530,16 +530,18 @@ sub _transform_oids
     {
         # Get the OID's returned value from polling
         my $value = $data->{$oid};
-        if (!defined $value) { next; }
+        next if (!defined $value);
 
         if (!defined $map->{first_var})
         {
             $trans{vals}{static} = $value;
             $trans{legend} = ['static'];
+
             if ($is_scan)
             {
                 $trans{blanks}{static} = {};
             }
+
             next;
         }
 
@@ -1149,7 +1151,6 @@ sub _get_data
 # Not sure what the point of this is, perhaps to queue data?
 sub _hostvar_cb
 {
-
     my $self    = shift;
     my $data    = shift;
     my $results = shift;
@@ -1172,7 +1173,6 @@ sub _hostvar_cb
 # Callback to get data for a val
 sub _data_cb
 {
-
     my $self     = shift;
     my $data     = shift;
     my $results  = shift;
@@ -1196,7 +1196,7 @@ sub _data_cb
         my $oid_val  = $data->{$host}{$oid}{value};
         my $oid_time = $data->{$host}{$oid}{time};
 
-        if (!defined $oid_val || !defined $oid_time) { next; }
+        next if (!defined $oid_val || !defined $oid_time);
 
         push @oids, $oid;
     }
@@ -1414,26 +1414,32 @@ sub _do_conversions
     # Get array of all conversions in-order
     my $conversions = $composite->get('/composite/conversions/*');
 
+    # assign type based on xml element attributes
     for my $c (@$conversions)
     {
         if (exists $c->{definition})
         {
-            $c->{type} = 'function';
+            $c->{'type'} = 'function';
         }
         elsif (exists $c->{this})
         {
-            $c->{type} = 'replace';
+            $c->{'type'} = 'replace';
         }
         elsif (exists $c->{pattern})
         {
-            $c->{type} = 'match';
+            $c->{'type'} = 'match';
+        }
+        else
+        {
+            # drop has no attributes
+            $c->{'type'} = 'drop';
         }
     }
 
     $self->logger->debug(Dumper($conversions));
     $self->logger->debug("Applying conversions to the data");
 
-    my $now = time;
+    my $now = time();
 
     # Iterate over the data array for each host
     for my $host (keys %{$results->{data}})
@@ -1479,7 +1485,7 @@ sub _do_conversions
                 my $target_pattern = $conversion->{pattern};
 
                 # Functions
-                if ($conversion->{type} eq 'function')
+                if ($conversion->{'type'} eq 'function')
                 {
                     $target_def =~ s/\$\{\}/\$\{$target\}/g;
 
@@ -1493,7 +1499,7 @@ sub _do_conversions
                 }
 
                 # Replacements
-                elsif ($conversion->{type} eq 'replace')
+                elsif ($conversion->{'type'} eq 'replace')
                 {
                     $target_with =~ s/\$\{\}/\$\{$target\}/g;
                     $target_this =~ s/\$\{\}/\$\{$target\}/g;
@@ -1509,7 +1515,7 @@ sub _do_conversions
                 }
 
                 # Matches
-                elsif ($conversion->{type} eq 'match')
+                elsif ($conversion->{'type'} eq 'match')
                 {
                     $target_pattern =~ s/\$\{\}/\$\{$target\}/g;
 
@@ -1580,7 +1586,7 @@ sub _do_conversions
                         }
 
                         # Functions
-                        if ($conversion->{type} eq 'function')
+                        if ($conversion->{'type'} eq 'function')
                         {
                             # Replace the var indicators with their value
                             $temp_def =~ s/\$\{$var\}/$var_value/;
@@ -1589,7 +1595,7 @@ sub _do_conversions
                         }
 
                         # Replacements
-                        elsif ($conversion->{type} eq 'replace')
+                        elsif ($conversion->{'type'} eq 'replace')
                         {
                             # Replace the var indicators with their value
                             $temp_with =~ s/\$\{$var\}/$var_value/g;
@@ -1599,7 +1605,7 @@ sub _do_conversions
                         }
 
                         # Matches
-                        elsif ($conversion->{type} eq 'match')
+                        elsif ($conversion->{'type'} eq 'match')
                         {
                             # Replace the var indicators with their value
                             $temp_pattern =~ s/\$\{$var\}/\Q$var_value\E/;
@@ -1671,6 +1677,17 @@ sub _do_conversions
                                 $new_value = $data->{$target};
                             }
                         }
+                    }
+
+                    # Drops
+                    elsif ($conversion->{'type'} eq 'drop')
+                    {
+                        # drop this field from the composite
+                        $self->logger->debug(
+                            "Dropping composite field $target");
+
+                        delete $data->{$target};
+                        next
                     }
 
                     if (defined $new_value)
@@ -1848,7 +1865,9 @@ sub _do_conversions
             return [$val];
         }
     },
-    'rpn' => sub { return [_rpn_calc(@_)]; },
+    'rpn' => sub {
+        return [_rpn_calc(@_)];
+    },
 );
 
 sub _rpn_calc
