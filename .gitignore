@@ -1,4 +1,5 @@
 # Files generated in build process
+dist/*
 /MYMETA.json
 /MYMETA.yml
 /Makefile
