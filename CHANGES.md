@@ -1,5 +1,15 @@
 # Simp ChangeLog
 
+## 1.4.0 - Sept 18, 2019
+
+* add require_match/invert_match to data fields
+  * allows for dropping of an entire composite colletion if the match fails
+  * require_match is a regex pattern
+  * invert_match can be used to negate the matching
+* add drop conversion
+  * allows for dropping of a single field within the collection
+  * can be used when you need a field for a calculation, but don't want the field itself
+
 ## 1.3.0 - Sept 6, 2019
 
 * Add support for single OID collections, indicated by adding the `single="1"` attribute to the OIDs
