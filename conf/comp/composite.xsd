@@ -66,6 +66,7 @@
             <xsd:element name="function" type="FUNCTION" minOccurs="0" maxOccurs="unbounded" />
             <xsd:element name="replace"  type="REPLACE"  minOccurs="0" maxOccurs="unbounded" />
             <xsd:element name="match"    type="MATCH"    minOccurs="0" maxOccurs="unbounded" />
+            <xsd:element name="drop"     type="DROP"     minOccurs="0" maxOccurs="1" />
         </xsd:choice>
     </xsd:complexType>
 
@@ -101,6 +102,12 @@
         </xsd:sequence>
         <xsd:attribute name="pattern" type="xsd:string" use="required" />
         <xsd:attribute name="exclude" type="INT_BOOL" />
+    </xsd:complexType>
+
+    <xsd:complexType name="DROP">
+        <xsd:sequence>
+            <xsd:element name="data" type="CONVERSION_DATA" maxOccurs="unbounded" />
+        </xsd:sequence>
     </xsd:complexType>
 
     <!-- Global simpleType Definitions -->
