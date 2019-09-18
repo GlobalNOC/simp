@@ -1,12 +1,11 @@
 Name: simp-monitor
-Version: 1.3.0
+Version: 1.4.0
 Release: 1%{?dist}
 Summary: A functionality to monitor SIMP
 License: GRNOC
 Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
 Source0: simp-monitor-%{version}.tar.gz
-
 
 BuildRequires: perl
 BuildRequires: perl(Test::Deep)
@@ -24,10 +23,8 @@ Requires: perl-Redis >= 1.991
 
 %description
 
-
 %prep
 %setup -q -n simp-monitor-%{version}
-
 
 %build
 
@@ -46,7 +43,6 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}/var/www/html/simp_monitor/assets/js
 
 %{__install} -d -p %{buildroot}/var/www/html/cgi-dir
-
 
 %{__install} bin/response_timer.pl %{buildroot}/usr/bin/response_timer.pl
 %{__install} bin/redis_tsds.pl %{buildroot}/usr/bin/redis_tsds.pl
@@ -75,7 +71,6 @@ rm -rf $RPM_BUILD_ROOT
 
 %clean
 rm -rf $RPM_BUILD_ROOT
-
 
 %files
 %defattr(755,root,root,755)
@@ -106,4 +101,3 @@ rm -rf $RPM_BUILD_ROOT
 %post
 mkfifo /var/log/simp_monitor_pipe
 %changelog
-

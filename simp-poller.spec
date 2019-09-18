@@ -1,6 +1,6 @@
 Summary: A small system for gathering large amounts of SNMP data and pushing them into redis
 Name: simp-poller
-Version: 1.3.0
+Version: 1.4.0
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -105,7 +105,6 @@ rm -rf $RPM_BUILD_ROOT
 
 %doc
 
-
 %changelog
 * Mon May 06 2019 Vincent Orlowski <vincentorlowski@gmail.com> - 1.1.0
   - Poller now writes status files for each polling group per host for simp-poller-monitoring
@@ -125,4 +124,3 @@ rm -rf $RPM_BUILD_ROOT
   - creation of the purger
 * Fri Jan 20 2017 Andrew Ragusa <aragusa@globalnoc.iu.edu> - 1.0.0
 - Initial build.
-

@@ -1,6 +1,8 @@
 NAME=simp
-VERSION=1.3.0
+VERSION=1.4.0
+
 .PHONY: dist
+
 rpm:	dist
 	rpmbuild -ta dist/simp-poller-$(VERSION).tar.gz
 	rpmbuild -ta dist/simp-data-$(VERSION).tar.gz
@@ -90,7 +92,6 @@ dist:
 	cp -r conf/redis_tsds_cron dist/simp-monitor-$(VERSION)/conf/
 	cp -r conf/redis_log.conf dist/simp-monitor-$(VERSION)/conf/
 
-
 	cp -r simp-data.spec dist/simp-data-$(VERSION)/
 	cp -r simp-comp.spec dist/simp-comp-$(VERSION)/
 	cp -r simp-poller.spec dist/simp-poller-$(VERSION)/
@@ -106,4 +107,3 @@ dist:
 	cd dist; tar -czvf simp-comp-$(VERSION).tar.gz simp-comp-$(VERSION)/ --exclude .svn --exclude .git
 	cd dist; tar -czvf simp-tsds-$(VERSION).tar.gz simp-tsds-$(VERSION)/ --exclude .svn --exclude .git
 	cd dist; tar -czvf simp-monitor-$(VERSION).tar.gz simp-monitor-$(VERSION)/ --exclude .svn --exclude .git
-

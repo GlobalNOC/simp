@@ -1,6 +1,6 @@
 Summary: SIMP TSDS Collector
 Name: simp-tsds
-Version: 1.3.0
+Version: 1.4.0
 Release: 1%{dist}
 License: APL 2.0
 Group: Network
@@ -50,7 +50,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{configdir}/validation.d
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{sysconfdir}
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{perl_vendorlib}/GRNOC/Simp/TSDS
-%{__install} bin/simp-tsds.pl $RPM_BUILD_ROOT/%{execdir}/
+%{__install} bin/simp-tsds.pl $RPM_BUILD_ROOT/%{execdir}
 %{__install} conf/tsds/config.xml $RPM_BUILD_ROOT/%{configdir}/config.xml
 %{__install} conf/tsds/config.xsd $RPM_BUILD_ROOT/%{configdir}/validation.d/config.xsd
 %{__install} conf/tsds/collection.xml.example $RPM_BUILD_ROOT/%{configdir}/collections.d/collection.xml.example
@@ -65,10 +65,12 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} conf/tsds/simp-tsds.service %{buildroot}/etc/init.d/simp-tsds
 %{__install} conf/sysconfig $RPM_BUILD_ROOT/%{sysconfdir}/simp-tsds
 %endif
+
 %{__install} lib/GRNOC/Simp/TSDS.pm $RPM_BUILD_ROOT/%{perl_vendorlib}/GRNOC/Simp/
 %{__install} lib/GRNOC/Simp/TSDS/Master.pm $RPM_BUILD_ROOT/%{perl_vendorlib}/GRNOC/Simp/TSDS/
 %{__install} lib/GRNOC/Simp/TSDS/Worker.pm $RPM_BUILD_ROOT/%{perl_vendorlib}/GRNOC/Simp/TSDS/
 %{__install} lib/GRNOC/Simp/TSDS/Pusher.pm $RPM_BUILD_ROOT/%{perl_vendorlib}/GRNOC/Simp/TSDS/
+
 # clean up buildroot
 find %{buildroot} -name .packlist -exec %{__rm} {} \;
 
@@ -76,7 +78,6 @@ find %{buildroot} -name .packlist -exec %{__rm} {} \;
 
 %clean
 rm -rf $RPM_BUILD_ROOT
-
 
 %files
 %defattr(644,root,root,755)
