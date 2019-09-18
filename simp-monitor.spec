@@ -100,4 +100,3 @@ rm -rf $RPM_BUILD_ROOT
 
 %post
 mkfifo /var/log/simp_monitor_pipe
-%changelog
