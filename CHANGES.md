@@ -1,5 +1,16 @@
 # Simp ChangeLog
 
+## 1.4.1 - Mar 12, 2020
+
+* added new required config settings to control redis connection settings
+  * read_timeout, write_timeout, reconnect, reconnect_every settings exposed in config for data and poller
+
+* added more complete SNMPv3 connection options
+  * auth_password, auth_protocol, priv_key, priv_password, priv_protocol. See Net::SNMP docs for meanings
+
+
+# Simp ChangeLog
+
 ## 1.4.0 - Sept 18, 2019
 
 * add require_match/invert_match to data fields
