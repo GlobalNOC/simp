@@ -22,6 +22,11 @@
         <xsd:attribute name="community"    type="xsd:string"/>
         <xsd:attribute name="username"     type="xsd:string"/>
         <xsd:attribute name="auth_key"     type="xsd:string"/>
+        <xsd:attribute name="auth_password" type="xsd:string"/>
+        <xsd:attribute name="auth_protocol" type="xsd:string"/>
+        <xsd:attribute name="priv_key"      type="xsd:string"/>
+        <xsd:attribute name="priv_password" type="xsd:string"/>
+        <xsd:attribute name="priv_protocol" type="xsd:string"/>
     </xsd:complexType>
 
     <xsd:complexType name="GROUP">

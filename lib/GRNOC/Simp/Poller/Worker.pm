@@ -488,9 +488,8 @@ sub _connect_to_snmp
         }
         elsif ($host->{'snmp_version'} eq '3')
         {
-            if (!defined($host->{'group'}{$self->group_name}{'context_id'}))
-            {
-                ($snmp, $error) = Net::SNMP->session(
+
+	    my %args = (
                     -hostname    => $host->{'ip'},
                     -version     => '3',
                     -timeout     => $self->timeout,
@@ -499,8 +498,21 @@ sub _connect_to_snmp
                     -username    => $host->{'username'},
                     -nonblocking => 1,
                     -retries     => 5
-                );
+		);
 
+	    # Extra v3 options for auth'ing
+	    $args{-authkey}      = $host->{'auth_key'} if (defined $host->{'auth_key'});
+	    $args{-authpassword} = $host->{'auth_password'} if (defined $host->{'auth_password'});
+	    $args{-authprotocol} = $host->{'auth_protocol'} if (defined $host->{'auth_protocol'});
+	    $args{-privkey}      = $host->{'priv_key'} if (defined $host->{'priv_key'});
+	    $args{-privpassword} = $host->{'priv_password'} if (defined $host->{'priv_password'});
+	    $args{-privprotocol} = $host->{'priv_protocol'} if (defined $host->{'priv_protocol'});
+
+	    $self->logger->debug("Connecting v3 with options = " . Dumper(\%args));
+
+            if (!defined($host->{'group'}{$self->group_name}{'context_id'}))
+            {
+                ($snmp, $error) = Net::SNMP->session(%args);
                 $self->{'snmp'}{$host_name} = $snmp;
 
             }
@@ -510,17 +522,7 @@ sub _connect_to_snmp
                     @{$host->{'group'}{$self->group_name}{'context_id'}})
                 {
 
-                    ($snmp, $error) = Net::SNMP->session(
-                        -hostname    => $host->{'ip'},
-                        -version     => '3',
-                        -timeout     => $self->timeout,
-                        -maxmsgsize  => 65535,
-                        -translate   => [-octetstring => 0],
-                        -username    => $host->{'username'},
-                        -nonblocking => 1,
-                        -retries     => 5
-                    );
-
+                    ($snmp, $error) = Net::SNMP->session(%args);
                     $self->{'snmp'}{$host_name}{$ctxEngine} = $snmp;
                 }
             }
