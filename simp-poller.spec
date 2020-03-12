@@ -27,6 +27,7 @@ Requires: perl(POSIX)
 Requires: perl-Redis >= 1.991
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
+Requires: perl-Crypt-Rijndael
 
 Provides: perl(GRNOC::Simp::Poller)
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root

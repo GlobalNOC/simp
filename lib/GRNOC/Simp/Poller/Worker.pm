@@ -250,7 +250,7 @@ sub start
     else
     {
         $self->logger->error(
-            "Hosts or OIDs were not defined for $self->worker_name!");
+            "Hosts or OIDs were not defined for " . $self->worker_name . "!");
         return;
     }
 
@@ -514,7 +514,10 @@ sub _connect_to_snmp
             {
                 ($snmp, $error) = Net::SNMP->session(%args);
                 $self->{'snmp'}{$host_name} = $snmp;
-
+		
+		if ($error){
+		    $self->logger->error("Error creating SNMPv3 Session: $error");
+		}
             }
             else
             {
@@ -524,6 +527,11 @@ sub _connect_to_snmp
 
                     ($snmp, $error) = Net::SNMP->session(%args);
                     $self->{'snmp'}{$host_name}{$ctxEngine} = $snmp;
+		    
+		    if ($error){
+			$self->logger->error("Error creating SNMPv3 Session (context $ctxEngine): $error");
+		    }
+
                 }
             }
 
