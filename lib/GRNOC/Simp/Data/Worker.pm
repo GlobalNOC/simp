@@ -143,6 +143,10 @@ sub _start
 
     my $redis_host = $self->config->get('/config/redis/@ip');
     my $redis_port = $self->config->get('/config/redis/@port');
+    my $redis_reconnect       = $self->config->get('/config/redis/@reconnect');
+    my $redis_reconnect_every = $self->config->get('/config/redis/@reconnect_every');
+    my $redis_read_timeout    = $self->config->get('/config/redis/@read_timeout');
+    my $redis_write_timeout   = $self->config->get('/config/redis/@write_timeout');
 
     my $rabbit_host = $self->config->get('/config/rabbitmq/@ip');
     my $rabbit_port = $self->config->get('/config/rabbitmq/@port');
@@ -150,17 +154,17 @@ sub _start
     my $rabbit_pass = $self->config->get('/config/rabbitmq/@password');
 
     # conect to redis
-    $self->logger->debug("Connecting to Redis $redis_host:$redis_port.");
+    $self->logger->debug("Connecting to Redis $redis_host:$redis_port -> options reconnect = $redis_reconnect, every = $redis_reconnect_every, read_timeout = $redis_read_timeout, write_timeout = $redis_write_timeout");
 
     my $redis;
 
    #--- try to connect twice per second for 30 seconds, 60 attempts every 500ms.
     $redis = Redis->new(
         server        => "$redis_host:$redis_port",
-        reconnect     => 60,
-        every         => 500,
-        read_timeout  => 2,
-        write_timeout => .3,
+        reconnect     => $redis_reconnect,
+        every         => $redis_reconnect_every,
+        read_timeout  => $redis_read_timeout,
+        write_timeout => $redis_write_timeout,
     );
 
     $self->_set_redis($redis);

@@ -4,7 +4,7 @@
 <config>
 
     <!-- Redis Configuration -->
-    <redis ip="127.0.0.1" port="6379"/>
+    <redis ip="127.0.0.1" port="6379" reconnect="60" reconnect_every="500" read_timeout="2" write_timeout="3"/>
 
     <!-- How long to wait before purging old Redis entries -->
     <purge interval="3600"/>

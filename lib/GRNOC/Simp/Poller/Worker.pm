@@ -190,11 +190,15 @@ sub start
     };
 
     # Connect to redis
-    my $redis_host = $self->config->get('/config/redis/@ip')->[0];
-    my $redis_port = $self->config->get('/config/redis/@port')->[0];
+    my $redis_host      = $self->config->get('/config/redis/@ip')->[0];
+    my $redis_port      = $self->config->get('/config/redis/@port')->[0];
+    my $reconnect       = $self->config->get('/config/redis/@reconnect')->[0];
+    my $reconnect_every = $self->config->get('/config/redis/@reconnect_every')->[0];
+    my $read_timeout    = $self->config->get('/config/redis/@read_timeout')->[0];
+    my $write_timeout   = $self->config->get('/config/redis/@write_timeout')->[0];
 
     $self->logger->debug(
-        $self->worker_name . " Connecting to Redis $redis_host:$redis_port.");
+        $self->worker_name . " Connecting to Redis $redis_host:$redis_port -> options reconnect = $reconnect, every = $reconnect_every, read_timeout = $read_timeout, write_timeout = $write_timeout");
 
     my $redis;
 
@@ -204,10 +208,10 @@ sub start
         # 60 attempts every 500ms.
         $redis = Redis->new(
             server        => "$redis_host:$redis_port",
-            reconnect     => 60,
-            every         => 500,
-            read_timeout  => 2,
-            write_timeout => 3,
+            reconnect     => $reconnect,
+            every         => $reconnect_every,
+            read_timeout  => $read_timeout,
+            write_timeout => $write_timeout
         );
     }
     catch
