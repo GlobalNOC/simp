@@ -2124,6 +2124,66 @@ sub _bool_to_int
         push @$stack, _bool_to_int($res);
     },
 
+    # a b => (Is string A equal to string B? (or both undef))
+    'eq' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res =
+            (defined($a)  && defined($b))  ? ($a eq $b)
+          : (!defined($a) && !defined($b)) ? 1
+          :                                  0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A unequal to string B?)
+    'ne' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res =
+            (defined($a)  && defined($b))  ? ($a ne $b)
+          : (!defined($a) && !defined($b)) ? 0
+          :                                  1;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A less than string B?)
+    'lt' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res   = (defined($a) && defined($b)) ? ($a lt $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A less than or equal to string B?)
+    'le' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res   = (defined($a) && defined($b)) ? ($a le $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A greater than string B?)
+    'gt' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res   = (defined($a) && defined($b)) ? ($a gt $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A greater than or equal to string B?)
+    'ge' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res   = (defined($a) && defined($b)) ? ($a ge $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+
     # a b => (a AND b)
     'and' => sub {
         my $stack = shift;
