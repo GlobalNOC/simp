@@ -18,6 +18,7 @@ dist/*
 # Editor tempfiles
 ~*
 *~
+*.bak
 *.swp
 redis_config.xml
 conf/redis_config.xml

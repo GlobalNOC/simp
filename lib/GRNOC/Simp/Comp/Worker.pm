@@ -1040,36 +1040,30 @@ sub _get_data
                 # val hash under its val ID
                 my $val_key = $results->{'var_map'}->{$elem->{'source'}};
 
-                if ($val_key)
-                {
-                    $self->logger->debug(
-                        "Getting data for source $elem->{'source'} from the $val_key values"
-                    );
+                for my $host (@$hosts) {
 
-                    for my $host (@$hosts)
-                    {
-                        # Assign oid node values to the data name
-                        if (
-                            exists $results->{'scan_vals'}{$host}
-                            {$elem->{'source'}})
-                        {
-                            my $suffix_data =
-                              $results->{'scan_vals'}{$host}{$elem->{'source'}};
+                    # Assign the OID suffixes as the value
+                    if ( exists $results->{'scan_vals'}{$host}{$elem->{'source'}}) {
 
-                            for my $key (keys %$suffix_data)
-                            {
-                                $results->{'data'}{$host}{$elem->{'name'}}
-                                  {$key}{'value'} =
-                                  $suffix_data->{$key}{'suffix'};
-                            }
+                        $self->logger->debug("Getting data for source $elem->{'source'} from OID suffixes");
+
+                        my $suffix_data = $results->{'scan_vals'}{$host}{$elem->{'source'}};
+
+                        for my $key (keys %$suffix_data) {
+                            $results->{'data'}{$host}{$elem->{'name'}}{$key}{'value'} = $suffix_data->{$key}{'suffix'};
                         }
+                    }
 
-                        # Assign retrieved values from the scan to the data name
-                        if (exists $results->{'scan_vals'}{$host}{$val_key})
-                        {
-                            $results->{'data'}{$host}{$elem->{'name'}} =
-                              $results->{'scan_vals'}{$host}{$val_key};
-                        }
+                    # Assign the poll_value as the value
+                    elsif ($val_key && exists $results->{'scan_vals'}{$host}{$val_key}) {
+
+                        $self->logger->debug("Getting data for source $elem->{'source'} from the $val_key values");
+                        
+                        $results->{'data'}{$host}{$elem->{'name'}} = $results->{'scan_vals'}{$host}{$val_key};
+                    }
+
+                    else {
+                        $self->logger->error("The data source $elem->{'source'} did not have any data for assignment!");
                     }
                 }
             }
@@ -2121,6 +2115,66 @@ sub _bool_to_int
         my $b     = pop @$stack;
         my $a     = pop @$stack;
         my $res   = (defined($a) && defined($b)) ? ($a >= $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A equal to string B? (or both undef))
+    'eq' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res =
+            (defined($a)  && defined($b))  ? ($a eq $b)
+          : (!defined($a) && !defined($b)) ? 1
+          :                                  0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A unequal to string B?)
+    'ne' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res =
+            (defined($a)  && defined($b))  ? ($a ne $b)
+          : (!defined($a) && !defined($b)) ? 0
+          :                                  1;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A less than string B?)
+    'lt' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res   = (defined($a) && defined($b)) ? ($a lt $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A less than or equal to string B?)
+    'le' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res   = (defined($a) && defined($b)) ? ($a le $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A greater than string B?)
+    'gt' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res   = (defined($a) && defined($b)) ? ($a gt $b) : 0;
+        push @$stack, _bool_to_int($res);
+    },
+
+    # a b => (Is string A greater than or equal to string B?)
+    'ge' => sub {
+        my $stack = shift;
+        my $b     = pop @$stack;
+        my $a     = pop @$stack;
+        my $res   = (defined($a) && defined($b)) ? ($a ge $b) : 0;
         push @$stack, _bool_to_int($res);
     },
 
