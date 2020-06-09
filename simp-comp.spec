@@ -18,7 +18,7 @@ Requires: perl(List::MoreUtils)
 Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
-Requires: perl-GRNOC-RabbitMQ >= 1.1.1
+Requires: perl-GRNOC-RabbitMQ >= 1.2.1
 Requires: perl-Moo
 Requires: perl-Parallel-ForkManager
 Requires: perl(POSIX)
