@@ -193,7 +193,7 @@ sub _process_composites
 
     # Read XML files from the composites dir
     opendir(my $dir, $self->composites_dir)
-      or $self->_log_and_exit("Could not open $self->composites_dir!");
+      or $self->_log_and_exit("Could not open " . $self->composites_dir . ": $!");
     my @files = grep { $_ =~ /\.xml$/ } readdir($dir);
     close($dir);
 

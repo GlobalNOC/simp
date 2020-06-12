@@ -131,27 +131,8 @@ sub start
     }
 }
 
-sub _start
-{
+sub _setup_rabbitmq {
     my ($self) = @_;
-
-    my $worker_id = $self->worker_id;
-
-    # flag that we're running
-    $self->_set_is_running(1);
-
-    # change our process name
-    $0 = "simp_comp ($worker_id) [worker]";
-
-    # setup signal handlers
-    $SIG{'TERM'} = sub {
-        $self->logger->info("Received SIG TERM.");
-        $self->_stop();
-    };
-
-    $SIG{'HUP'} = sub {
-        $self->logger->info("Received SIG HUP.");
-    };
 
     my $rabbit_host = $self->config->get('/config/rabbitmq/@ip');
     my $rabbit_port = $self->config->get('/config/rabbitmq/@port');
@@ -264,6 +245,31 @@ sub _start
     # If a handler calls "stop_consuming()" it removes
     # the dispatcher definition and returns
     $self->_set_rmq_dispatcher(undef);
+}
+
+sub _start
+{
+    my ($self) = @_;
+
+    my $worker_id = $self->worker_id;
+
+    # flag that we're running
+    $self->_set_is_running(1);
+
+    # change our process name
+    $0 = "simp_comp ($worker_id) [worker]";
+
+    # setup signal handlers
+    $SIG{'TERM'} = sub {
+        $self->logger->info("Received SIG TERM.");
+        $self->_stop();
+    };
+
+    $SIG{'HUP'} = sub {
+        $self->logger->info("Received SIG HUP.");
+    };
+
+    $self->_setup_rabbit();
 }
 
 ### PRIVATE METHODS ###

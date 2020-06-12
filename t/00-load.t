@@ -12,8 +12,8 @@ BEGIN
     use_ok('GRNOC::Simp::Poller::Worker');
     use_ok('GRNOC::Simp::Data');
     use_ok('GRNOC::Simp::Data::Worker');
-    use_ok('GRNOC::Simp::CompData');
-    use_ok('GRNOC::Simp::CompData::Worker');
+    use_ok('GRNOC::Simp::Comp');
+    use_ok('GRNOC::Simp::Comp::Worker');
     use_ok('GRNOC::Simp::TSDS');
     use_ok('GRNOC::Simp::TSDS::Pusher');
     use_ok('GRNOC::Simp::TSDS::Worker');

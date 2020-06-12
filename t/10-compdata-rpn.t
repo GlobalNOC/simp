@@ -10,11 +10,11 @@ use Test::More tests => 131;
 # Unit tests of the following function:
 #
 # GRNOC::Simp::CompData::_rpn_calc($val, $progtext, $fctn_elem [unused], $val_set, $results, $host_name)
-use GRNOC::Simp::CompData::Worker;
+use GRNOC::Simp::Comp::Worker;
 
 sub rpn_calc
 {
-    return GRNOC::Simp::CompData::Worker::_rpn_calc(@_);
+    return GRNOC::Simp::Comp::Worker::_rpn_calc(@_);
 }
 
 # Some sample data
