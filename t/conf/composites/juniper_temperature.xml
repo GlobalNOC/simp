@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <input name="node" value="node_name" />
+        <scan poll_value="intf_name" oid_suffix="intf_id" oid="1.3.6.1.4.1.2636.3.1.13.1.5.*" />
+    </variables>
+
+    <data>
+        <meta name="node" source="node_name" />
+        <meta name="name" source="intf_name" />
+        <value name="temp" source="1.3.6.1.4.1.2636.3.1.13.1.7.intf_id" />
+    </data>
+
+    <conversions>
+        <function definition='0 == _ ${} ifelse'>
+            <data name="temp" />
+        </function>
+
+        <match pattern='^((Bottom|Top) Tray Fan \d+|(Bottom|Top) Tray\d*|Fan Tray \d Fan [^1]|PSM \d INP\d)$' exclude="1">
+            <data name="name" />
+        </match>
+
+        <replace this=' Fan 1' with=''>
+            <data name="name" />
+        </replace>
+    </conversions>
+</composite>

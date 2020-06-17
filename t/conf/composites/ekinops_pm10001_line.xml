@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <input name="node" value="node_name" />
+        <scan poll_value="ifNameLine" oid_suffix="lineIdx" oid="1.3.6.1.4.1.20044.60.7.1.2.1.2.*" />
+    </variables>
+
+    <data>
+        <meta name="node" source="node_name" />
+        <meta name="intf" source="ifNameLine" />
+        <value name="txpower" source="1.3.6.1.4.1.20044.60.3.3.80.1.2.lineIdx" />
+        <value name="rxpower" source="1.3.6.1.4.1.20044.60.3.3.128.1.2.lineIdx" />
+        <value name="prefec" source="1.3.6.1.4.1.20044.60.4.3.196.1.2.lineIdx" type="rate" />
+        <value name="postfec" source="1.3.6.1.4.1.20044.60.4.3.192.1.2.lineIdx" type="rate" />
+    </data>
+
+    <conversions>
+        <function definition='${} 32768 + 65536 % 32768 -'>
+            <data name="txpower" />
+            <data name="rxpower" />
+        </function>
+
+        <function definition='${} dup -32768 > exch 100 / _ ifelse'>
+            <data name="txpower" />
+            <data name="rxpower" />
+        </function>
+
+        <match pattern='^([^_]*)_.*$' exclude="1">
+            <data name="node" />
+        </match>
+
+        <match pattern='^([^(]+)\(.*$'>
+            <data name="intf" />
+        </match>
+
+        <replace this='${}' with='1/${}'>
+            <data name="intf" />
+        </replace>
+    </conversions>
+</composite>

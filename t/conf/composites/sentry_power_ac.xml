@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <input name="node" value="node_name" />
+        <scan poll_value="intf_name" oid_suffix="intf_id" oid="1.3.6.1.4.1.1718.3.2.2.1.2.*" />
+    </variables>
+
+    <data>
+        <meta name="node" source="node_name" />
+        <meta name="intf" source="intf_name" />
+        <value name="power" source="1.3.6.1.4.1.1718.3.2.2.1.7.intf_id" />
+    </data>
+
+    <conversions>
+        <function definition='${} 100 /'>
+            <data name="power" />
+        </function>
+    </conversions>
+</composite>
