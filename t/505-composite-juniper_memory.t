@@ -6,7 +6,7 @@ use warnings;
 
 use Data::Dumper;
 use Test::Deep qw(cmp_deeply num any code);
-use Test::More tests => 6;
+use Test::More tests => 3;
 
 use Test::MockModule;
 use Test::MockObject;
@@ -24,7 +24,7 @@ my $test = SimpTesting->new(data_set_name => $composite);
 
 # Run comp for the composite and node
 my $data = $test->comp_get($node, $composite);
-warn Dumper($data);
+#warn Dumper($data);
 
 ok(scalar(keys $data) == 1,        "Responds with correct number of node results");
 ok($data->{$node},                 "Responds with data for the requested node");
