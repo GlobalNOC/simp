@@ -6,7 +6,7 @@ use warnings;
 
 use Data::Dumper;
 use Test::Deep qw(cmp_deeply num any code);
-use Test::More tests => 4;
+use Test::More tests => 5;
 
 use Test::MockModule;
 use Test::MockObject;
@@ -16,7 +16,7 @@ use lib "$FindBin::Bin/lib";
 use SimpTesting;
 
 # Define the composite to test and the node name in the test dataset
-my $composite = 'juniper_policer';
+my $composite = 'arista_cpu';
 my $node      = 'acme.grnoc.iu.edu';
 
 # Define new test for composite using JSON data in data_sets of the same name
@@ -32,4 +32,4 @@ ok(scalar(keys $data) == 1,        "Responds with correct number of node results
 ok($data->{$node},                 "Responds with data for the requested node");
 ok(scalar(@{$data->{$node}}) == 1, "Responds with correct number of data results");
 ok($value->{'cpu'} == 10,          "Value for CPU is correct");
-ok($value->{'name'} eq '0',        "Constant value for 'name' applied correctly");
+ok($value->{'*name'} eq '0',        "Constant value for 'name' applied correctly");
