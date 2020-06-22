@@ -24,7 +24,7 @@ my $test = SimpTesting->new(data_set_name => $composite);
 
 # Run comp for the composite and node
 my $data = $test->comp_get($node, $composite);
-warn Dumper($data);
+#warn Dumper($data);
 
 my $tot_curr = 0;
 my $tot_volt = 0;
