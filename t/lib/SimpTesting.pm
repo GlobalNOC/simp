@@ -50,7 +50,7 @@ sub _load_data_set {
 
     my $name = $self->data_set_name;
 
-    my $full_path = $FindBin::Bin . "/conf/data_sets/$name" . ".json";
+    my $full_path = $FindBin::Bin . "/conf/data_sets/input/$name.json";
 
     open(my $fh, "<", $full_path) or die "Can't open $full_path: $!";
     my $lines = join("\n",<$fh>);
