@@ -48,6 +48,14 @@ for my $composite (@composites) {
     # Get the actual output data from Simp.Comp
     my $got = $test->comp_get(\@nodes, $composite);
 
+
+    if ($composite eq 'cisco_cpu') {
+        warn "\n\nCISCO CPU RESULTS:\n";
+        warn "EXPECTED: " . Dumper($expect);
+        warn "GOT THIS: " . Dumper($got);
+        warn "\n";
+    }
+
     # Init the comparison results variables
     my $ok;
     my $stack;

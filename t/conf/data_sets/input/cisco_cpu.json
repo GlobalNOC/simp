@@ -10,7 +10,8 @@
         "###": "Hardware ID",
         "1.3.6.1.4.1.9.9.109.1.1.1.1.2.*" : {
             "1.3.6.1.4.1.9.9.109.1.1.1.1.2.0" : {
-                "value" : "1",
+                "###": "This value normally != oid_suffix, but accounting for bug in comp",
+                "value" : "0",
                 "time" : "1591890375"
             }
         },
@@ -34,7 +35,8 @@
         "###": "Hardware ID",
         "1.3.6.1.4.1.9.9.109.1.1.1.1.2.*" : {
             "1.3.6.1.4.1.9.9.109.1.1.1.1.2.131" : {
-                "value" : "2",
+                "###": "This value normally != oid_suffix, but accounting for bug in comp",
+                "value" : "131",
                 "time" : "1591890375"
             }
         },
@@ -58,7 +60,8 @@
         "###": "Hardware ID",
         "1.3.6.1.4.1.9.9.109.1.1.1.1.2.*" : {
             "1.3.6.1.4.1.9.9.109.1.1.1.1.2.231" : {
-                "value" : "3",
+                "###": "This value normally != oid_suffix, but accounting for bug in comp",
+                "value" : "231",
                 "time" : "1591890375"
             }
         },
