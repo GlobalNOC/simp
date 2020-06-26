@@ -1,0 +1,20 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*filter": "Brita",
+            "*policer": "BLM",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "packets": "1",
+            "bits": 8
+        },
+            {
+            "*filter": "Pur",
+            "*policer": "ACAB",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "packets": "1",
+            "bits": 8
+        }
+    ]
+}
