@@ -59,8 +59,8 @@ The test file for composites is `t/51-composites.t`, which can be run individual
 To add a test for a *new* composite do the following:
 1. Add the composite's XML configuration file to `t/conf/composites/`
 2. Create a new JSON file in `t/conf/data_sets/input/` with the name like `composite_name.json`
-3. Add the data expected from the node as would be retrieved by Simp-Data to the JSON file ([Other composite's input files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/input) make a great example)
+3. Add the data expected from the node as would be retrieved by Simp-Data to the JSON file. Other [composite input files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/input) are a great example.
 4. Create a new JSON file in `t/conf/data_sets/output/` with the name like `composite_name.json`
-5. Add the data expected from Simp-Comp after processing has finished to the JSON file. Other [composite input files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/input) are a great example. *Note: The JSON is converted to Perl hashes. For this reason, the JSON must pass linting and values expected to be `undef` must be specified as `null` in the JSON to be converted appropriately.*
+5. Add the data expected from Simp-Comp after processing has finished to the JSON file. Other [composite output files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/output) are a great example. *Note: The JSON is converted to Perl hashes. For this reason, the JSON must pass linting and values expected to be `undef` must be specified as `null` in the JSON to be converted appropriately.*
 6. Test the new composite by running the test `t/51-composites.t` as shown [here](#test-one-specific-thing).
 
