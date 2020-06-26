@@ -50,7 +50,7 @@ sub _load_data_set {
 
     my $name = $self->data_set_name;
 
-    my $full_path = $FindBin::Bin . "/conf/data_sets/$name" . ".json";
+    my $full_path = $FindBin::Bin . "/conf/data_sets/input/$name.json";
 
     open(my $fh, "<", $full_path) or die "Can't open $full_path: $!";
     my $lines = join("\n",<$fh>);
@@ -82,28 +82,31 @@ sub _clean_comments {
 # Helper function used in Mock for Simp/Comp to simulate talking to Simp/Data.
 # This will look up the response it would receive from the test dataset specified
 sub _mock_comp_handler {
+
     my $testing_self = shift;
 
     return sub {
-	my ($comp_self, %args) = @_;
+	    my ($comp_self, %args) = @_;
 	
-	# These are the only args passed to RMQ client in Comp, so we can
-	# intercept and do whatever we need to here.
-	my $node     = $args{'node'}->[0];
-	my $period   = $args{'period'};
-	my $oidmatch = $args{'oidmatch'};
-	my $callback = $args{'async_callback'};
-	
-	# Sometimes this is passed as an array, sometimes string.
-	$oidmatch = $oidmatch->[0] if(ref($oidmatch) eq 'ARRAY');
+	    # These are the only args passed to RMQ client in Comp, so we can
+	    # intercept and do whatever we need to here.
+        my $nodes    = $args{'node'};
+	    my $period   = $args{'period'};
+        my $callback = $args{'async_callback'};
 
-	warn "Getting data for $node -> $oidmatch";
+        # Sometimes this is an array, but we want the string in the array in that case
+	    my $oidmatch = ref($args{'oidmatch'}) eq 'ARRAY' ? $args{'oidmatch'}->[0] : $args{'oidmatch'};
 
-	my $res = $testing_self->data_set->{$node}{$oidmatch};
+        # The final data hash to return
+        my $data = {'results' => {}};
 
-	my $data = {"results" => {"$node" => $res}};
-	
-	&$callback($data);
+        # Get data results for all the requested nodes
+        for my $node (@{$nodes}) {
+            #warn "Getting data for $node -> $oidmatch";
+	        my $res = $testing_self->data_set->{$node}{$oidmatch};
+            $data->{'results'}{$node} = $res;
+	    }
+        &$callback($data);
     };
 }
 
@@ -132,37 +135,50 @@ sub _mock_comp {
 
     # We need to make the Comp Master first to do all the composite generation and validation
     my $mock_comp = Test::MockModule->new('GRNOC::Simp::Comp');
-    $mock_comp->mock('_validate_config', sub { 1; }); #TODO: actually do this, skipping validation is bad mmkay
+    
+    # Skips config validation for Mock testing
+    # TODO Implement actual validation, should not be skipped
+    $mock_comp->mock('_validate_config', sub { 1; });
 
     # TODO - fix up all the junk values
-    my $comp_master = GRNOC::Simp::Comp->new(composite_xsd => 'asdf',
-					     composites_dir => $FindBin::Bin . "/conf/composites/",
-					     config_file => 'asdf', 
-					     config_xsd => 'adf',
-					     logging_file => $FindBin::Bin . "/conf/compDataLogging.conf");
+    my $comp_master = GRNOC::Simp::Comp->new(
+        composite_xsd  => 'asdf',
+        composites_dir => $FindBin::Bin . "/conf/composites/",
+        config_file    => 'asdf', 
+        config_xsd     => 'adf',
+        logging_file   => $FindBin::Bin . "/conf/compDataLogging.conf"
+    );
+    
     my $composites = $comp_master->composites();
     
-    my $comp_worker = GRNOC::Simp::Comp::Worker->new(config     => $comp_master->config,
-						     logger     => $comp_master->logger,
-						     composites => $composites,
-						     daemonize  => 0,
-						     worker_id  => 'testing');
+    my $comp_worker = GRNOC::Simp::Comp::Worker->new(
+        config     => $comp_master->config,
+        logger     => $comp_master->logger,
+        composites => $composites,
+        daemonize  => 0,
+        worker_id  => 'testing'
+    );
 
     $self->comp($comp_worker);
 }
 
+# Takes an array ref of node names and composite name string
+# Returns the result of asking Simp.Comp to process the data from t/conf/data_sets/input/$composite.json
 sub comp_get {
-    my $self      = shift;
-    my $node      = shift;
-    my $comp_name = shift;
+    my $self           = shift;
+    my $nodes          = shift;
+    my $composite_name = shift;
+    my $data;
 
-    my $composite = $self->comp->composites->{$comp_name};
+    $nodes = [$nodes] if (ref($nodes) ne 'ARRAY');
 
-    my $final_data;
+    #warn "\nGetting composite \"$composite_name\" data for these nodes: " . join(', ', @{$nodes}) . "\n\n";
 
-    $self->comp->_get($composite, {"success_callback" => sub { $final_data = shift; }}, {node => {'value' => [$node]}});
+    my $composite = $self->comp->composites->{$composite_name};
 
-    return $final_data;
+    $self->comp->_get($composite, {"success_callback" => sub {$data = shift;}}, {'node' => {'value' => $nodes}});
+
+    return $data;
 }
 
 1;

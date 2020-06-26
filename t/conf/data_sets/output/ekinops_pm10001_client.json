@@ -1,0 +1,110 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "input_bits": "4",
+            "input_errors": "0",
+            "*intf": null,
+            "time": "1591890675",
+            "output_packets": "4",
+            "txpower": -30,
+            "*node": "acme.grnoc.iu.edu",
+            "output_errors": "0",
+            "input_packets": "4",
+            "rxpower": -30,
+            "output_bits": "4"
+        },
+        {
+            "input_bits": "1",
+            "input_errors": "0",
+            "*intf": "1/include ",
+            "time": "1591890675",
+            "output_packets": "1",
+            "txpower": -30,
+            "*node": "acme.grnoc.iu.edu",
+            "output_errors": "0",
+            "input_packets": "1",
+            "rxpower": -30,
+            "output_bits": "1"
+        },
+        {
+            "input_bits": "3",
+            "input_errors": "0",
+            "*intf": null,
+            "time": "1591890675",
+            "output_packets": "3",
+            "txpower": -30,
+            "*node": "acme.grnoc.iu.edu",
+            "output_errors": "0",
+            "input_packets": "3",
+            "rxpower": -30,
+            "output_bits": "3"
+        },
+        {
+            "input_bits": "2",
+            "input_errors": "0",
+            "*intf": "1/include ",
+            "time": "1591890675",
+            "output_packets": "2",
+            "txpower": -30,
+            "*node": "acme.grnoc.iu.edu",
+            "output_errors": "0",
+            "input_packets": "2",
+            "rxpower": -30,
+            "output_bits": "2"
+        }
+    ],
+    "excluded_node.grnoc.iu.edu": [
+        {
+            "input_bits": "4",
+            "input_errors": "0",
+            "*intf": null,
+            "time": "1591890675",
+            "output_packets": "4",
+            "txpower": "-33.9794000867204",
+            "*node": null,
+            "output_errors": "0",
+            "input_packets": "4",
+            "rxpower": "-33.9794000867204",
+            "output_bits": "4"
+        },
+        {
+            "input_bits": "1",
+            "input_errors": "0",
+            "*intf": null,
+            "time": "1591890675",
+            "output_packets": "1",
+            "txpower": -40,
+            "*node": null,
+            "output_errors": "0",
+            "input_packets": "1",
+            "rxpower": -40,
+            "output_bits": "1"
+        },
+        {
+            "input_bits": "3",
+            "input_errors": "0",
+            "*intf": null,
+            "time": "1591890675",
+            "output_packets": "3",
+            "txpower": "-35.2287874528034",
+            "*node": null,
+            "output_errors": "0",
+            "input_packets": "3",
+            "rxpower": "-35.2287874528034",
+            "output_bits": "3"
+        },
+        {
+            "input_bits": "2",
+            "input_errors": "0",
+            "*intf": null,
+            "time": "1591890675",
+            "output_packets": "2",
+            "txpower": "-36.9897000433602",
+            "*node": null,
+            "output_errors": "0",
+            "input_packets": "2",
+            "rxpower": "-36.9897000433602",
+            "output_bits": "2"
+        }
+    ]
+}

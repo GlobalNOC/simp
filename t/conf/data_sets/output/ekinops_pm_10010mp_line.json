@@ -1,0 +1,78 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "postfec": "4",
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": null,
+            "time": "1591890675",
+            "rxpower": "0.1",
+            "prefec": "4",
+            "txpower": "0.1"
+        },
+        {
+            "postfec": "1",
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "1/include ",
+            "time": "1591890675",
+            "rxpower": "0.1",
+            "prefec": "1",
+            "txpower": "0.1"
+        },
+        {
+            "postfec": "3",
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": null,
+            "time": "1591890675",
+            "rxpower": "0.1",
+            "prefec": "3",
+            "txpower": "0.1"
+        },
+        {
+            "postfec": "2",
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "1/include ",
+            "time": "1591890675",
+            "rxpower": "0.1",
+            "prefec": "2",
+            "txpower": "0.1"
+        }
+    ],
+    "excluded_node.grnoc.iu.edu": [
+        {
+            "postfec": "4",
+            "*node": null,
+            "*intf": null,
+            "time": "1591890675",
+            "rxpower": "0.1",
+            "prefec": "4",
+            "txpower": "0.1"
+        },
+        {
+            "postfec": "1",
+            "*node": null,
+            "*intf": "1/include ",
+            "time": "1591890675",
+            "rxpower": "0.1",
+            "prefec": "1",
+            "txpower": "0.1"
+        },
+        {
+            "postfec": "3",
+            "*node": null,
+            "*intf": null,
+            "time": "1591890675",
+            "rxpower": "0.1",
+            "prefec": "3",
+            "txpower": "0.1"
+        },
+        {
+            "postfec": "2",
+            "*node": null,
+            "*intf": "1/include ",
+            "time": "1591890675",
+            "rxpower": "0.1",
+            "prefec": "2",
+            "txpower": "0.1"
+        }
+    ]
+}

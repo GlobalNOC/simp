@@ -1,0 +1,28 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*path_name": "MIA->IBZ",
+            "pps": 10,
+            "time": "1591890375",
+            "*from": "Miami",
+            "*state": "Online",
+            "*to": "Ibiza",
+            "bps": 80,
+            "*node": "acme.grnoc.iu.edu",
+            "*route_record": "Route Record 1",
+            "*lsp_name": "LSP-1"
+        },
+        {
+            "*path_name": "NYC->IATA",
+            "pps": 20,
+            "time": "1591890375",
+            "*from": "New York",
+            "*state": "Down",
+            "*to": "Parana",
+            "bps": 160,
+            "*node": "acme.grnoc.iu.edu",
+            "*route_record": "Route Record 2",
+            "*lsp_name": "LSP-2"
+        }
+    ]
+}

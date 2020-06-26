@@ -1,0 +1,18 @@
+{
+    "acme.grnoc.iu.edu": [
+            {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "optical interface 1",
+            "time": "1591890375",
+            "rxpower": "1",
+            "txpower": "1"
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "optical interface 2",
+            "time": "1591890375",
+            "rxpower": "2",
+            "txpower": "2"
+        }
+    ]
+}

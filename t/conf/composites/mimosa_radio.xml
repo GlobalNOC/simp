@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <input name="node" value="node_name" />
+        <scan poll_value="radio_name" oid_suffix="radio_idx" oid="1.3.6.1.2.1.2.2.1.2.2" />
+    </variables>
+
+    <data>
+        <meta name="node" source="node_name" />
+        <meta name="radio" source="radio_name" />
+        <value name="tx_power" source="1.3.6.1.4.1.43356.2.1.2.6.1.1.2.1" />
+        <value name="rx_powerA" source="1.3.6.1.4.1.43356.2.1.2.6.1.1.3.1" />
+        <value name="rx_powerB" source="1.3.6.1.4.1.43356.2.1.2.6.1.1.3.2" />
+        <value name="noise_floor" source="1.3.6.1.4.1.43356.2.1.2.6.1.1.4.1" />
+    </data>
+
+    <conversions>
+        <function definition='${} 10 /'>
+            <data name="tx_power" />
+            <data name="rx_powerA" />
+            <data name="rx_powerB" />
+            <data name="noise_floor" />
+        </function>
+    </conversions>
+</composite>

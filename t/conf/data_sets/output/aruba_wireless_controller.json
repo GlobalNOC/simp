@@ -1,0 +1,12 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "users_ipv_six": 6,
+            "station": 10,
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "users_ipv_four": 4,
+            "ap": 8
+        }
+    ]
+}

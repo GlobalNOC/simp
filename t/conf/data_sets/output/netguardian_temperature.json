@@ -1,0 +1,28 @@
+{
+    "acme.grnoc.iu.edu": [
+            {
+            "temp": "4.44444444444444",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": null
+        },
+        {
+            "temp": "21.1111111111111",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "Module 1 Temp"
+        },
+        {
+            "temp": null,
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "Temporal Rift 1"
+        },
+        {
+            "temp": "0.277777777777778",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "Module Temperature 2"
+        }
+    ]
+}

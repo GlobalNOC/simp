@@ -1,0 +1,52 @@
+{
+    "single.grnoc.iu.edu": [
+        {
+            "cpu": 1,
+            "*node": "single.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "Single CPU"
+        }
+    ],
+    "r0.grnoc.iu.edu": [
+        {
+            "cpu": 1,
+            "*node": "r0.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "CPU R0/0"
+        }
+    ],
+    "r1.grnoc.iu.edu": [
+        {
+            "cpu": 1,
+            "*node": "r1.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "CPU R0/1"
+        }
+    ],
+    "acme.grnoc.iu.edu": [
+        {
+            "cpu": 3,
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "Core 3"
+        },
+        {
+            "cpu": 2,
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "Core 2"
+        },
+        {
+            "cpu": 1,
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "Core 1"
+        },
+        {
+            "cpu": 4,
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "Core 4"
+        }
+    ]
+}

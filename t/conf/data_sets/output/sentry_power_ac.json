@@ -1,0 +1,16 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "Outlet 1",
+            "time": "689660469",
+            "power": "1"
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "Outlet 2",
+            "time": "689660469",
+            "power": "2"
+        }
+    ]
+}

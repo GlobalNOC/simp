@@ -62,7 +62,7 @@ The host.conf file contains the set of hosts to collect from and defines the col
 </config>
 ```
 
-## Rrunning the Data Service
+## Running the Data Service
 
 ```sh
 ./simpData.pl --config ../simpDataConfig.xml --logging ../logging.conf
@@ -79,4 +79,5 @@ The config is similar to that used by the poller with less details required.
 
 ## Testing
 
-Currently there are no unit tests.  To stress test some there are scripts in *bin* called *genTestData.pl* and *testClient.pl*
+#### Testing information can be found [here](https://github.com/GlobalNOC/simp/tree/master/t)
+
