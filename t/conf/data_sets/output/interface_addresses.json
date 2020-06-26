@@ -1,0 +1,20 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "Interface One",
+            "time": 1593114575,
+            "unused": "0",
+            "*addr": "192.168.0.0",
+            "*intf_index": "1"
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "Interface Two",
+            "time": 1593114575,
+            "unused": "0",
+            "*addr": "255.255.255.0",
+            "*intf_index": "2"
+        }
+    ]
+}
