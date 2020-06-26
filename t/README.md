@@ -16,7 +16,7 @@ $ make test TEST_FILES=t/$TestLevel*.t
 #### Test One Specific Thing
 You can run a specific test by specifying which test file to the previous command as shown below (example tests only composites)
 ```sh
-$ make test TEST_FILES=t/51-composites.t
+$ make test TEST_FILES=t/31-composites.t
 ```
 
 ---
@@ -54,7 +54,7 @@ $ make test TEST_FILES=t/51-composites.t
 
 ---
 ## Adding Composite Tests for Simp-Comp
-The test file for composites is `t/51-composites.t`, which can be run individually when testing a composite.
+The test file for composites is `t/31-composites.t`, which can be run individually when testing a composite.
 
 To add a test for a *new* composite do the following:
 1. Add the composite's XML configuration file to `t/conf/composites/`
@@ -62,5 +62,5 @@ To add a test for a *new* composite do the following:
 3. Add the data expected from the node as would be retrieved by Simp-Data to the JSON file. Other [composite input files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/input) are a great example.
 4. Create a new JSON file in `t/conf/data_sets/output/` with the name like `composite_name.json`
 5. Add the data expected from Simp-Comp after processing has finished to the JSON file. Other [composite output files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/output) are a great example. *Note: The JSON is converted to Perl hashes. For this reason, the JSON must pass linting and values expected to be `undef` must be specified as `null` in the JSON to be converted appropriately.*
-6. Test the new composite by running the test `t/51-composites.t` as shown [here](#test-one-specific-thing).
+6. Test the new composite by running the test `t/31-composites.t` as shown [here](#test-one-specific-thing).
 
