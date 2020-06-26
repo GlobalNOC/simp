@@ -24,6 +24,7 @@ my $test = SimpTesting->new(data_set_name => $composite);
 
 # Run comp for the composite and node
 my $data = $test->comp_get($node, $composite);
+#warn Dumper($data);
 
 # Get the number of entries with appropriately matching names
 my $name_count = 0;
