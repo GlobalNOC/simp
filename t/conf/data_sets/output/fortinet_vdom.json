@@ -1,0 +1,22 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*vdom": "VDOM One",
+            "cpu": "1",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "mem": "1",
+            "session_total": "100",
+            "session_rate": "10"
+        },
+        {
+            "*vdom": "VDOM Two",
+            "cpu": "2",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "mem": "2",
+            "session_total": "200",
+            "session_rate": "20"
+        }
+    ]
+}
