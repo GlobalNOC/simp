@@ -17,15 +17,16 @@ use SimpTesting;
 
 # Define the composite to test and the node name in the test dataset
 my $composite = 'ekinops_pm_10010mp_line';
-my $node      = 'acme.grnoc.iu.edu';
+my @nodes      = ('acme.grnoc.iu.edu', 'excluded_node.grnoc.iu.edu');
 
 # Define new test for composite using JSON data in data_sets of the same name
 my $test = SimpTesting->new(data_set_name => $composite);
 
 # Run comp for the composite and node
-my $data = $test->comp_get($node, $composite);
-#warn Dumper($data);
+my $data = $test->comp_get(\@nodes, $composite);
+warn Dumper($data);
 
+=cut
 # Run comp for a node being excluded by conversions
 my $ex_data = $test->comp_get('excluded_node.grnoc.iu.edu', $composite);
 #warn Dumper($ex_data);
@@ -54,4 +55,4 @@ ok($node_exclusions == 4,           "Excludes nodes with underscores");
 ok($correct_opt == 4,               "Correct rx/tx power values calculated");
 ok($valid_intf == 2,                "Correctly matches desired interface names");
 ok($replaced == 2,                  "Correctly appends \"1/\" to valid interface names");
-
+=nope
