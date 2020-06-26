@@ -1,0 +1,13 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "rx_powerB": "30",
+            "*radio": "Mimosa Radio 1",
+            "noise_floor": "40",
+            "*node": "acme.grnoc.iu.edu",
+            "rx_powerA": "20",
+            "time": "1591890375",
+            "tx_power": "10"
+        }
+    ]
+}
