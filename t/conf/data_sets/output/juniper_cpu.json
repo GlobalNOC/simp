@@ -1,0 +1,22 @@
+{
+    "acme.grnoc.iu.edu": [
+            {
+            "cpu": "10",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "Routing Engine TEST"
+        },
+        {
+            "cpu": "30",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": null
+        },
+        {
+            "cpu": "20",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "*name": "FPC: TEST"
+        }
+    ]
+}
