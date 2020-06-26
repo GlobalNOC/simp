@@ -1,0 +1,28 @@
+{
+  "acme.grnoc.iu.edu": [
+    {
+      "*node": "acme.grnoc.iu.edu",
+      "time": "1591890375",
+      "status": "0",
+      "*sensor": "Sensor 1"
+    },
+    {
+      "*node": "acme.grnoc.iu.edu",
+      "time": "1591890375",
+      "status": "1",
+      "*sensor": "Sensor 4"
+    },
+    {
+      "*node": "acme.grnoc.iu.edu",
+      "time": "1591890375",
+      "status": "0",
+      "*sensor": "Sensor 3"
+    },
+    {
+      "*node": "acme.grnoc.iu.edu",
+      "time": "1591890375",
+      "status": "1",
+      "*sensor": "Sensor 2"
+    }
+  ]
+}
