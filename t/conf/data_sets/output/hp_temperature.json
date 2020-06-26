@@ -1,0 +1,16 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "temp": 10,
+            "*node": "acme.grnoc.iu.edu",
+            "time": "689660469",
+            "*name": "1"
+        },
+        {
+            "temp": null,
+            "*node": "acme.grnoc.iu.edu",
+            "time": "689660469",
+            "*name": "2"
+        }
+    ]
+}
