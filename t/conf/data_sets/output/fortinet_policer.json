@@ -1,0 +1,36 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*vdom_name": "VDOM One (IPv4)",
+            "*policer_id": "Policer 1",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "packets": "1",
+            "bits": 8
+        },
+        {
+            "*vdom_name": "VDOM One (IPv4)",
+            "*policer_id": "Policer 2",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "packets": "2",
+            "bits": 16
+        },
+        {
+            "*vdom_name": "VDOM Two (IPv4)",
+            "*policer_id": "Policer 1",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "packets": "3",
+            "bits": 24
+        },
+        {
+            "*vdom_name": "VDOM Two (IPv4)",
+            "*policer_id": "Policer 2",
+            "*node": "acme.grnoc.iu.edu",
+            "time": "1591890375",
+            "packets": "4",
+            "bits": 32
+        }
+    ]
+}
