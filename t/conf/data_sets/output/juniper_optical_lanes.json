@@ -1,0 +1,36 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "Optical Interface 1-lane1",
+            "time": "1591890375",
+            "rxpower": "1",
+            "*lane": "1",
+            "txpower": "1"
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "Optical Interface 1-lane2",
+            "time": "1591890375",
+            "rxpower": "2",
+            "*lane": "2",
+            "txpower": "2"
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "Optical Interface 2-lane1",
+            "time": "1591890375",
+            "rxpower": "1",
+            "*lane": "1",
+            "txpower": "1"
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "Optical Interface 2-lane2",
+            "time": "1591890375",
+            "rxpower": "2",
+            "*lane": "2",
+            "txpower": "2"
+        }
+    ]
+}
