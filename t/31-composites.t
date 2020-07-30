@@ -15,8 +15,12 @@ use SimpTesting;
 # This flag will cause the test to run better for benchmarking
 my $benchmarking = 0;
 
-# This flag will tell Comp to use debug logging
-my $debug        = 0;
+# This flag will tell Comp to use debug logging and isolate a composite if wanted
+# Useful when a test fails and you want to view debug logging for it
+my $debug = {
+    enable    => 0,
+    composite => ''
+};
 
 
 # Loads a JSON file containing the expected output for a composite
@@ -41,6 +45,11 @@ plan tests => scalar(@composites);
 # Run a test for every composite
 for my $composite (@composites) {
 
+    # Uncomment this line
+    if ($debug->{'enable'} && $debug->{'composite'}) {
+        next unless $composite eq $debug->{'composite'};
+    }
+
     # Number of times to get the data
     # This is only ever adjusted while benchmarking
     my $runs = 1;
@@ -60,7 +69,7 @@ for my $composite (@composites) {
     # Create a new test instance
     my $test = SimpTesting->new(
         'data_set_name' => $composite,
-        'debugging'     => $debug ? 1 : 0
+        'debugging'     => $debug->{'enable'} ? 1 : 0
     );
 
     # Get composite data once or 1000x depending whether we're testing or benchmarking
