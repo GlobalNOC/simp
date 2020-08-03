@@ -482,14 +482,7 @@ sub start
         $self->logger->debug('Daemonizing.');
 
         # Set the PID file to use from config or default
-        my $pid_file;
-        if (!exists $self->config->{'pid-file'}) {
-            $pid_file = "/var/run/simp_comp.pid";
-        }
-        else {
-            $pid_file = $self->config->{'pid-file'};
-        }
-        $self->logger->debug("PID FILE: " . $pid_file);
+        my $pid_file = exists($self->config->{'pid-file'}) ? $self->config->{'pid-file'} : "/var/run/simp_comp.pid";
 
         my $daemon = Proc::Daemon->new(pid_file => $pid_file);
 
@@ -590,10 +583,7 @@ sub _create_workers {
 
     my ($self) = @_;
 
-    my $workers = '1';
-    if (exists $self->config->{'workers'}) {
-        $workers = $self->config->{'workers'};
-    }
+    my $workers = exists $self->config->{'workers'} ? $self->config->{'workers'} : '1';
 
     $self->logger->info("Creating $workers child worker processes.");
 
@@ -615,6 +605,7 @@ sub _create_workers {
         # create worker in this process
         my $worker = GRNOC::Simp::Comp::Worker->new(
             config     => $self->config,
+            rmq_config => $self->rmq_config,
             logger     => $self->logger,
             composites => $self->composites,
             worker_id  => $worker_id
