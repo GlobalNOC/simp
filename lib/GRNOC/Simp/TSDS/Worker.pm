@@ -151,59 +151,28 @@ sub run {
 =cut
 sub _setup_rabbitmq {
 
-    my $self = shift;
+    my $self  = shift;
+    my $retry = shift;
 
-    # We use this flag to indicate whether RMQ has connected.
-    # If it hasn't, we continue to retry connection.
-    my $connected = 0;
+    if ($retry) {
+        $self->logger->error("Simp.TSDS Worker disconnected from RabbitMQ, attempting to reconnect...");
+    }
 
-    while (!$connected) {
+    my $client = GRNOC::RabbitMQ::Client->new(
+        host     => $self->rabbitmq->{'ip'},
+        port     => $self->rabbitmq->{'port'},
+        user     => $self->rabbitmq->{'user'},
+        pass     => $self->rabbitmq->{'password'},
+        exchange => 'Simp',
+        topic    => 'Simp.Comp'
+    );
+    $self->_set_simp_client($client);
 
-        my $client = GRNOC::RabbitMQ::Client->new(
-            host     => $self->rabbitmq->{'ip'},
-            port     => $self->rabbitmq->{'port'},
-            user     => $self->rabbitmq->{'user'},
-            pass     => $self->rabbitmq->{'password'},
-            exchange => 'Simp',
-            topic    => 'Simp.Comp'
-        );
-
-        my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new(
-            host     => $self->rabbitmq->{'ip'},
-            port     => $self->rabbitmq->{'port'},
-            user     => $self->rabbitmq->{'user'},
-            pass     => $self->rabbitmq->{'password'},
-            exchange => 'SNAPP',
-            topic    => "SNAPP.$self->worker_name"
-        );
-
-        # Check whether the Client and Dispatcher are connected
-        # 0 = One or Both are not connected
-        # 1 = Connected Both
-        $connected = ($client && $client->connected) && ($dispatcher && $dispatcher->connected) ? 1 : 0;
-
-        # Log an error and wait to retry if we couldn't connect
-        unless ($connected) {
-            $self->logger->error('GRNOC.Simp.TSDS.Worker could not connect to RabbitMQ, retrying...');
-            sleep 2;
-        }
-        # Finish setup once the Client and Dispatcher are connected
-        else {
-
-            # Set the client
-            $self->_set_simp_client($client);
-
-            # Create and register the Dispatcher's Stop method
-            my $stop = GRNOC::RabbitMQ::Method->new(
-                name        => 'stop',
-                description => 'Stops the TSDS Worker',
-                callback    => sub { $self->_set_stop_me(1); }
-            );
-            $dispatcher->register_method($stop);
-
-            # Log a success message
-            $self->logger->debug('RabbitMQ Client and Dispatcher have connected!')
-        }
+    unless ($client && $client->connected) {
+        $self->logger->error('GRNOC.Simp.TSDS.Worker could not connect to RabbitMQ');
+    }
+    else {
+        $self->logger->debug('RabbitMQ Client connected successfully')
     }
 }
 
@@ -232,7 +201,15 @@ sub _load_config {
             after    => 5,
             interval => $interval,
             cb       => sub {
+
+                # Get the current time
                 my $tm = time;
+
+                # Ensure that the RabbitMQ Client is connected.
+                # When not connected, retry the connection.
+                unless ($self->simp_client && $self->simp_client->connected) {
+                    $self->_setup_rabbitmq(1);
+                }
 
                 # Pull data for each host from Comp
                 for my $host (@{$self->hosts}) {
