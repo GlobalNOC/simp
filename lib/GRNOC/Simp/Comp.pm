@@ -364,8 +364,6 @@ sub _make_composites {
 
     $self->_set_composites(\%composites);
 
-    $self->logger->debug(Dumper($self->composites));
-
     $self->logger->info("Composite definitions read successfully: " . scalar(keys %composites));
 }
 

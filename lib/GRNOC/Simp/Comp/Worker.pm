@@ -69,7 +69,7 @@ has worker_id => (
 
 =item is_running
 =item dispatcher
-=item client
+=item rmq_client
 =item do_shutdown
 =item rmq_dispatcher
 
@@ -86,7 +86,7 @@ has dispatcher => (
     is => 'rwp'
 );
 
-has client => (
+has rmq_client => (
     is => 'rwp'
 );
 
@@ -141,57 +141,88 @@ sub start {
 }
 
 
+=head2 _check_rabbitmq()
+    Checks the whether the RabbitMQ client and dispatcher are connected.
+    If either is not connected it will return false.
+=cut
+sub _check_rabbitmq {
+
+    my $self      = shift;
+
+    my $client_conn = $self->rmq_client && $self->rmq_client->connected ? 1 : 0;
+    my $dispat_conn = $self->rmq_dispatcher && $self->rmq_dispatcher->connected ? 1 : 0;
+
+    return $client_conn && $dispat_conn ? 1 : 0;
+}
+
+
+=head2 _connect_rmq_client()
+    Creates a RabbitMQ Client and sets it for the worker
+=cut
+sub _connect_rmq_client {
+
+    my $self = shift;
+
+    $self->logger->debug("Connecting the RabbitMQ client");
+
+    my $rmq_client = GRNOC::RabbitMQ::Client->new(
+        host           => $self->rmq_config->{'ip'},
+        port           => $self->rmq_config->{'port'},
+        user           => $self->rmq_config->{'user'},
+        pass           => $self->rmq_config->{'password'},
+        exchange       => 'Simp',
+        topic          => 'Simp.Data',
+        timeout        => 15,
+    );
+    $self->_set_rmq_client($rmq_client);
+}
+
+=head2 _connect_rmq_dispatcher()
+    Creates a RabbitMQ Dispatcher and sets it for the worker
+=cut
+sub _connect_rmq_dispatcher {
+
+    my $self = shift;
+
+    $self->logger->debug("Connecting the RabbitMQ dispatcher");
+
+    my $rmq_dispatcher = GRNOC::RabbitMQ::Dispatcher->new(
+        host           => $self->rmq_config->{'ip'},
+        port           => $self->rmq_config->{'port'},
+        user           => $self->rmq_config->{'user'},
+        pass           => $self->rmq_config->{'password'},
+        exchange       => 'Simp',
+        topic          => 'Simp.Comp',
+        queue_name     => 'Simp.Comp',
+    );
+    $self->_set_rmq_dispatcher($rmq_dispatcher);
+}
+
 =head2 _setup_rabbitmq
-    This will set up the RabbitMQ client and dispatcher for the worker.
+    This will set up the RabbitMQ rmq_client and dispatcher for the worker.
     It also create all of the methods for RMQ from the composites.
 =cut
 sub _setup_rabbitmq {
 
     my ($self) = @_;
 
-    my $rabbit_host = $self->rmq_config->{'ip'};
-    my $rabbit_port = $self->rmq_config->{'port'};
-    my $rabbit_user = $self->rmq_config->{'user'};
-    my $rabbit_pass = $self->rmq_config->{'password'};
+    $self->logger->debug('Setting up RabbitMQ');
 
-    $self->logger->debug('Setup RabbitMQ');
-
-    my $client = GRNOC::RabbitMQ::Client->new(
-        host     => $rabbit_host,
-        port     => $rabbit_port,
-        user     => $rabbit_user,
-        pass     => $rabbit_pass,
-        exchange => 'Simp',
-        timeout  => 15,
-        topic    => 'Simp.Data'
-    );
-
-    $self->_set_client($client);
-
-    my $dispatcher = GRNOC::RabbitMQ::Dispatcher->new(
-        queue_name => "Simp.Comp",
-        topic      => "Simp.Comp",
-        exchange   => "Simp",
-        user       => $rabbit_user,
-        pass       => $rabbit_pass,
-        host       => $rabbit_host,
-        port       => $rabbit_port
-    );
+    $self->_connect_rmq_client();
+    $self->_connect_rmq_dispatcher();
 
     my %predefined_param = map { $_ => 1 } ('node', 'period', 'exclude_regexp');
 
-    my $composites = $self->composites;
+    # Register every composite as a RabbitMQ method calling _get() using its parameters
+    for my $composite_name (keys %{$self->composites}) {
 
-    for my $composite_name (keys %$composites) {
-
-        my $composite = $composites->{$composite_name};
+        my $composite = $self->composites->{$composite_name};
 
         my $method = GRNOC::RabbitMQ::Method->new(
-            name     => "$composite_name",
-            async    => 1,
-            callback => sub { $self->_get($composite, @_) },
-            description =>
-              "retrieve composite data of type $composite_name, we should add a descr to the config"
+            name        => "$composite_name",
+            async       => 1,
+            callback    => sub { $self->_get($composite, @_) },
+            description => "retrieve composite data of type $composite_name, we should add a descr to the config"
         );
 
         $method->add_input_parameter(
@@ -239,7 +270,7 @@ sub _setup_rabbitmq {
             }
         }
 
-        $dispatcher->register_method($method);
+        $self->rmq_dispatcher->register_method($method);
     }
 
     $self->config->{'force_array'} = 0;
@@ -250,14 +281,17 @@ sub _setup_rabbitmq {
         callback    => sub { $self->_ping() },
         description => "function to test latency"
     );
-
-    $dispatcher->register_method($ping);
-    $self->_set_rmq_dispatcher($dispatcher);
+    $self->rmq_dispatcher->register_method($ping);
 
     # Begin the event loop that handles requests coming
     # in from the RabbitMQ queue
-    $self->logger->debug('Entering RabbitMQ event loop');
-    $dispatcher->start_consuming();
+    if ($self->_check_rabbitmq()) {
+        $self->logger->debug('Entering RabbitMQ event loop');
+        $self->rmq_dispatcher->start_consuming();
+    }
+    else {
+        $self->logger->error('ERROR: Simp.Comp worker could not connect to RabbitMQ, retrying...');
+    }
 
     # If a handler calls "stop_consuming()" it removes
     # the dispatcher definition and returns
@@ -292,6 +326,7 @@ sub _start {
 
     $self->_setup_rabbitmq();
 }
+
 
 ### PRIVATE METHODS ###
 
@@ -654,7 +689,7 @@ sub _get_scans {
         # Callback to get the polling data for the base oid
         # of the scan into results
         $cv->begin;
-        $self->client->get(
+        $self->rmq_client->get(
             node           => $hosts,
             oidmatch       => $base_oid,
             async_callback => sub {
@@ -872,7 +907,7 @@ sub _get_data {
     # This callback does multiple gets in "parallel" using the begin/end apprach
     # $cv is used to signal when the gets are done
     $cv->begin;
-    $self->client->get(
+    $self->rmq_client->get(
         node           => $hosts,
         oidmatch       => 'vars.*',
         async_callback => sub {
@@ -989,7 +1024,7 @@ sub _get_data {
                 # a bunch of individual OIDs takes SimpData a *whole* lot
                 # more time and CPU, so we go for the subtree.
                 if (defined($attr->{'type'}) && $attr->{'type'} eq 'rate') {
-                    $self->client->get_rate(
+                    $self->rmq_client->get_rate(
                         node           => [$host],
                         period         => $params->{'period'}{'value'},
                         oidmatch       => [$base_oid],
@@ -1002,7 +1037,7 @@ sub _get_data {
 
                 }
                 else {
-                    $self->client->get(
+                    $self->rmq_client->get(
                         node           => [$host],
                         oidmatch       => [$base_oid],
                         async_callback => sub {

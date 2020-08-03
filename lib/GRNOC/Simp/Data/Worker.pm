@@ -290,9 +290,13 @@ sub _start
     $dispatcher->register_method($method2);
 
     #--- go into event loop handing requests that come in over rabbit
-    $self->logger->debug('Entering RabbitMQ event loop');
-    $dispatcher->start_consuming();
-
+    if ($dispatcher && $dispatcher->connected) {
+        $self->logger->debug('Entering RabbitMQ event loop');
+        $dispatcher->start_consuming();
+    }
+    else {
+        $self->logger->error('ERROR: Simp.Data could not connect the RabbitMQ dispatcher!')
+    }
     # you end up here if one of the handlers called stop_consuming
     # this is done when there are internal issues getting
     # to redis that require a re-init.
