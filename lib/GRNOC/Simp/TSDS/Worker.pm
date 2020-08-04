@@ -96,7 +96,6 @@ has required_values => (
 =item msg_list
 =item cv
 =item stop_me
-=item do_shutdown
 
 =back
 =cut
@@ -117,11 +116,14 @@ has stop_me => (
     default => 0
 );
 
-has do_shutdown => (
-    is      => 'rwp',
-    default => 0
-);
 
+=head2 start()
+    This method is called by the Simp.TSDS master to start up the worker
+    We loop on _run() where the event loop is entered and exited.
+    The loop will only stop once the process is terminated.
+    Once _run() is called, we only re-enter the loop when RMQ disconnects.
+    This allows us to reconnect by restarting the worker processes.
+=cut
 sub start {
     
     my $self = shift;
@@ -151,6 +153,11 @@ sub start {
 
 
 =head2 run
+    This kicks off the worker processes and enters the event loop.
+    We only enter the event loop when RabbitMQ is connected.
+    We lock the process on $self->cv->recv until $self->cv->send() is called.
+    Unlocking only occurs when the process is terminated or RMQ disconnects.
+    At that point, the process exits or _run() is called again by the start() loop.
 =cut
 sub _run {
     my ($self) = @_;
@@ -232,6 +239,7 @@ sub _setup_pusher {
 =head2 _setup_worker()
     This will start the main Worker processes and enter the timed event loop.
     The loop will exit if RabbitMQ disconnects or the process is terminated.
+    The timer will call to process and push data whenever it's not requesting it.
 =cut
 sub _setup_worker {
 
@@ -250,6 +258,7 @@ sub _setup_worker {
                 # Get the current time
                 my $tm = time;
 
+                # Exit the event loop but don't exit the process when RMQ disconnects
                 unless ($self->simp_client && $self->simp_client->connected) {
                     $self->logger->error($self->worker_name." Disconnected from RabbitMQ, restarting");
                     $self->cv->send();
@@ -371,7 +380,8 @@ sub _process_data {
 
 
 =head2 _push_data
-    This pushes data messages to TSDS once they've been processed
+    This pushes data messages to TSDS once they've been processed.
+    We call this method as a callback from within the event loop.
 =cut
 sub _push_data {
 
