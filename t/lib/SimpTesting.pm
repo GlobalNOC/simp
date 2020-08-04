@@ -132,7 +132,8 @@ sub _mock_comp {
     # we're not going to use RMQ for anything here, so mock away any actual connections
     # while we're creating this object
     $mock_comp_worker->mock('_setup_rabbitmq', sub { return 1; } ); 
-    $mock_comp_worker->mock('client', sub { return $mock_client; } ); 
+    $mock_comp_worker->mock('rmq_client', sub { return $mock_client; } );
+    $mock_comp_worker->mock('_check_rabbitmq', sub { return 1; } );
 
     # We need to keep this in scope or else the mock stops working
     $self->_set_mocked_comp($mock_comp_worker);
