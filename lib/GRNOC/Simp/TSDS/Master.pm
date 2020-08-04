@@ -452,7 +452,7 @@ sub _create_worker
                 required_values  => [split(',', $required_vals)],
                 exclude_patterns => \@excludes,
             );
-            $worker->run();
+            $worker->start();
         }
     );
 

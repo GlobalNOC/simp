@@ -96,6 +96,7 @@ has required_values => (
 =item msg_list
 =item cv
 =item stop_me
+=item do_shutdown
 
 =back
 =cut
@@ -116,47 +117,76 @@ has stop_me => (
     default => 0
 );
 
-=head2 run
+has do_shutdown => (
+    is      => 'rwp',
+    default => 0
+);
 
-=cut
-sub run {
-    my ($self) = @_;
+sub start {
+    
+    my $self = shift;
 
-    # change process name
-    $0 = "simp_tsds(" . $self->worker_name . ")";
+    # Change the process name
+    $0 = "simp_tsds(".$self->worker_name.")";
 
-    # Set logging object
+    # Create and set the logger
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
-    $self->logger->debug('SIMP-TSDS WORKER');
 
-    # Connect and set the RabbitMQ Dispatcher and Client
-    # The worker will be locked on this step until Rabbitmq has connected
-    $self->_setup_rabbitmq();
+    # This startup loop will catch when a worker exits the event loop without termination
+    # In turn, we can handle connection errors here and/or restart the worker's main processes
+    while (1) {
 
-    # Set worker properties
-    $self->_load_config();
+        $self->logger->info($self->worker_name." Starting...");
+        $self->_run();
 
-    # Enter event loop, loop until condvar met
-    $self->logger->info("Entering event loop");
-    $self->_set_cv(AnyEvent->condvar());
-    $self->cv->recv;
-
-    $self->logger->info($self->worker_name . " loop ended, terminating");
+        if ($self->stop_me) {
+            $self->logger->error($self->worker_name." Event loop ended, terminating");
+            exit(0);
+        }
+        $self->logger->error($self->worker_name." Not connected to RabbitMQ, retrying after 1 interval (".$self->interval."s)");
+        sleep $self->interval;
+    }
+        
 }
 
 
-=head2 _setup_rabbitmq()
-    This will connect the worker to RabbitMQ.
-    If the worker fails to connect on the first try, it will continue to retry until connected.
+=head2 run
 =cut
-sub _setup_rabbitmq {
+sub _run {
+    my ($self) = @_;
+
+    # Connect and set the RabbitMQ Client
+    # The worker will be locked on this step until Rabbitmq has connected
+    $self->_setup_client();
+
+    # We don't want to perform any other operations until RabbitMQ is connected
+    # Once it is, we create the pusher and enter the event loop.
+    if ($self->simp_client && $self->simp_client->connected) {
+
+        $self->logger->info($self->worker_name.' Entering event loop');
+    
+        # Create and set the Simp.TSDS Pusher instance for the worker
+        $self->_setup_pusher();
+
+        # Set the worker properties and event timer, entering the event loop
+        $self->_setup_worker();
+
+        # Lock the worker until shutdown signaled by cv->send()
+        # This will unlock when the RMQ connection fails and re-start the event loop
+        $self->_set_cv(AnyEvent->condvar());
+        $self->cv->recv;
+    }
+}
+
+
+=head2 _setup_client()
+    This will connect the worker's RabbitMQ Client.
+    If the worker fails to connect on the first try, the event loop will not start.
+    We continue the _run() loop until connected.
+=cut
+sub _setup_client {
 
     my $self  = shift;
-    my $retry = shift;
-
-    if ($retry) {
-        $self->logger->error("Simp.TSDS Worker disconnected from RabbitMQ, attempting to reconnect...");
-    }
 
     my $client = GRNOC::RabbitMQ::Client->new(
         host     => $self->rabbitmq->{'ip'},
@@ -164,61 +194,75 @@ sub _setup_rabbitmq {
         user     => $self->rabbitmq->{'user'},
         pass     => $self->rabbitmq->{'password'},
         exchange => 'Simp',
-        topic    => 'Simp.Comp'
+        topic    => 'Simp.Comp',
     );
     $self->_set_simp_client($client);
 
     unless ($client && $client->connected) {
-        $self->logger->error('GRNOC.Simp.TSDS.Worker could not connect to RabbitMQ');
+        $self->logger->error($self->worker_name.' Could not connect to RabbitMQ');
     }
     else {
-        $self->logger->debug('RabbitMQ Client connected successfully')
+        $self->logger->debug($self->worker_name.' RabbitMQ Client connected successfully');
     }
 }
 
 
-sub _load_config {
+=head2 _setup_pusher()
+    This will create and set the Simp.TSDS Pusher for the worker
+=cut
+sub _setup_pusher {
 
-    my ($self) = @_;
+    my $self = shift;
 
-    $self->logger->info($self->worker_name . " starting");
-
-    # Get the interval and composite name
-    my $interval  = $self->interval;
-    my $composite = $self->composite;
-
-    # Create and set the TSDS Pusher object
     my $pusher = GRNOC::Simp::TSDS::Pusher->new(
         logger      => $self->logger,
         worker_name => $self->worker_name,
         tsds_config => $self->tsds_config,
     );
-    $self->_set_tsds_pusher($pusher);
+
+    if (!$pusher) {
+        $self->logger->error($self->worker_name." Could not create the Simp.TSDS Pusher, please check the config");
+    }
+    else {
+        $self->logger->info($self->worker_name." Created the Simp.TSDS Pusher");
+        $self->_set_tsds_pusher($pusher);
+    }
+}
+
+=head2 _setup_worker()
+    This will start the main Worker processes and enter the timed event loop.
+    The loop will exit if RabbitMQ disconnects or the process is terminated.
+=cut
+sub _setup_worker {
+
+    my ($self) = @_;
+
+    # Get the composite name to use as a RabbitMQ method
+    my $composite = $self->composite;
 
     # Create polling timer for event loop
     $self->_set_poll_w(
         AnyEvent->timer(
             after    => 5,
-            interval => $interval,
+            interval => $self->interval,
             cb       => sub {
 
                 # Get the current time
                 my $tm = time;
 
-                # Ensure that the RabbitMQ Client is connected.
-                # When not connected, retry the connection.
                 unless ($self->simp_client && $self->simp_client->connected) {
-                    $self->_setup_rabbitmq(1);
+                    $self->logger->error($self->worker_name." Disconnected from RabbitMQ, restarting");
+                    $self->cv->send();
                 }
 
                 # Pull data for each host from Comp
                 for my $host (@{$self->hosts}) {
 
-                    $self->logger->info($self->worker_name . " processing $host");
+                    $self->logger->info($self->worker_name." Processing $host");
 
                     my %args = (
                         node           => $host,
-                        period         => $interval,
+                        period         => $self->interval,
                         async_callback => sub {
 
                             my $res = shift;
@@ -244,16 +288,18 @@ sub _load_config {
                         $args{'exclude_regexp'} = $self->exclude_patterns;
                     }
 
+                    # Add a request for the composite method from RabbitMQ
+                    # We pass the args hash from above to the method
                     $self->simp_client->$composite(%args);
                 }
 
-                # Push when idle
+                # Push data when idle
                 $self->_set_push_w(AnyEvent->idle(cb => sub { $self->_push_data; }));
             }
         )
     );
 
-    $self->logger->info($self->worker_name . " Done setting up event callbacks");
+    $self->logger->info($self->worker_name." Done setting up event callbacks");
 }
 
 
@@ -341,7 +387,6 @@ sub _push_data {
 
         # Otherwise clear push timer
         $self->_set_push_w(undef);
-        exit(0) if $self->stop_me;
     }
 }
 
