@@ -43,6 +43,9 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 /usr/bin/getent group simp || /usr/sbin/groupadd -r simp
 /usr/bin/getent passwd simp || /usr/sbin/useradd -r -s /sbin/nologin -g simp simp
 
+%post
+systemctl daemon-reload
+
 %install
 rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller
