@@ -142,7 +142,7 @@ sub start {
         $self->_run();
 
         if ($self->stop_me) {
-            $self->logger->error($self->worker_name." Event loop ended, terminating");
+            $self->logger->info($self->worker_name." Event loop ended, terminating");
             exit(0);
         }
         $self->logger->error($self->worker_name." Not connected to RabbitMQ, retrying after 1 interval (".$self->interval."s)");
