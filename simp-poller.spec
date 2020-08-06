@@ -1,6 +1,6 @@
 Summary: A small system for gathering large amounts of SNMP data and pushing them into redis
 Name: simp-poller
-Version: 1.4.2
+Version: 1.4.3
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -42,6 +42,9 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 %pre
 /usr/bin/getent group simp || /usr/sbin/groupadd -r simp
 /usr/bin/getent passwd simp || /usr/sbin/useradd -r -s /sbin/nologin -g simp simp
+
+%post
+systemctl daemon-reload
 
 %install
 rm -rf $RPM_BUILD_ROOT

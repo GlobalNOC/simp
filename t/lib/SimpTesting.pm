@@ -23,6 +23,10 @@ has data_set => (
     is       => 'rwp'
 );
 
+has debugging => (
+    is => 'rwp'
+);
+
 has mocked_comp => (
     is => 'rwp'
 );
@@ -128,7 +132,8 @@ sub _mock_comp {
     # we're not going to use RMQ for anything here, so mock away any actual connections
     # while we're creating this object
     $mock_comp_worker->mock('_setup_rabbitmq', sub { return 1; } ); 
-    $mock_comp_worker->mock('client', sub { return $mock_client; } ); 
+    $mock_comp_worker->mock('rmq_client', sub { return $mock_client; } );
+    $mock_comp_worker->mock('_check_rabbitmq', sub { return 1; } );
 
     # We need to keep this in scope or else the mock stops working
     $self->_set_mocked_comp($mock_comp_worker);
@@ -140,21 +145,22 @@ sub _mock_comp {
     # TODO Implement actual validation, should not be skipped
     $mock_comp->mock('_validate_config', sub { 1; });
 
+    my $logging = $self->debugging ? "/conf/debug-logging.conf" : "/conf/logging.conf";
+
     # TODO - fix up all the junk values
     my $comp_master = GRNOC::Simp::Comp->new(
         composite_xsd  => 'asdf',
         composites_dir => $FindBin::Bin . "/conf/composites/",
         config_file    => 'asdf', 
         config_xsd     => 'adf',
-        logging_file   => $FindBin::Bin . "/conf/compDataLogging.conf"
+        logging_file   => $FindBin::Bin . $logging
     );
-    
-    my $composites = $comp_master->composites();
     
     my $comp_worker = GRNOC::Simp::Comp::Worker->new(
         config     => $comp_master->config,
+        rmq_config => {'asdf' => 0},
         logger     => $comp_master->logger,
-        composites => $composites,
+        composites => $comp_master->composites,
         daemonize  => 0,
         worker_id  => 'testing'
     );

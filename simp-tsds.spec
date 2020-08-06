@@ -1,6 +1,6 @@
 Summary: SIMP TSDS Collector
 Name: simp-tsds
-Version: 1.4.2
+Version: 1.4.3
 Release: 1%{dist}
 License: APL 2.0
 Group: Network
@@ -37,6 +37,9 @@ This program pulls SNMP-derived data from Simp and publishes it to TSDS.
 %pre
 /usr/bin/getent group simp > /dev/null || /usr/sbin/groupadd -r simp
 /usr/bin/getent passwd simp > /dev/null || /usr/sbin/useradd -r -s /bin/nologin -g simp simp
+
+%post
+systemctl daemon-reload
 
 %prep
 %setup -q

@@ -64,3 +64,16 @@ To add a test for a *new* composite do the following:
 5. Add the data expected from Simp-Comp after processing has finished to the JSON file. Other [composite output files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/output) are a great example. *Note: The JSON is converted to Perl hashes. For this reason, the JSON must pass linting and values expected to be `undef` must be specified as `null` in the JSON to be converted appropriately.*
 6. Test the new composite by running the test `t/31-composites.t` as shown [here](#test-one-specific-thing).
 
+---
+## Debugging a Composite Using Tests
+The test file for composites, `31-composites.t`, includes a feature for debugging. This can be especially useful for identifying issues occurring for a single composite when it fails its test.
+*Note: The feature is only accessible by editing the code of the composite test file.*
+
+To turn on debugging mode for a specific composite:
+1. Open `t/31-composites.t` in your text editor
+2. Find the variable called `$debug` near the top
+3. Set "enable" to `1` to allow debug logging every time you run `31-composites.t`
+4. Isolate testing to one composite by specifying its name as the value for `composite`
+5. Run `t/31-composites.t` as shown [here](#test-one-specific-thing) and see that the output is more detailed and is specific to the problem composite.
+
+Using this method, it is much easier to identify why a composite isn't working after changes were made to the lib files. 

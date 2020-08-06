@@ -1,6 +1,6 @@
 Summary: A small system for fetching SNMP data from redis and returning it via RabbitMQ
 Name: simp-data
-Version: 1.4.2
+Version: 1.4.3
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -41,6 +41,9 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 %pre
 /usr/bin/getent group simp || /usr/sbin/groupadd -r simp
 /usr/bin/getent passwd simp || /usr/sbin/useradd -r -s /sbin/nologin -g simp simp
+
+%post
+systemctl daemon-reload
 
 %install
 rm -rf $RPM_BUILD_ROOT
