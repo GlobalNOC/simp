@@ -275,13 +275,16 @@ sub _make_composites {
         if (exists $variables->{'scan'} && ref $variables->{'scan'} eq 'ARRAY') {
 
             for my $scan (@{$variables->{'scan'}}) {
-                
+
                 my $scan_name = $scan->{'poll_value'};
                 
                 $composite{'scans'}{$scan_name} = {
                     'oid'    => $scan->{'oid'},
-                    'suffix' => $scan->{'oid_suffix'},
-                    'map'    => $self->_map_oid($scan_name, $scan, 'scan')
+                    'map'    => $self->_map_oid($scan_name, $scan, 'scan'),
+                    'vars'   => {
+                        $scan->{oid_suffix} => 'suffix',
+                        $scan->{poll_value} => 'value'
+                    }
                 };
             }
         }
@@ -416,10 +419,10 @@ sub _map_oid {
         # Get the specific node from the OID
         my $oid_node = $split_oid[$i];
 
-        # Change * to the name of the element for backward compatibility
-        if ($oid_node eq '*') {
-            $oid_node      = $name;
-            $split_oid[$i] = $name;
+        # Change * to the name of the OID suffix for backward compatibility
+        if ($type eq 'scan' && $oid_node eq '*') {
+            $oid_node      = $elem->{oid_suffix};
+            $split_oid[$i] = $elem->{oid_suffix};
         }
 
         # Check if the OID node is an OID node variable, including *
@@ -427,7 +430,7 @@ sub _map_oid {
         if ($oid_node =~ /^((?![\s\d])\$?[a-z]+[\da-z_-]*)*$/i) {
 
             # Add the name of the variable OID node and its index to the map
-            $oid_map{'vars'}{$oid_node}{'index'} = $i;
+            $oid_map{'vars'}{$oid_node} = $i;
 
             # Initialize the first and last normal OID node indexes
             if (!defined $first_index) {
