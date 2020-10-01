@@ -1512,12 +1512,17 @@ sub _do_conversions {
 
                         # Change the output of the match where exclusion on match is desired
                         my $exclude = exists($conversion->{'exclude'}) ? $conversion->{'exclude'} : 0;
+			my $drop_target = exists($conversion->{'drop'}) ? $conversion->{'drop'} : '';
 
                         # Set new value to pattern match or assign as undef
                         if ($data->{$target} =~ /$temp_pattern/) {
                             unless ($exclude == 1) {
                                 $new_value = $1;
-                            }
+				if ( $drop_target ne '' ) {
+				   delete $data->{$drop_target};
+				   $self->logger->debug("Dropped $host, $drop_target: $data->{$drop_target}");
+				}
+			    }
                             else {
                                 $new_value = undef;
                             }
@@ -1528,6 +1533,10 @@ sub _do_conversions {
                             }
                             else {
                                 $new_value = $data->{$target};
+				if ( $drop_target ne '' ) {
+				   delete $data->{$drop_target};
+				   $self->logger->debug("Dropped $host, $drop_target: $data->{$drop_target}");
+				}
                             }
                         }
                     }
