@@ -354,25 +354,22 @@ sub _get {
     my $success_callback = $rpc_ref->{'success_callback'};
 
     # Initialize the AnyEvent conditional variables for the async processing pipeline
-    my @cv = map { AnyEvent->condvar; } (0 .. 4);
+    my @cv = map { AnyEvent->condvar; } (0 .. 3);
 
     # Below is the async processing pipeline
     # We step through each process using AnyEvent and our conditional variables
 
-    # Gather data for scan elements
-    $cv[0]->begin(sub { $self->_gather_data('scans', $env, $composite, $cv[1]); });
+    # Gather the raw SNMP data for every OID in scans or data elements from Redis
+    $cv[0]->begin(sub { $self->_gather_data($env, $cv[1]); });
     
-    # Gather data for data elements
-    $cv[1]->begin(sub { $self->_gather_data('data', $env, $composite, $cv[2]); });
-    
-    # Digest the gathered data into an array of data objects
-    $cv[2]->begin(sub { $self->_digest_data($env, $composite, $cv[3]); });
+    # Digest the gathered raw data into an array of data objects
+    $cv[1]->begin(sub { $self->_digest_data($env, $cv[2]); });
     
     # Apply conversions to the array of data objects
-    $cv[3]->begin(sub { $self->_convert_data($composite, $args, $env, $cv[4]); });
+    $cv[2]->begin(sub { $self->_convert_data($env, $cv[3]); });
     
     # Send the final data back and reset variables
-    $cv[4]->begin(
+    $cv[3]->begin(
         sub {
             my $end = [gettimeofday];
             my $resp_time = tv_interval($start, $end);
@@ -405,14 +402,16 @@ sub _init_environment {
 
     # Create the environment hash
     my %env = (
+        composite => $composite,
         hosts     => $args->{node}{value},
         interval  => $args->{period}{value} || 60,
         final     => {},
         var_map   => {},
         constants => {},
+        raw       => { scan => {}, data => {} },
         data      => {},
-        scans     => {},
         meta      => {},
+        combos    => {},
     );
 
     # Map any input variables for the composite
@@ -431,18 +430,22 @@ sub _init_environment {
 
     # Create host-specific hash entries
     for my $host (@{$env{hosts}}) {
-        $env{data}{$host}  = [];
-        $env{scans}{$host} = {}
+        $env{data}{$host}      = [];
+        $env{final}{$host}     = [];
+        $env{raw}{scan}{$host} = [];
+        $env{raw}{data}{$host} = {};
+        $env{combos}{$host}    = [];
     }
 
     # Map scan poll_value and oid_suffix names
-    while ( my ($name, $attr) = each(%{$composite->{scans}}) ) {
-        $env{'var_map'}{$name} = $attr->{suffix};
+    for my $scan ( @{$composite->{scans}} ) {
+        $env{'var_map'}{$scan->{value}} = $scan->{suffix};
     }
 
     # Map metadata names for TSDS
-    while ( my ($name, $attr) = each(%{$composite->{data}}) ) {
-        $env{'meta'}{$name} = "*$name" if ($attr->{data_type} eq 'metadata');
+    for my $meta (keys %{$composite->{data}}) {
+        my $attr = $composite->{data}{$meta};
+        $env{'meta'}{$meta} = "*$meta" if ($attr->{data_type} eq 'metadata');
     }
 
     return \%env;
@@ -455,20 +458,23 @@ sub _init_environment {
 =cut
 sub _gather_data {
     my $self      = shift;
-    my $type      = shift;
     my $env       = shift;
-    my $composite = shift;
     my $cv        = shift;
 
-   $self->logger->debug("Gathering data for $type elements");
+    my $composite = $env->{composite};
 
-    # Process each composite element of the type
-    while (my ($name, $attr) = each(%{$composite->{$type}})) {
+    $self->logger->debug("Gathering data from Redis...");
+
+    for my $scan (@{$composite->{'scans'}}) {
+        
+        $self->_request_data($env, $scan->{suffix}, $scan, $cv);
+    }
+
+    while (my ($name, $attr) = each(%{$composite->{'data'}})) {
 
         # Skip data elements where their source is not an OID
-        next if ($type eq 'data' && $attr->{source_type} ne 'oid');
+        next if ($attr->{source_type} eq 'scan');
 
-        # Request a cache of data for the OID
         $self->_request_data($env, $name, $attr, $cv);
     }
 
@@ -483,6 +489,7 @@ sub _gather_data {
     OID data is cached in $env->{data} by the callback.
 =cut
 sub _request_data {
+
     my $self = shift;
     my $env  = shift;
     my $name = shift;
@@ -494,9 +501,9 @@ sub _request_data {
     # instead of asking for the whole subtree, but posting a
     # bunch of requests for individual OIDs takes significantly
     # more time and CPU. That's why we request the subtree.
-    my $oid = $attr->{map}{base_oid};
-
     $self->logger->debug("[$name] Requesting data");
+
+    my $oid = $attr->{map}{base_oid};
 
     # Add to the AnyEvent condition variable to make the request async
     # We end it within the callback after data caching completes
@@ -534,7 +541,7 @@ sub _request_data {
 
 
 =head2 _cache_data()
-    A callback used to process OID data and cache it in the environment.
+    A callback used to cache raw OID data in the environment hash.
 =cut
 sub _cache_data {
     my $self = shift;
@@ -543,25 +550,21 @@ sub _cache_data {
     my $attr = shift;
     my $data = shift;
 
-    $self->logger->debug("[$name] Started caching data");
+    $self->debug_dump($data);
 
-    $self->debug_dump($attr);
 
     # Check whether Simp::Data retrieved anything from Redis
     if (!defined($data)) {
         $self->logger->error("[$name] Could not retrieve data from Redis using Simp::Data");
+        return;
     }
 
     # Get the OID map
     my $map = $attr->{map};
 
-    # Get some parameters from the map
-    my $vars   = $map->{vars};
-    my $start = $map->{first_var};
-
-    # Determine if the element is a scan
-    # Caching for scans is a little different
-    my $scan = exists $attr->{vars} ? 1 : 0;
+    # Determine the type of the element, scan or data element
+    # Data elements have a 'source' attribute
+    my $type = exists $attr->{source} ? 'data' : 'scan';
 
     for my $host (@{$env->{hosts}}) {
 
@@ -571,6 +574,9 @@ sub _cache_data {
             next;
         }
 
+        # For scans, we want an ordered array of arrays where the outer array indicates which scan we want
+        my @output;
+
         # Check all of the OID data returned for the host
         for my $oid (keys %{$data->{$host}}) {
 
@@ -579,92 +585,34 @@ sub _cache_data {
 
             # Only OIDs that have a value and time are kept
             next unless (defined $value && defined $time);
+            
+            # Check whether we have OID vars for the OID to find
+            my $has_vars = @{$map->{oid_vars}} ? 1 : 0;
 
-            # Here, we begin handling the OID itself.
-            # Validate the OID returned against the requested OID.
-            # The portions of the OID that aren't variables are compared.
-            # If anything doesn't match, flag that its data is invalid for the request.
-            # This handles constant OID elements between or after OID variables.
-            # We start iterating over the OID elements at the first variable
-            my $invalid = 0;
-            my @split_oid = split(/\./, $oid);
-            for (my $i = $start; $i <= $#split_oid; $i++) {
+            # Try to match the returned OID against the regex for its element
+            my @oid_vars = ($oid =~ $map->{regex});
 
-                # Get the OID element at the index in the data OID and the requested OID
-                my $data_elem = $split_oid[$i];
-                my $want_elem = @{$map->{split_oid}}[$i];
+            # Only OIDs with matching constant values and required OID vars present are kept
+            next if (!scalar(@oid_vars)); 
 
-                # Here, we handle the use of OID variables from scans
-                # The first check is for oid_suffix vars
-                # The second check is for poll_value vars
-                # Is the wanted OID element a scan suffix?
-                if (exists($vars->{$want_elem})) {
-                    $data->{$host}{$oid}{vars}{$want_elem} = $data_elem;
-                    next;
-                } 
-                # Is the wanted OID element a scan value?
-                elsif (exists($env->{var_map}{$want_elem})) {
+            # Add the oid to the data hash for it
+            $data->{$host}{$oid}{oid} = $oid;
 
-                    # Assign the OID variable and value to the data then next element
-                    $data->{$host}{$oid}{vars}{$env->{var_map}{$want_elem}} = $data_elem;
-                    next;
-                }
+            push(@output, $data->{$host}{$oid});
 
-                
-                # Check whether the OID constants match what was requested
-                # If not, mark the data as invalid and end the loop
-                if ($data_elem ne $want_elem) {
-                    $invalid++;
-                    last;
-                }
-            }
-
-            # Here, we cache a data hash representing the OID.
-            # Only cache data that is valid for the requested OID.
-            unless ($invalid) {
-
-                # Change the value key to the name of the value
-                $data->{$host}{$oid}{$name} = delete $data->{$host}{$oid}{value};
-
-                if ($scan) {
-                    # Add scan data hashes to the scans hash
-                    $env->{scans}{$host}{$name} = $data->{$host}{$oid};
-                }
-                else {
-                    # Push to the data array for data elements
-                    push(@{$env->{data}{$host}}, $data->{$host}{$oid});
-                }
-            }
+        }
+        # Push the final
+        if ($type eq 'scan') {
+            push(@{$env->{raw}{$type}{$host}}, \@output);
+        }
+        else {
+            $env->{raw}{$type}{$host}{$name} = \@output;
         }
     }
 
-    $self->logger->debug("[$name] Finished caching data");
+    $self->logger->debug("[$name] Successfully cached data");
 }
 
-
-=head2 _reference_scan()
-    Gets scan data for a scan variable referenced by a data element's OID
-    This handles the use of poll_value and oid_suffix vars in OIDs
-=cut
-sub _reference_scan {
-    my $self = shift;
-    my $host = shift; # The hostname
-    my $var  = shift; # The OID variable name referencing a scan
-    my $attr = shift;
-    my $node = shift; # The OID node value (number)
-
-    # Determine if the variable is an OID suffix or poll value
-    my $is_value = $attr->{vars} ? 1 : 0;
-
-    # Get the poll value name to reference the scan data
-    my $name = $is_value ? $env->{var_map}{$var} : $var;
-
-    my $poll_value = $attr->{vars}{$var} eq 'suffix'
-    my $oid_suffix = 
-
-    # Retrieve the scan data
-    my $scan = $env->{scans}{$host}{$name};
-}
 
 
 =head2 _digest_data()
@@ -674,7 +622,10 @@ sub _reference_scan {
     The composition of the data hash is determined by indexing OID nodes (numbers).
 =cut
 sub _digest_data {
-    my ($self, $env, $composite, $cv) = @_;
+    my ($self, $env, $cv) = @_;
+
+    # Grab the composite for the request
+    my $composite = $env->{composite};
 
     # Create the array to store data hashes in
     my @data;
@@ -683,19 +634,147 @@ sub _digest_data {
 
         $self->logger->debug("[$host] Digesting data");
 
-        my $host_data = $env->{data}{$host};
+        $self->_parse_combos($env, $host);
 
-        while (my ($name, $attr) = each(%{$composite->{data}})) {
+        # Check every data element's raw data against each combination
+        for my $combo (@{$env->{combos}{$host}}) {
 
-            my $map   = $attr->{map};
+            # Build an output hash for the combo with the node already in it
+            my %output = (node => $host);
+
+            # Need to offset the index of raw data for data elems that didn't have an OID to poll
+            my $offset = 0;
+
+            # Iterate over the configured data elements for the composite
+            while (my ($name, $attr) = each(%{$composite->{data}})) {
+
+                $self->logger->debug("Handling data for $name");
+
+                my $map = $attr->{map};
+
+                if ($attr->{source_type} eq 'scan') {
+                    unless ($name eq 'node') {
+                        $self->logger->debug("Using $attr->{source} scan data for $name");
+                        $output{$name} = $combo->{$attr->{source}};
+                    }
+                }
+                else {
+                    my $raw_data = $env->{raw}{data}{$host}{$name};
+                    $self->logger->error("$host has no data for $name!") and next if (!$raw_data);
+
+                    for my $entry (@$raw_data) {
+                        my @match = ($entry->{oid} =~ $attr->{map}{regex});
+                        next unless (@match);
+
+                        # Check the OID against the combination for the required vars
+                        my $valid = 1;
+                        for (my $i = 0; $i <= $#{$map->{oid_vars}}; $i++) {
+                            my $var = $map->{oid_vars}[$i];
+
+                            if ($combo->{$var} ne $match[$i]) {
+                                $valid = 0;
+                                last;
+                            }
+                        }
+
+                        if ($valid) {
+                            $output{$name} = $entry->{value};
+                            last;
+                            #$self->logger->debug("MATCH!\n".Dumper($combo)."\n".Dumper($entry));
+                        }
+                    }
+                }
+            }
+            push(@{$env->{data}{$host}}, \%output);
         }
-
     }
 
-    $self->debug_dump($env) and die;
+    $self->debug_dump($env);
 
     # Signal that we have finished digesting the data
     $cv->end;
+}
+
+
+=head2 _parse_combos()
+=cut
+sub _parse_combos {
+    my ($self, $env, $host) = @_;
+ 
+    # Get the scans we need combinations for
+    my $scans = $env->{composite}{scans};
+
+    # Iterate over the scan configuration AND its raw data
+    for (my $i = 0; $i <= $#{$scans}; $i++) {
+
+        # Get the scan's attributes from the composite
+        my $attr = $scans->[$i];
+
+        # Get the OID map for the scan, current combos and raw scan data for the host
+        my $map = $attr->{map};
+        my $combos = $env->{combos}{$host};
+        my $data   = $env->{raw}{scan}{$host}[$i];
+
+        # Get the value and suffix name of the scan
+        my $value_name  = $attr->{value};
+        my $suffix_name = $attr->{suffix};
+
+        # Store new combos to overwrite old ones with
+        my @new_combos;
+
+        # Iterate over each data object in the host's scan
+        for my $obj (@$data) {
+
+            # Get the ordered array of OID var values found within the OID
+            my @var_values = ($obj->{oid} =~ $map->{regex});
+
+            # Create a combination for the object's OID vars and their values
+            my %combination;
+            for (my $j = 0; $j < scalar(@{$map->{oid_vars}}); $j++) {
+                my $var = $map->{oid_vars}[$j];
+                $combination{$var} = $var_values[$j];   
+            }
+            # Add the value for the object as the poll_value OID var for the scan
+            $combination{$value_name} = $obj->{value};
+
+            # For the first scan, just push the combination and skip to the next object
+            if ($i == 0) {
+                push (@$combos, \%combination);
+                next;
+            }
+
+            # Add this combination's vars to previous combinations where the previous scan vars match
+            for my $existing_combo (@$combos) {
+
+                # Flag combinations where all current vars are present
+                my $valid = 1;
+                
+                for my $var (keys %combination) {
+
+                    # Skip vars unique to the current scan
+                    next if ($var eq $value_name || $var eq $suffix_name);
+
+                    # See if the current combination's var matches the existing combo's var
+                    # Flag as invalid if it doesn't
+                    if ($combination{$var} ne $existing_combo->{$var}) {
+                        $valid = 0;
+                        last;
+                    }
+                }
+
+                # Skip existing combinations that don't match
+                next unless ($valid);
+
+                my %new_combo = (%combination, %$existing_combo);
+
+                push(@new_combos, \%new_combo);
+            }
+        }
+
+        next if $i == 0;
+
+        $env->{combos}{$host} = \@new_combos;
+    }
 }
 
 
@@ -798,8 +877,8 @@ sub _transform_oids {
         if (defined $map->{'last_var'} && $map->{'last_var'} < $#split_oid) {
 
             # Combine any tailing elements in the OID with the last var
-            my $var_tail = join('.', splice(@split_oid, $map->{'last_var'}, $#split_oid));
-            push(@split_oid, $var_tail);
+            my $var_tail = join('.', splice(@split_oid, $map->{'last_var'}+1, $#split_oid));
+            #push(@split_oid, $var_tail);
         }
 
         # Make a reference point to the base of %vals
@@ -816,7 +895,7 @@ sub _transform_oids {
 
             # Get any matching var from the map's split OID
             my $var = $map->{'split_oid'}[$i];
-            if (defined $var) {
+            if (defined $var && exists $map->{vars}{$var}) {
 
                 if (!exists $trans{'legend'}) {
                     push @legend, $var;
@@ -1054,11 +1133,11 @@ sub _derp_data {
 # Applies conversion functions to values gathered by _get_data
 sub _convert_data {
 
-    my $self      = shift;
-    my $composite = shift;    # The instance XPath from the config
-    my $params    = shift;    # Parameters to request
-    my $results   = shift;    # Global $results hash
-    my $cv        = shift;    # AnyEvent condition var (assumes it's been begin()'ed)
+    my $self = shift;
+    my $results = shift;    # Global evironment hash
+    my $cv   = shift;    # AnyEvent condition var (assumes it's been begin()'ed)
+
+    my $composite = $results->{composite};
 
     # Get the array of all conversions
     my $conversions = $composite->{'conversions'};
@@ -1067,9 +1146,6 @@ sub _convert_data {
 
     # Iterate over the data array for each host
     for my $host (keys %{$results->{'data'}}) {
-
-        # Initialise the final data array for the host
-        $results->{'final'}{$host} = [];
 
         # Skip and use empty results if host has no data
         if (!$results->{'data'}{$host} || (ref($results->{'data'}{$host}) ne ref([]))) {
@@ -1311,6 +1387,8 @@ sub _convert_data {
         # we set the final data to that hash
         $results->{'final'}{$host} = $results->{'data'}{$host};
     }
+
+    $self->logger->debug(Dumper($results)) and die;
 
     $self->debug_dump($results->{'final'});
     $self->logger->debug("Finished applying conversions to the data");

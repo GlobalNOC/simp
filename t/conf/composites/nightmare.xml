@@ -54,7 +54,7 @@
     <conversions>
         
         <!-- Using constant in conversion -->
-        <replace this='${}' with='${}-${const}' />
+        <replace this='${}' with='${}-${const}'>
             <data name='M2'/>
         </replace>
 

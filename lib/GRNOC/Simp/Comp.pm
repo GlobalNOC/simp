@@ -271,21 +271,23 @@ sub _make_composites {
             $composite{'constants'} = {};
         }
 
-        # Process scans
+        # Process scans, preserving ordering
+        $composite{'scans'} = [];
         if (exists $variables->{'scan'} && ref $variables->{'scan'} eq 'ARRAY') {
 
             for my $scan (@{$variables->{'scan'}}) {
 
                 my $scan_name = $scan->{'poll_value'};
                 
-                $composite{'scans'}{$scan_name} = {
+                my $scan_params = {#$composite{'scans'}{$scan_name} = {
                     'oid'    => $scan->{'oid'},
-                    'map'    => $self->_map_oid($scan_name, $scan, 'scan'),
-                    'vars'   => {
-                        $scan->{oid_suffix} => 'suffix',
-                        $scan->{poll_value} => 'value'
-                    }
+                    'map'    => $self->_map_oid($scan->{'poll_value'}, $scan, 'scan'),
+                    'suffix' => $scan->{oid_suffix},
+                    'value'  => $scan->{poll_value}
                 };
+
+                push(@{$composite{'scans'}}, $scan_params);
+
             }
         }
 
@@ -294,13 +296,16 @@ sub _make_composites {
 
         my $metadata = exists $data->{'meta'} ? $data->{'meta'} : {};
         my $values   = exists $data->{'value'} ? $data->{'value'} : {};
+        #my @metadata;
+        #my @values;
 
         # Process metadata
-        for my $meta (keys %$metadata) {
+        for my $meta (keys %{$data->{'meta'}}) {
 
-            my $attr = $metadata->{$meta};
+            my $attr = $data->{'meta'}{$meta};
 
             $attr->{'data_type'} = 'metadata';
+            $attr->{'name'}      = $meta;
 
             if ($attr->{'source'} =~ /.*\.+.*/) {
                 $attr->{'source_type'} = 'oid';
@@ -312,11 +317,12 @@ sub _make_composites {
         }
 
         # Process values
-        for my $value (keys %$values) {
+        for my $value (keys %{$data->{'value'}}) {
             
-            my $attr = $values->{$value};
+            my $attr = $data->{'value'}{$value};
 
             $attr->{'data_type'} = 'value';
+            $attr->{'name'}      = $value;
 
             if ($attr->{'source'} =~ /.*\.+.*/) {
                 $attr->{'source_type'} = 'oid';
@@ -413,6 +419,12 @@ sub _map_oid {
     my $first_index;
     my $last_index;
 
+    # Create a regex pattern that will capture OID variables and any tailing OID nodes
+    my @re_elems;
+
+    # Create an array of the OID variables as they occur preserving ordering
+    my @oid_vars;
+
     # Loop over the OID nodes
     for (my $i = 0; $i <= $#split_oid; $i++) {
 
@@ -426,11 +438,11 @@ sub _map_oid {
         }
 
         # Check if the OID node is an OID node variable, including *
-        # The regex will match for standard varriable naming conventions
+        # The regex will match for standard variable naming conventions
         if ($oid_node =~ /^((?![\s\d])\$?[a-z]+[\da-z_-]*)*$/i) {
 
             # Add the name of the variable OID node and its index to the map
-            $oid_map{'vars'}{$oid_node} = $i;
+            push(@oid_vars, $oid_node);
 
             # Initialize the first and last normal OID node indexes
             if (!defined $first_index) {
@@ -440,8 +452,22 @@ sub _map_oid {
 
             # Update the last OID node index
             $last_index = $i if ($last_index < $i);
+
+            # Add a number capture to our regex for the OID variable
+            push(@re_elems, '(\d+)')
+        }
+        else {
+            # Add the constant to our regex
+            push(@re_elems, $oid_node);
         }
     }
+
+    # Set the regex pattern for the OID
+    my $regex = join('.', @re_elems);
+    $oid_map{'regex'} = qr/$regex/;
+
+    # Set the ordered oid_vars array
+    $oid_map{'oid_vars'} = \@oid_vars;
 
     $oid_map{'first_var'} = $first_index;
     $oid_map{'last_var'}  = $last_index;
@@ -523,9 +549,8 @@ sub start
 
             $self->_create_workers();
         }
-
-        # Run in the foreground
     }
+    # Foreground
     else {
 
         $self->logger->debug('Running in foreground.');
