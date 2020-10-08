@@ -463,7 +463,7 @@ sub _map_oid {
     }
 
     # Set the regex pattern for the OID
-    my $regex = join('.', @re_elems);
+    my $regex = '^' . join('\.', @re_elems) . '$';
     $oid_map{'regex'} = qr/$regex/;
 
     # Set the ordered oid_vars array
