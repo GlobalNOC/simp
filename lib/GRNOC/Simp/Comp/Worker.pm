@@ -356,10 +356,10 @@ sub _get {
     # Initialize the AnyEvent conditional variables for the async processing pipeline
     my @cv = map { AnyEvent->condvar; } (0 .. 3);
 
-    # Below is the async processing pipeline
+    # Below is the processing pipeline
     # We step through each process using AnyEvent and our conditional variables
 
-    # Gather the raw SNMP data for every OID in scans or data elements from Redis
+    # Gather the raw SNMP data for every host and OID in scans or data elements from Redis
     $cv[0]->begin(sub { $self->_gather_data($request, $cv[1]); });
     
     # Digest the gathered raw data into an array of data objects
@@ -470,8 +470,11 @@ sub _gather_data {
 
     while (my ($name, $attr) = each(%{$composite->{'data'}})) {
 
-        # Skip data elements where their source is not an OID
+        # Skip data elements where their source is a scan
         next if ($attr->{source_type} eq 'scan');
+
+        # Skip data elements where their source is a constant
+        next if ($attr->{source_type} eq 'constant');
 
         $self->_request_data($request, $name, $attr, $cv);
     }
@@ -502,6 +505,7 @@ sub _request_data {
     $self->logger->debug("[$name] Requesting data");
 
     my $oid = $attr->{map}{base_oid};
+    die(Dumper($attr)) if (!$oid);
 
     # Add to the AnyEvent condition variable to make the request async
     # We end it within the callback after data caching completes
@@ -611,14 +615,18 @@ sub _cache_data {
 }
 
 
+=head2 _digest_data()
+    
+=cut
 sub _digest_data {
     my ($self, $request, $cv) = @_;
 
     for my $host (@{$request->{hosts}}) {
-        my @acc;
-        $self->_parse_data($request, $host, \@acc, 0);
 
-        $request->{data}{$host} = \@acc;
+        my @host_data;
+        $self->_parse_data($request, $host, \@host_data, 0);
+
+        $request->{data}{$host} = \@host_data;
     }
     $cv->end;
 }
@@ -628,33 +636,29 @@ sub _parse_data {
 
     my ($self, $request, $host, $acc, $i, $e) = @_;
 
+    # Get the config and map for the scan
     my $scans = $request->{composite}{scans};
+    my $scan  = $scans->[$i];
+    my $map   = $scan->{map};
+
+    # Initialize $e for the first scan's iterations
+    $e = {} if ($i == 0);
 
     # Once recursion hits a leaf, build data for the current environment
     if ($i > $#$scans) {
-
         my $output = $self->_build_data($request, $host, $e);
-
         push(@$acc, $output) if ($output);
-
         return;
     }
 
-    # Get the config, data, map, and OID for the scan
-    my $scan = $scans->[$i];
-    my $map  = $scan->{map};
-
+    # The data for the scan
     my $data = $request->{raw}{scan}{$host};
 
     # The name of this scan's poll_value and oid_suffix
     my $value_name  = $scan->{value};
     my $suffix_name = $scan->{suffix};
 
-    # Initialize $e for the first scan's iterations
-    $e = {} if ($i == 0);
-
     # Iterate over the raw data for the host
-    #while (my ($oid, $datum) = each(%$data)) {
     for (my $j = 0; $j <= $#$data; $j++) {
 
         my $datum = $data->[$j];
@@ -666,6 +670,17 @@ sub _parse_data {
         # Skip non-matching OIDs
         next unless (@oid_vars);
 
+        # Shortcut for scans without vars
+        if (!defined($map->{first_var})) {
+            $e->{$suffix_name} = undef;
+            $e->{$value_name}  = $datum->{value};
+            $e->{TIME}         = $datum->{time} if (!exists($e->{TIME}));
+
+            $self->_parse_data($request, $host, $acc, ($i+1), $e);
+
+            next;
+        }
+
         # Flag whether the OID has the right vars for what's in $e
         my $valid = 1;
 
@@ -676,14 +691,15 @@ sub _parse_data {
             my $var = $map->{oid_vars}[$index];
             my $val = $oid_vars[$index];
 
-            # Check whether the current var exists in our $e and isn't from the current scan
-            if (exists($e->{$var}) && ($var ne $value_name && $var ne $suffix_name)) {
-                
-                if ($e->{$var} ne $val) {
-                    $valid = 0;
-                    #$self->logger->debug("$oid doesnt match the values in \$e");
-                }
-            }
+            # Validate the var->val combination by checking this:
+            #   The current var exists in $e... 
+            #   and isn't for the current scan...
+            #   and the var's value in $e matches the current OID's value for it
+            $valid = 0 if (
+                exists($e->{$var}) 
+                && ($var ne $value_name && $var ne $suffix_name) 
+                && ($e->{$var} ne $val)
+            );    
 
             # Skip vars that aren't the current scan's suffix
             next if ($var ne $suffix_name);
@@ -720,7 +736,7 @@ sub _build_data {
     my $data = $request->{raw}{data}{$host};
 
     # Flag to indicate whether the produced data should be kept
-    my $verified = 1;
+    my $keep = 1;
 
     # Handle each wanted data element for metadata and values
     while (my ($name, $attr) = each(%{$request->{composite}{data}})) {
@@ -756,25 +772,39 @@ sub _build_data {
                     $output{time} = $data->{$source}{time};
                 }
             }
+            else {
+                warn("\n".Dumper($data)."\n".Dumper($source));
+            }
         }
         # Handling for values derived from scans
         elsif ($attr->{source_type} eq 'scan') {
             $output{$name} = $e->{$source};
         }
+        elsif ($attr->{source_type} eq 'constant') {
+            $output{$name} = $request->{composite}{constants}{$source};
+        }
 
         # Verify the data and apply any matches and match exclusions
-        unless ($self->_verify_data(\%output, $name, $attr)) {
-            $verified = 0;
+        unless ($self->_check_data(\%output, $name, $attr)) {
+            
+            $keep = 0;
         };
 
     }
 
     # Ensure that a value for "time" has been set
-    unless (exists $data->{'time'} && defined $data->{'time'}) {
-        $self->logger->error("ERROR: Simp.Comp Worker produced data without a time value. This shouldn't be possible!");
+    unless (exists $output{'time'} && defined $output{'time'}) {
+
+        # Set time from $e where the only data with time is from a scan
+        if (exists($e->{TIME})) {
+            $output{time} = $e->{TIME};
+        }
+        else {
+            $self->logger->error("ERROR: Simp.Comp Worker has data without a time. This shouldn't be possible!");
+        }
     }
 
-    if ($verified) {
+    if ($keep) {
         return \%output;
     }
     else {
@@ -783,7 +813,7 @@ sub _build_data {
 }
 
 
-sub _verify_data {
+sub _check_data {
     my ($self, $data, $name, $attr) = @_;
         
     # Initialize the data element's value as undef if it does not already exist
@@ -792,12 +822,12 @@ sub _verify_data {
     # Check if the data element's value is required to match a pattern
     if (exists($attr->{'require_match'})) {
 
-        my $match;
-        if (defined($data->{$name})) {
+        #my $match;
+        #if (defined($data->{$name})) {
             # Does the value for the field match the given pattern?
             # If so, we keep the data object (unless inverted)
-            $match  = $data->{$name} =~ $attr->{'require_match'};
-        }
+            my $match  = $data->{$name} =~ $attr->{'require_match'};
+        #}
 
         # Indicates that we should drop the data hash on match instead of keeping it
         my $invert = exists($attr->{'invert_match'}) ? $attr->{'invert_match'} : 0;
@@ -806,6 +836,7 @@ sub _verify_data {
         #   1. The pattern didn't match and we don't want to invert that
         #   2. The pattern did match, but we're removing matches due to inversion
         if ((!$match && !$invert) || ($match && $invert)) {
+
             return;
         }
     }

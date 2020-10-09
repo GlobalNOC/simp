@@ -311,6 +311,9 @@ sub _make_composites {
                 $attr->{'source_type'} = 'oid';
                 $attr->{'map'} = $self->_map_oid($meta, $attr, 'data');
             }
+            elsif (exists($composite{constants}{$attr->{'source'}})) {
+                $attr->{'source_type'} = 'constant';
+            }
             else {
                 $attr->{'source_type'} = 'scan';
             }
@@ -327,6 +330,9 @@ sub _make_composites {
             if ($attr->{'source'} =~ /.*\.+.*/) {
                 $attr->{'source_type'} = 'oid';
                 $attr->{'map'} = $self->_map_oid($value, $attr, 'data');
+            }
+            elsif (exists($composite{constants}{$attr->{'source'}})) {
+                $attr->{'source_type'} = 'constant';
             }
             else {
                 $attr->{'source_type'} = 'scan';
