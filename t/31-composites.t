@@ -42,6 +42,9 @@ my @composites = map {$_ =~ m/.*\/(.*)\.xml/} glob($FindBin::Bin . '/conf/compos
 # Track the number of tests we run
 my $total = 0;
 
+# Create some output for our tests
+my $summary = "\n";
+
 # Run a test for every composite
 for my $composite (@composites) {
 
@@ -81,8 +84,6 @@ for my $composite (@composites) {
         # Perform the test, checking the data against expected data
         unless ($benchmarking) {
 
-            warn "\n";
-            
             for my $node (@nodes) {
 
                 $total++;
@@ -103,19 +104,28 @@ for my $composite (@composites) {
 
                 # Display stack details when a test failed or confirm it passed
                 if ($ok) {
-                    warn "($composite) [$node] PASSED";
+                    $summary .= "[PASS] ($composite) $node\n";
                 }
                 else {
 
-                    warn "($composite) [$node] FAILED:\n" . Dumper(deep_diag($stack));
-                    warn "\n\n($composite) [$node] RESULTS:\n";
-                    warn "EXPECTED: " . Dumper($expect);
-                    warn "GOT THIS: " . Dumper($got) . "\n";
+                    $summary .= "[FAIL] ($composite) $node\n";
+                    $summary .= Dumper(deep_diag($stack));
+                    $summary .= "EXPECTED: " . Dumper($expect) . "\n";
+                    $summary .= "RECEIVED: " . Dumper($got) . "\n";
                 }
             }
+
+            if ($debug->{enable} && !$debug->{composite}) {
+                warn("\nPRESS ENTER TO CONTINUE\n");
+                last if (lc <STDIN> =~ m/[no]{,2}/g);
+            }
+            
         }
     }
 }
 
+warn($summary);
+
 # Declare one test per composite
-plan tests => $total;
+#plan tests => $total;
+done_testing($total);
