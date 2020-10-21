@@ -1,16 +1,19 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <composite>
-
     <variables>
-        <input name="node" value="node_name" />
-        <scan poll_value="cpu_id" oid_suffix="cpu_oid" oid="1.3.6.1.4.1.9.9.109.1.1.1.1.2.*" />
+        <scan poll_value="cpu_id" oid_suffix="cpu_sfx" oid="1.3.6.1.4.1.9.9.109.1.1.1.1.2.*" />
     </variables>
 
     <data>
-        <meta name="node" source="node_name"/>
-        <meta name="name" source="1.3.6.1.2.1.47.1.1.1.1.7.cpu_id"/>
+        <meta name="name" source="1.3.6.1.2.1.47.1.1.1.1.7.cpu_id" />
         <value name="cpu" source="1.3.6.1.4.1.9.9.109.1.1.1.1.7.cpu_id" />
     </data>
+
+    <conversions>
+        <function definition='_ == "Switch 1" "${}" ifelse'>
+            <data name="name"/>
+        </function>
+    </conversions>
 
 </composite>
