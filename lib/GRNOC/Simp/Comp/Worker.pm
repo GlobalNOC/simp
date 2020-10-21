@@ -4,16 +4,12 @@ use strict;
 use warnings;
 
 ### REQUIRED IMPORTS ###
-use AnyEvent;
-use Carp;
-use Data::Dumper;
-use Data::Munge qw();
-use List::MoreUtils qw(any);
 use Moo;
+use AnyEvent;
+use Data::Dumper;
+use Data::Munge;
 use Time::HiRes qw(gettimeofday tv_interval);
-use Try::Tiny;
 
-use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::RabbitMQ::Client;
 use GRNOC::RabbitMQ::Dispatcher;
@@ -100,7 +96,6 @@ has rmq_dispatcher => (
     default => sub { undef }
 );
 
-my %_FUNCTIONS;    # Used by _function_one_val
 my %_RPN_FUNCS;    # Used by _rpn_calc
 
 ### PUBLIC METHODS ###
@@ -126,9 +121,7 @@ sub start {
 
     while (1) {
 
-        # we use try catch to, react to issues such as com failure
-        # when any error condition is found,
-        # the reactor stops and we then reinitialize
+        # When any error condition is found, the worker reinitializes
         $self->logger->debug($self->worker_id . " restarting.");
 
         $self->_start();
@@ -354,35 +347,34 @@ sub _get {
     my $success_callback = $rpc_ref->{'success_callback'};
 
     # Initialize the AnyEvent conditional variables for the async processing pipeline
-    my @cv = map { AnyEvent->condvar; } (0 .. 3);
+    my @cv = map { AnyEvent->condvar; } (0 .. 1);
 
-    # Below is the processing pipeline
-    # We step through each process using AnyEvent and our conditional variables
 
     # Gather the raw SNMP data for every host and OID in scans or data elements from Redis
     $cv[0]->begin(sub { $self->_gather_data($request, $cv[1]); });
-    
-    # Digest the gathered raw data into an array of data objects
-    $cv[1]->begin(sub { $self->_digest_data($request, $cv[2]); });
-    
-    # Apply conversions to the array of data objects
-    $cv[2]->begin(sub { $self->_convert_data($request, $cv[3]); });
-    
-    # Send the final data back and reset variables
-    $cv[3]->begin(
-        sub {
-            my $end = [gettimeofday];
-            my $resp_time = tv_interval($start, $end);
-            $self->logger->info("REQTIME COMP $resp_time");
-            &$success_callback($request->{'final'});
-            undef $request;
-            undef $composite;
-            undef $args;
-            undef @cv;
-            undef $success_callback;
-        }
-    );
+   
+    # Wait until the data has been fully gathered before performing any steps
+    $cv[1]->begin(sub {
 
+        # Digest the raw data into arrays of data objects per host
+        $self->_digest_data($request);
+
+        # Apply conversions to the digested host data
+        $self->_convert_data($request);
+        
+        # Log the time to process the request 
+        $self->logger->info("REQTIME COMP " . tv_interval($start, [gettimeofday]));
+
+        # Send results back to RabbitMQ for TSDS
+        &$success_callback($request->{'final'});
+
+        # Clear vars defined for the request
+        undef $request;
+        undef $composite;
+        undef $args;
+        undef @cv;
+        undef $success_callback;
+    });
 
     # Reset the async pipeline:
     $cv[0]->end;
@@ -410,7 +402,7 @@ sub _init_request {
         constants => {},
         raw       => { scan => {}, data => {} },
         data      => {},
-        meta      => {},
+        meta      => {'node' => '*node'},
     );
 
     # Map any input variables for the composite
@@ -465,7 +457,7 @@ sub _gather_data {
 
     for my $scan (@{$composite->{'scans'}}) {
         
-        $self->_request_data($request, $scan->{suffix}, $scan, $cv);
+        $self->_request_data($request, $scan->{value}, $scan, $cv);
     }
 
     while (my ($name, $attr) = each(%{$composite->{'data'}})) {
@@ -505,7 +497,6 @@ sub _request_data {
     $self->logger->debug("[$name] Requesting data");
 
     my $oid = $attr->{map}{base_oid};
-    die(Dumper($attr)) if (!$oid);
 
     # Add to the AnyEvent condition variable to make the request async
     # We end it within the callback after data caching completes
@@ -585,14 +576,8 @@ sub _cache_data {
             # Only OIDs that have a value and time are kept
             next unless (defined $value && defined $time);
             
-            # Check whether we have OID vars for the OID to find
-            my $has_vars = @{$map->{oid_vars}} ? 1 : 0;
-
-            # Try to match the returned OID against the regex for its element
-            my @oid_vars = ($oid =~ $map->{regex});
-
             # Only OIDs with matching constant values and required OID vars present are kept
-            next if (!scalar(@oid_vars));
+            next unless ($oid =~ $map->{regex});
 
             # Scans are cached in a flat array
             if ($type eq 'scan') {
@@ -621,32 +606,35 @@ sub _cache_data {
 sub _digest_data {
     my ($self, $request, $cv) = @_;
 
+    # Parse the data for each host
     for my $host (@{$request->{hosts}}) {
 
+        # Accumulate the host data then assign it
         my @host_data;
-        $self->_parse_data($request, $host, \@host_data, 0);
-
+        $self->_parse_data($request, $host, \@host_data);
         $request->{data}{$host} = \@host_data;
     }
-    $cv->end;
 }
 
+=head2 _parse_data()
 
+=cut
 sub _parse_data {
 
-    my ($self, $request, $host, $acc, $i, $e) = @_;
+    my ($self, $request, $host, $acc, $i, $env) = @_;
 
-    # Get the config and map for the scan
+    # Initialize $i and $env for the first iterations
+    $i   = 0 if (!defined($i));
+    $env = {} if ($i == 0);
+
+    # Get the config and OID map for the scan
     my $scans = $request->{composite}{scans};
     my $scan  = $scans->[$i];
     my $map   = $scan->{map};
 
-    # Initialize $e for the first scan's iterations
-    $e = {} if ($i == 0);
-
     # Once recursion hits a leaf, build data for the current environment
     if ($i > $#$scans) {
-        my $output = $self->_build_data($request, $host, $e);
+        my $output = $self->_build_data($request, $host, $env);
         push(@$acc, $output) if ($output);
         return;
     }
@@ -670,18 +658,22 @@ sub _parse_data {
         # Skip non-matching OIDs
         next unless (@oid_vars);
 
-        # Shortcut for scans without vars
-        if (!defined($map->{first_var})) {
-            $e->{$suffix_name} = undef;
-            $e->{$value_name}  = $datum->{value};
-            $e->{TIME}         = $datum->{time} if (!exists($e->{TIME}));
+        # Set time for $env from scan data in case we're only polling for scans
+        if (!exists($env->{TIME}) || !defined($env->{TIME})) {
+            $env->{TIME} = $datum->{time};
+        }
 
-            $self->_parse_data($request, $host, $acc, ($i+1), $e);
+        # Short circuit for elements without vars
+        if (!defined($map->{first_var})) {
+            $env->{$suffix_name} = undef;
+            $env->{$value_name}  = $datum->{value};
+
+            $self->_parse_data($request, $host, $acc, ($i+1), $env);
 
             next;
         }
 
-        # Flag whether the OID has the right vars for what's in $e
+        # Flag whether the OID has the right vars for what's in $env
         my $valid = 1;
 
         # Find the value for this scan data's OID suffix
@@ -692,13 +684,13 @@ sub _parse_data {
             my $val = $oid_vars[$index];
 
             # Validate the var->val combination by checking this:
-            #   The current var exists in $e... 
+            #   The current var exists in $env... 
             #   and isn't for the current scan...
-            #   and the var's value in $e matches the current OID's value for it
+            #   and the var's value in $env matches the current OID's value for it
             $valid = 0 if (
-                exists($e->{$var}) 
+                exists($env->{$var}) 
                 && ($var ne $value_name && $var ne $suffix_name) 
-                && ($e->{$var} ne $val)
+                && ($env->{$var} ne $val)
             );    
 
             # Skip vars that aren't the current scan's suffix
@@ -707,12 +699,12 @@ sub _parse_data {
             # Set the suffix and value for the scan data to recurse on
             if ($valid) {
 
-                my %new_e = %$e;
-                $new_e{$suffix_name} = $val;
-                $new_e{$value_name}  = $datum->{value};
+                my %new_env = %$env;
+                $new_env{$suffix_name} = $val;
+                $new_env{$value_name}  = $datum->{value};
 
                 # Once we have the suffix, we're done with the vars
-                $self->_parse_data($request, $host, $acc, ($i+1), \%new_e);
+                $self->_parse_data($request, $host, $acc, ($i+1), \%new_env);
 
                 # Stop iterating over the OID variables for this particular OID
                 last;
@@ -726,11 +718,10 @@ sub _parse_data {
     Builds data output for a combination of OID variables from scanning
 =cut
 sub _build_data {
-
-    my ($self, $request, $host, $e) = @_;
+    my ($self, $request, $host, $env) = @_;
 
     # The data hash to return
-    my %output;
+    my %output = (node => $host);
 
     # Get raw data for the host
     my $data = $request->{raw}{data}{$host};
@@ -743,11 +734,8 @@ sub _build_data {
 
         $self->logger->debug("Processing $name for combination");
 
-        # Handle the node value
-        if ($name eq 'node') {
-            $output{node} = $host;
-            next;
-        }
+        # Skip the node for backward compatibility
+        next if ($name eq 'node');
 
         my $map    = $attr->{map};
         my $source = $attr->{source};
@@ -755,9 +743,9 @@ sub _build_data {
         # Handling for OID sources
         if ($attr->{source_type} eq 'oid') {
 
-            # Replace all vars in the source with values from $e
-            for my $var (keys %$e) {
-                my $val = $e->{$var};
+            # Replace all vars in the source with values from $env
+            for my $var (keys %$env) {
+                my $val = $env->{$var};
                 $source = $source =~ s/$var/$val/gr;
             }
 
@@ -772,44 +760,33 @@ sub _build_data {
                     $output{time} = $data->{$source}{time};
                 }
             }
-            else {
-                warn("\n".Dumper($data)."\n".Dumper($source));
-            }
         }
         # Handling for values derived from scans
         elsif ($attr->{source_type} eq 'scan') {
-            $output{$name} = $e->{$source};
+            $output{$name} = $env->{$source};
         }
         elsif ($attr->{source_type} eq 'constant') {
             $output{$name} = $request->{composite}{constants}{$source};
         }
 
         # Verify the data and apply any matches and match exclusions
-        unless ($self->_check_data(\%output, $name, $attr)) {
-            
-            $keep = 0;
-        };
-
+        $keep = 0 unless ($self->_check_data(\%output, $name, $attr));
     }
 
     # Ensure that a value for "time" has been set
-    unless (exists $output{'time'} && defined $output{'time'}) {
+    unless (exists($output{'time'}) && defined($output{'time'})) {
 
-        # Set time from $e where the only data with time is from a scan
-        if (exists($e->{TIME})) {
-            $output{time} = $e->{TIME};
+        # Set time from $env where the only data with time is from a scan
+        if (exists($env->{TIME})) {
+            $output{time} = $env->{TIME};
         }
         else {
             $self->logger->error("ERROR: Simp.Comp Worker has data without a time. This shouldn't be possible!");
         }
     }
 
-    if ($keep) {
-        return \%output;
-    }
-    else {
-        return;
-    }
+    return \%output if ($keep);
+    return;
 }
 
 
@@ -822,12 +799,9 @@ sub _check_data {
     # Check if the data element's value is required to match a pattern
     if (exists($attr->{'require_match'})) {
 
-        #my $match;
-        #if (defined($data->{$name})) {
-            # Does the value for the field match the given pattern?
-            # If so, we keep the data object (unless inverted)
-            my $match  = $data->{$name} =~ $attr->{'require_match'};
-        #}
+        # Does the value for the field match the given pattern?
+        # If so, we keep the data object (unless inverted)
+        my $match  = $data->{$name} =~ $attr->{'require_match'};
 
         # Indicates that we should drop the data hash on match instead of keeping it
         my $invert = exists($attr->{'invert_match'}) ? $attr->{'invert_match'} : 0;
@@ -844,30 +818,16 @@ sub _check_data {
 }
 
 
-=head2 debug_dump
-    This is a function to optimize debug logging involving calls to Data::Dumper
-    It will only evaluate the calls to Dumper() and the passed variable if in debug mode
-    Default behavior for logger->debug() will process data even when debug is not active
+=head2 _convert_data()
+    Applies conversions to the host data before sending to TSDS
 =cut
-sub debug_dump {
-     my $self  = shift;
-     my $value = shift;
-
-     $self->logger->debug({
-        filter => \&Data::Dumper::Dumper, 
-        value  => $value
-     });
-}
-
-
-# Applies conversion functions to values gathered by _get_data
 sub _convert_data {
 
-    my $self = shift;
-    my $results = shift;    # Global evironment hash
-    my $cv   = shift;    # AnyEvent condition var (assumes it's been begin()'ed)
+    my $self    = shift;
+    my $request = shift;    # Global evironment hash
+    my $cv      = shift;    # AnyEvent condition var (assumes it's been begin()'ed)
 
-    my $composite = $results->{composite};
+    my $composite = $request->{composite};
 
     # Get the array of all conversions
     my $conversions = $composite->{'conversions'};
@@ -875,17 +835,17 @@ sub _convert_data {
     $self->logger->debug("Applying conversions to the data");
 
     # Iterate over the data array for each host
-    for my $host (keys %{$results->{'data'}}) {
+    for my $host (keys %{$request->{'data'}}) {
 
         # Skip and use empty results if host has no data
-        if (!$results->{'data'}{$host} || (ref($results->{'data'}{$host}) ne ref([]))) {
+        if (!$request->{'data'}{$host} || (ref($request->{'data'}{$host}) ne ref([]))) {
             $self->logger->error("ERROR: No data array was generated for $host!");
             next;
         }
 
         # Set final values if no functions are being applied to the hosts's data
         unless ($conversions) {
-            $results->{'final'}{$host} = $results->{'data'}{$host};
+            $request->{'final'}{$host} = $request->{'data'}{$host};
             next;
         }
 
@@ -953,7 +913,7 @@ sub _convert_data {
 
                 # Apply the conversion for the target to each data object
                 # for the host
-                for my $data (@{$results->{'data'}{$host}}) {
+                for my $data (@{$request->{'data'}{$host}}) {
 
                     # Initialize all temporary conversion attributes
                     # for the data object
@@ -964,7 +924,7 @@ sub _convert_data {
 
                     # Skip if the target data element doesn't exist
                     # in the object
-                    next unless (exists $data->{$target} && defined $data->{$target});
+                    next unless (exists $data->{$target});# && defined $data->{$target});
 
                     my $conversion_err = 0;
 
@@ -975,14 +935,27 @@ sub _convert_data {
                         my $var_value;
 
                         # Check if there is data for the var, then assign it
-                        if (exists($data->{$var}) && defined($data->{$var})) {
-                            $var_value = $data->{$var};
+                        if (exists($data->{$var})) {
+
+                            # Set the var's value to the one from the data when it's defined
+                            if (defined($data->{$var})) {
+                                $var_value = $data->{$var};
+                            }
+                            # Functions can have undefined values
+                            # Anything else with an undefined var value is erroneous
+                            elsif ($conversion->{type} ne 'function') {
+                                $conversion_err++;
+                                last;
+                            }
+                            else {
+                                $var_value = '';
+                            }
                         }
 
                         # If not, see if the var is a user-defined constant,
                         # then assign it
-                        elsif (exists($results->{'constants'}{$var})) {
-                            $var_value = $results->{'constants'}{$var};
+                        elsif (exists($request->{'constants'}{$var})) {
+                            $var_value = $request->{'constants'}{$var};
                         }
 
                         # If the var isn't anywhere, flag a conversion err
@@ -995,6 +968,8 @@ sub _convert_data {
                         # Functions
                         if ($conversion->{'type'} eq 'function') {
 
+                            $var_value = '' if (!defined($var_value));
+
                             # Replace the var indicators with their value
                             $temp_def =~ s/\$\{$var\}/$var_value/;
                             $self->logger->debug("Applying function: $temp_def");
@@ -1006,6 +981,8 @@ sub _convert_data {
                             # Replace the var indicators with their value
                             $temp_with =~ s/\$\{$var\}/$var_value/g;
                             $temp_this =~ s/\$\{$var\}/$var_value/g;
+
+                            $temp_this = '' if (!defined($temp_this));
 
                             $self->logger->debug("Replacing \"$temp_this\" with \"$temp_with\"");
                         }
@@ -1032,25 +1009,34 @@ sub _convert_data {
                     # Function application
                     if ($conversion->{'type'} eq 'function') {
                         # Use the FUNCTIONS object rpn definition
-                        $new_value = $_FUNCTIONS{'rpn'}(
+                        #$new_value = $_FUNCTIONS{'rpn'}(
+                        $new_value = $self->_rpn_calc(
                             [$data->{$target}],
                             $temp_def, 
                             $conversion, 
                             $data, 
-                            $results, 
+                            $request, 
                             $host
-                        )->[0];
+                        );
                     }
 
                     # Replacement application
                     elsif ($conversion->{'type'} eq 'replace') {
 
-                        # Use the replace module to replace the value
-                        $new_value = Data::Munge::replace(
-                            $data->{$target}, 
-                            $temp_this,
-                            $temp_with
-                        );
+                        # Handle undefined variables
+                        # Can't replace something with undef value
+                        # Can't perform replacement on undef value
+                        if (!defined($temp_with) || !defined($data->{$target})) {
+                            $new_value = $data->{$target};
+                        }
+                        # Replace the value and set the new value as the result
+                        else {
+                            $new_value = Data::Munge::replace(
+                                $data->{$target}, 
+                                $temp_this,
+                                $temp_with
+                            );
+                        }
                     }
 
                     # Match application
@@ -1061,20 +1047,10 @@ sub _convert_data {
 
                         # Set new value to pattern match or assign as undef
                         if ($data->{$target} =~ /$temp_pattern/) {
-                            unless ($exclude == 1) {
-                                $new_value = $1;
-                            }
-                            else {
-                                $new_value = undef;
-                            }
+                            $new_value = ($exclude != 1) ? $1 : undef;
                         }
                         else {
-                            unless ($exclude == 1) {
-                                $new_value = undef;
-                            }
-                            else {
-                                $new_value = $data->{$target};
-                            }
+                            $new_value = ($exclude != 1) ? undef : $data->{$target};
                         }
                     }
 
@@ -1096,180 +1072,30 @@ sub _convert_data {
             }
         }
 
-        for my $meta_name (keys %{$results->{'meta'}}) {
-            for my $data (@{$results->{'data'}{$host}}) {
+        # Replace metadata names with *name for TSDS
+        for my $meta_name (keys %{$request->{'meta'}}) {
+            for my $data (@{$request->{'data'}{$host}}) {
                 if (exists $data->{$meta_name}) {
-                    $data->{$results->{'meta'}->{$meta_name}} = delete $data->{$meta_name};
+                    $data->{$request->{'meta'}->{$meta_name}} = delete $data->{$meta_name};
                 }
             }
         }
 
-        # Once any/all functions are applied in results->val for the host,
-        # we set the final data to that hash
-        $results->{'final'}{$host} = $results->{'data'}{$host};
+        # Once all conversions are applied for the host, set the final data to that hash
+        $request->{'final'}{$host} = $request->{'data'}{$host};
     }
 
-    $self->debug_dump($results->{'final'});
+    $self->debug_dump($request->{'final'});
     $self->logger->debug("Finished applying conversions to the data");
-
-    # trigger final callback -- send data to simp-tsds
-    $cv->end;
 }
 
 
-# These functions are called from _function_one_val with several arguments:
-#
-# value, as computed to this point
-# default operand attribute for function
-# XML <fctn> element associated with this invocation of the function
-# hash of values for this (host, OID suffix) pair
-# full $results hash, as passed around in this module
-# host name for current value
-#
-%_FUNCTIONS = (
+sub _rpn_calc {
+    my ($self, $vals, $operand, $fctn_elem, $val_set, $request, $host) = @_;
 
-    # For many of these operations, we take the view that
-    # (undef op [anything]) should equal undef, hence line 2
-    'sum' => sub {
-        my ($vals, $operand) = @_;
-        my $new_val = 0;
-        for my $val (@$vals)
-        {
-            $new_val += $val;
-        }
-        return [$new_val];
-    },
-    'max' => sub {
-        my ($vals, $operand) = @_;
-        my $new_val;
-        for my $val (@$vals)
-        {
-            if (!defined($new_val))
-            {
-                $new_val = $val;
-            }
-            else
-            {
-                if ($val > $new_val)
-                {
-                    $new_val = $val;
-                }
-            }
-        }
-        return [$new_val];
-    },
-    'min' => sub {
-        my ($vals, $operand) = @_;
-        my $new_val;
-        for my $val (@$vals)
-        {
-            if (!defined($new_val))
-            {
-                $new_val = $val;
-            }
-            else
-            {
-                if ($val < $new_val)
-                {
-                    $new_val = $val;
-                }
-            }
-        }
-        return [$new_val];
-    },
-    '+' => sub {    # addition
-        my ($vals, $operand) = @_;
-        for my $val (@$vals)
-        {
-            return [$val] if !defined($val);
-            return [$val + $operand];
-        }
-    },
-    '-' => sub {    # subtraction
-        my ($vals, $operand) = @_;
-        for my $val (@$vals)
-        {
-            return [$val] if !defined($val);
-            return [$val - $operand];
-        }
-    },
-    '*' => sub {    # multiplication
-        my ($vals, $operand) = @_;
-        for my $val (@$vals)
-        {
-            return [$val] if !defined($val);
-            return [$val * $operand];
-        }
-    },
-    '/' => sub {    # division
-        my ($vals, $operand) = @_;
-        for my $val (@$vals)
-        {
-            return [$val] if !defined($val);
-            return [$val / $operand];
-        }
-    },
-    '%' => sub {    # modulus
-        my ($vals, $operand) = @_;
-        for my $val (@$vals)
-        {
-            return [$val] if !defined($val);
-            return [$val % $operand];
-        }
-    },
-    'ln' => sub {    # base-e logarithm
-        my $vals = shift;
-        for my $val (@$vals)
-        {
-            return [$val] if !defined($val);
-            return [] if $val == 0;
-            eval { $val = log($val); }; # if val==0, we want the result to be undef, so this works just fine
-            return [$val];
-        }
-    },
-    'log10' => sub {                    # base-10 logarithm
-        my $vals = shift;
-        for my $val (@$vals)
-        {
-            return [$val] if !defined($val);
-            $val = eval { log($val); };    # see ln
-            $val /= log(10) if defined($val);
-            return [$val];
-        }
-    },
-    'match' => sub {    # regular-expression match and extract first group
-        my ($vals, $operand) = @_;
-        for my $val (@$vals)
-        {
-            if ($val =~ /$operand/)
-            {
-                return [$1];
-            }
-            return [$val];
-        }
-    },
-    'replace' => sub {    # regular-expression replace
-        my ($vals, $operand, $replace_with) = @_;
-        for my $val (@$vals)
-        {
-            $val = Data::Munge::replace($val, $operand, $replace_with);
-            return [$val];
-        }
-    },
-    'rpn' => sub {
-        return [_rpn_calc(@_)];
-    },
-);
+    for my $val (@$vals) {
 
-
-sub _rpn_calc
-{
-    my ($vals, $operand, $fctn_elem, $val_set, $results, $host) = @_;
-
-    for my $val (@$vals)
-    {
-        # As a convenience, we initialize the stack with
-        # a copy of $val on it already
+        # As a convenience, we initialize the stack with a copy of $val on it already
         my @stack = ($val);
 
         # Split the RPN program's text into tokens (quoted strings,
@@ -1277,77 +1103,59 @@ sub _rpn_calc
         my @prog;
         my $progtext = $operand;
 
-        while (length($progtext) > 0)
-        {
-            $progtext =~
-              /^(\s+|[^\'\"][^\s]*|\'([^\'\\]|\\.)*(\'|\\?$)|\"([^\"\\]|\\.)*(\"|\\?$))/;
+        while (length($progtext) > 0) {
+            $progtext =~ /^(\s+|[^\'\"][^\s]*|\'([^\'\\]|\\.)*(\'|\\?$)|\"([^\"\\]|\\.)*(\"|\\?$))/;
             my $x = $1;
             push @prog, $x if $x !~ /^\s*$/;
             $progtext = substr $progtext, length($x);
         }
 
-        my %func_lookup_errors;
-        my @prog_copy = @prog;
+        # Track errors by function token
+        my %func_errors;
 
         # Now, go through the program, one token at a time:
-        for my $token (@prog)
-        {
-            # Handle some special cases of tokens:
-            if ($token =~ /^[\'\"]/)
-            {
-                # quoted strings
-                # Take off the start and end quotes, including
-                # the handling of unterminated strings:
-                if ($token =~ /^\"/)
-                {
+        for my $token (@prog) {
+
+            # Quoted Strings
+            if ($token =~ /^[\'\"]/) {
+
+                if ($token =~ /^\"/) {
                     $token =~ s/^\"(([^\"\\]|\\.)*)[\"\\]?$/$1/;
                 }
-                else
-                {
+                else {
                     $token =~ s/^\'(([^\'\\]|\\.)*)[\'\\]?$/$1/;
                 }
 
-                $token =~ s/\\(.)/$1/g;    # unescape escapes
+                # Unescape escapes
+                $token =~ s/\\(.)/$1/g;
                 push @stack, $token;
             }
-            elsif ($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/)
-            {
-                # decimal numbers
+            # Decimal Numbers
+            elsif ($token =~ /^[+-]?([0-9]+\.?|[0-9]*\.[0-9]+)$/) {
                 push @stack, ($token + 0);
             }
-            elsif ($token =~ /^\$/)
-            {
-                # name of a value associated with the current (host, OID suffix)
+            # Variables
+            elsif ($token =~ /^\$/) {
                 push @stack, $val_set->{substr $token, 1};
             }
-            elsif ($token =~ /^\#/)
-            {
-                # host variable
-                push @stack, $results->{'hostvar'}{$host}{substr $token, 1};
+            # Host Variable
+            elsif ($token =~ /^\#/) {
+                push @stack, $request->{'hostvar'}{$host}{substr $token, 1};
             }
-            elsif ($token eq '@')
-            {
-                # push hostname
+            # Hostname
+            elsif ($token eq '@') {
                 push @stack, $host;
             }
-            else
-            {
-                # treat as a function
-                if (!defined($_RPN_FUNCS{$token}))
-                {
-                    GRNOC::Log::log_error("RPN function $token not defined!")
-                      if !$func_lookup_errors{$token};
-                    $func_lookup_errors{$token} = 1;
-
+            # Treat as a function
+            else {
+                if (!defined($_RPN_FUNCS{$token})) {
+                    $self->logger->error("RPN function $token not defined!") if !$func_errors{$token};
+                    $func_errors{$token} = 1;
                     next;
                 }
 
                 $_RPN_FUNCS{$token}(\@stack);
             }
-
-            # We copy, as in certain cases Dumper() can affect the
-            # elements of values passed to it
-            my @stack_copy = @stack;
         }
 
         # Return the top of the stack
@@ -1358,9 +1166,7 @@ sub _rpn_calc
 
 # Turns truthy values to 1, falsy values to 0. Like K&R *intended*.
 sub _bool_to_int {
-
-    my $val = shift;
-    return ($val) ? 1 : 0;
+    return (shift) ? 1 : 0;
 }
 
 
@@ -1374,7 +1180,6 @@ sub _bool_to_int {
         my $a     = pop @$stack;
         push @$stack, (defined($a) && defined($b)) ? $a + $b : undef;
     },
-
     # minuend subtrahend => difference
     '-' => sub {
         my $stack = shift;
@@ -1382,7 +1187,6 @@ sub _bool_to_int {
         my $a     = pop @$stack;
         push @$stack, (defined($a) && defined($b)) ? $a - $b : undef;
     },
-
     # multiplicand1 multiplicand2 => product
     '*' => sub {
         my $stack = shift;
@@ -1390,72 +1194,60 @@ sub _bool_to_int {
         my $a     = pop @$stack;
         push @$stack, (defined($a) && defined($b)) ? $a * $b : undef;
     },
-
     # dividend divisor => quotient
     '/' => sub {
         my $stack = shift;
         my $b     = pop @$stack;
         my $a     = pop @$stack;
-        my $x     = eval { $a / $b; };    # make divide by zero yield undef
-        push @$stack, (defined($a) && defined($b)) ? $x : undef;
+        push @$stack, (defined($a) && defined($b)) ? eval{$a / $b;} : undef;
     },
-
     # dividend divisor => remainder
     '%' => sub {
         my $stack = shift;
         my $b     = pop @$stack;
         my $a     = pop @$stack;
-        my $x     = eval { $a % $b; };    # make divide by zero yield undef
-        push @$stack, (defined($a) && defined($b)) ? $x : undef;
+        push @$stack, (defined($a) && defined($b)) ? eval{$a % $b;} : undef;
     },
-
     # number => logarithm_base_e
     'ln' => sub {
         my $stack = shift;
         my $x     = pop @$stack;
-        $x = eval { log($x); };           # make ln(0) yield undef
+        $x = eval{ log($x); }; # make ln(0) yield undef
         push @$stack, $x;
     },
-
     # number => logarithm_base_10
     'log10' => sub {
         my $stack = shift;
         my $x     = pop @$stack;
-        $x = eval { log($x); };           # make ln(0) yield undef
+        $x = eval { log($x); }; # make ln(0) yield undef
         $x /= log(10) if defined($x);
         push @$stack, $x;
     },
-
     # number => power
     'exp' => sub {
         my $stack = shift;
         my $x     = pop @$stack;
-        $x = eval { exp($x); } if defined($x);
+        $x = eval{ exp($x); } if defined($x);
         push @$stack, $x;
     },
-
     # base exponent => power
     'pow' => sub {
         my $stack = shift;
         my $b     = pop @$stack;
         my $a     = pop @$stack;
-        my $x     = eval { $a**$b; };
-        push @$stack, (defined($a) && defined($b)) ? $x : undef;
+        push @$stack, (defined($a) && defined($b)) ? eval{$a ** $b;} : undef;
     },
-
     # => undef
     '_' => sub {
         my $stack = shift;
         push @$stack, undef;
     },
-
     # a => (is a not undef?)
     'defined?' => sub {
         my $stack = shift;
         my $a     = pop @$stack;
         push @$stack, _bool_to_int(defined($a));
     },
-
     # a b => (is a numerically equal to b? (or both undef))
     '==' => sub {
         my $stack = shift;
@@ -1467,7 +1259,6 @@ sub _bool_to_int {
           :                                  0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (is a numerically unequal to b?)
     '!=' => sub {
         my $stack = shift;
@@ -1479,7 +1270,6 @@ sub _bool_to_int {
           :                                  1;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (is a numerically less than b?)
     '<' => sub {
         my $stack = shift;
@@ -1488,7 +1278,6 @@ sub _bool_to_int {
         my $res   = (defined($a) && defined($b)) ? ($a < $b) : 0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (is a numerically less than or equal to b?)
     '<=' => sub {
         my $stack = shift;
@@ -1497,7 +1286,6 @@ sub _bool_to_int {
         my $res   = (defined($a) && defined($b)) ? ($a <= $b) : 0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (is a numerically greater than b?)
     '>' => sub {
         my $stack = shift;
@@ -1506,7 +1294,6 @@ sub _bool_to_int {
         my $res   = (defined($a) && defined($b)) ? ($a > $b) : 0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (is a numerically greater than or equal to b?)
     '>=' => sub {
         my $stack = shift;
@@ -1515,7 +1302,6 @@ sub _bool_to_int {
         my $res   = (defined($a) && defined($b)) ? ($a >= $b) : 0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (Is string A equal to string B? (or both undef))
     'eq' => sub {
         my $stack = shift;
@@ -1527,7 +1313,6 @@ sub _bool_to_int {
           :                                  0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (Is string A unequal to string B?)
     'ne' => sub {
         my $stack = shift;
@@ -1539,7 +1324,6 @@ sub _bool_to_int {
           :                                  1;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (Is string A less than string B?)
     'lt' => sub {
         my $stack = shift;
@@ -1548,7 +1332,6 @@ sub _bool_to_int {
         my $res   = (defined($a) && defined($b)) ? ($a lt $b) : 0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (Is string A less than or equal to string B?)
     'le' => sub {
         my $stack = shift;
@@ -1557,7 +1340,6 @@ sub _bool_to_int {
         my $res   = (defined($a) && defined($b)) ? ($a le $b) : 0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (Is string A greater than string B?)
     'gt' => sub {
         my $stack = shift;
@@ -1566,7 +1348,6 @@ sub _bool_to_int {
         my $res   = (defined($a) && defined($b)) ? ($a gt $b) : 0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (Is string A greater than or equal to string B?)
     'ge' => sub {
         my $stack = shift;
@@ -1575,7 +1356,6 @@ sub _bool_to_int {
         my $res   = (defined($a) && defined($b)) ? ($a ge $b) : 0;
         push @$stack, _bool_to_int($res);
     },
-
     # a b => (a AND b)
     'and' => sub {
         my $stack = shift;
@@ -1583,7 +1363,6 @@ sub _bool_to_int {
         my $a     = pop @$stack;
         push @$stack, _bool_to_int($a && $b);
     },
-
     # a b => (a OR b)
     'or' => sub {
         my $stack = shift;
@@ -1591,14 +1370,12 @@ sub _bool_to_int {
         my $a     = pop @$stack;
         push @$stack, _bool_to_int($a || $b);
     },
-
     # a => (NOT a)
     'not' => sub {
         my $stack = shift;
         my $a     = pop @$stack;
         push @$stack, _bool_to_int(!$a);
     },
-
     # pred a b => (a if pred is true, b if pred is false)
     'ifelse' => sub {
         my $stack = shift;
@@ -1607,7 +1384,6 @@ sub _bool_to_int {
         my $pred  = pop @$stack;
         push @$stack, (($pred) ? $a : $b);
     },
-
     # string pattern => match_group_1
     'match' => sub {
         my $stack   = shift;
@@ -1622,7 +1398,6 @@ sub _bool_to_int {
             push @$stack, undef;
         }
     },
-
     # string match_pattern replacement_pattern => transformed_string
     'replace' => sub {
         my $stack       = shift;
@@ -1639,7 +1414,6 @@ sub _bool_to_int {
         $string = Data::Munge::replace($string, $pattern, $replacement);
         push @$stack, $string;
     },
-
     # string1 string2 => string1string2
     'concat' => sub {
         my $stack   = shift;
@@ -1649,15 +1423,11 @@ sub _bool_to_int {
         $string2 = '' if !defined($string2);
         push @$stack, ($string1 . $string2);
     },
-
-    # stealing some names from PostScript...
-    #
     # a => --
     'pop' => sub {
         my $stack = shift;
         pop @$stack;
     },
-
     # a b => b a
     'exch' => sub {
         my $stack = shift;
@@ -1666,7 +1436,6 @@ sub _bool_to_int {
         my $a = pop @$stack;
         push @$stack, $b, $a;
     },
-
     # a => a a
     'dup' => sub {
         my $stack = shift;
@@ -1674,20 +1443,33 @@ sub _bool_to_int {
         my $a = pop @$stack;
         push @$stack, $a, $a;
     },
-
     # obj_n ... obj_2 obj_1 n => obj_n ... obj_2 obj_1 obj_n
     'index' => sub {
         my $stack = shift;
         my $a     = pop @$stack;
-        if (!defined($a) || ($a + 0) < 1)
-        {
+        if (!defined($a) || ($a + 0) < 1) {
             push @$stack, undef;
             return;
         }
         push @$stack, $stack->[-($a + 0)];
-
         # This pushes undef if $a is greater than the stack size, which is OK
     },
 );
+
+
+=head2 debug_dump
+    This is a function to optimize debug logging involving calls to Data::Dumper
+    It will only evaluate the calls to Dumper() and the passed variable if in debug mode
+    Default behavior for logger->debug() will process data even when debug is not active
+=cut
+sub debug_dump {
+     my $self  = shift;
+     my $value = shift;
+
+     $self->logger->debug({
+        filter => \&Data::Dumper::Dumper,
+        value  => $value
+     });
+}
 
 1;
