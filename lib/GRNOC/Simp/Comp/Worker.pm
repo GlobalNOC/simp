@@ -286,22 +286,22 @@ sub _start {
 
     my $worker_id = $self->worker_id;
 
-    # flag that we're running
+    # Flag that the worker is running
     $self->_set_is_running(1);
 
-    # change our process name
+    # Set our process name
     $0 = "simp_comp ($worker_id) [worker]";
 
-    # setup signal handlers
+    # Set signal handlers
     $SIG{'TERM'} = sub {
         $self->logger->info("Received SIG TERM.");
         $self->_stop();
     };
-
     $SIG{'HUP'} = sub {
         $self->logger->info("Received SIG HUP.");
     };
 
+    # Setup RabbitMQ
     $self->_setup_rabbitmq();
 }
 
@@ -330,25 +330,21 @@ sub _ping {
 
 
 =head2 _get
-    This is the primary method invoked when TSDS requests data
-    It will run through retrieving data from Redis, processing, and sending the result
+    This is the primary method invoked when Simp::TSDS requests data through RabbitMQ
+    It will run through retrieving data from Redis, processing it, and sending the result back
 =cut
 sub _get {
-    my $start     = [gettimeofday];
-    my $self      = shift;
-    my $composite = shift;
-    my $rpc_ref   = shift;
-    my $args      = shift;
+    my $start = [gettimeofday];
+    my ($self, $composite, $rpc_ref, $args) = @_;
 
     # Initialize the request hash for _get to pass from method to method
     my $request = $self->_init_request($args, $composite);
 
-    # RabbitMQ callback that handles our final results
+    # RabbitMQ callback that sends our finished data
     my $success_callback = $rpc_ref->{'success_callback'};
 
     # Initialize the AnyEvent conditional variables for the async processing pipeline
     my @cv = map { AnyEvent->condvar; } (0 .. 1);
-
 
     # Gather the raw SNMP data for every host and OID in scans or data elements from Redis
     $cv[0]->begin(sub { $self->_gather_data($request, $cv[1]); });
@@ -366,7 +362,7 @@ sub _get {
         $self->logger->info("REQTIME COMP " . tv_interval($start, [gettimeofday]));
 
         # Send results back to RabbitMQ for TSDS
-        &$success_callback($request->{'final'});
+        &$success_callback($request->{data});
 
         # Clear vars defined for the request
         undef $request;
@@ -382,35 +378,24 @@ sub _get {
 
 
 =head2 _init_request()
-    Initializes the request hash containing all data about a single _get request.
-    The hash is cleared after _get finishes running.
+    Initializes the request hash containing all data for a single _get request.
+    The hash is cleared after _get finishes sending back the requested data.
 =cut
 sub _init_request {
-    my $self      = shift;
-    my $args      = shift;
-    my $composite = shift;
+    my ($self, $args, $composite) = @_;
 
-    $self->logger->debug("Initializing the environment hash");
+    $self->logger->debug('['.$composite->{name}."] Initializing the request hash");
 
     # Create the request hash
     my %request = (
         composite => $composite,
         hosts     => $args->{node}{value},
         interval  => $args->{period}{value} || 60,
-        final     => {},
-        var_map   => {},
         constants => {},
-        raw       => { scan => {}, data => {} },
+        raw       => {scan => {}, data => {}},
         data      => {},
         meta      => {'node' => '*node'},
     );
-
-    # Map any input variables for the composite
-    if ($composite->{'inputs'}) {
-        while ( my ($input, $attr) = each(%{$composite->{'inputs'}}) ) {
-            $request{'var_map'}{$attr->{'value'}} = $input;
-        }
-    }
 
     # Map any constants for the composite
     if ($composite->{'constants'}) {
@@ -422,20 +407,13 @@ sub _init_request {
     # Create host-specific hash entries
     for my $host (@{$request{hosts}}) {
         $request{data}{$host}      = [];
-        $request{final}{$host}     = [];
         $request{raw}{scan}{$host} = [];
         $request{raw}{data}{$host} = {};
     }
 
-    # Map scan poll_value and oid_suffix names
-    for my $scan ( @{$composite->{scans}} ) {
-        $request{'var_map'}{$scan->{value}} = $scan->{suffix};
-    }
-
     # Map metadata names for TSDS
     for my $meta (keys %{$composite->{data}}) {
-        my $attr = $composite->{data}{$meta};
-        $request{'meta'}{$meta} = "*$meta" if ($attr->{data_type} eq 'metadata');
+        $request{'meta'}{$meta} = "*$meta" if ($composite->{data}{$meta}{data_type} eq 'metadata');
     }
 
     return \%request;
@@ -444,22 +422,20 @@ sub _init_request {
 
 =head2 _gather_data()
     A method that will gather all OID data needed for the _get() request.
-    The data is cached in the environment variable's "data" hash.
 =cut
 sub _gather_data {
-    my $self    = shift;
-    my $request = shift;
-    my $cv      = shift;
+    my ($self, $request, $cv) = @_;
 
     my $composite = $request->{composite};
 
-    $self->logger->debug("Gathering data from Redis...");
+    $self->logger->debug('['.$composite->{name}."] Gathering data from Redis...");
 
-    for my $scan (@{$composite->{'scans'}}) {
-        
+    # Gather data for scans
+    for my $scan (@{$composite->{'scans'}}) {   
         $self->_request_data($request, $scan->{value}, $scan, $cv);
     }
 
+    # Gather data for data elements
     while (my ($name, $attr) = each(%{$composite->{'data'}})) {
 
         # Skip data elements where their source is a scan
@@ -479,24 +455,17 @@ sub _gather_data {
 =head2 _request_data()
     A method that will request data from SIMP::Data/Redis.
     Handles one OID/composite element at a time.
-    OID data is cached in $request->{data} by the callback.
+    OID data is cached in $request->{raw} by the callback.
 =cut
 sub _request_data {
+    my ($self, $request, $name, $attr, $cv) = @_;
 
-    my $self    = shift;
-    my $request = shift;
-    my $name    = shift;
-    my $attr    = shift;
-    my $cv      = shift;
-
-    # Get the base OID subtree to request from the element's map.
+    # Get the base OID subtree to request.
     # It is tempting to request just the OIDs you know you want,
     # instead of asking for the whole subtree, but posting a
     # bunch of requests for individual OIDs takes significantly
     # more time and CPU. That's why we request the subtree.
-    $self->logger->debug("[$name] Requesting data");
-
-    my $oid = $attr->{map}{base_oid};
+    my $oid = $attr->{base_oid};
 
     # Add to the AnyEvent condition variable to make the request async
     # We end it within the callback after data caching completes
@@ -535,22 +504,20 @@ sub _request_data {
 
 =head2 _cache_data()
     A callback used to cache raw OID data in the environment hash.
+    Scans are cached in an array at $request->{raw}{scan}{$host}.
+    Data are cached in a hash at $request->{raw}{data}{$host}.
+    OIDs returned from Redis are checked to see if they match what was requested.
 =cut
 sub _cache_data {
-    my $self    = shift;
-    my $request = shift;
-    my $name    = shift;
-    my $attr    = shift;
-    my $data    = shift;
+    my ($self, $request, $name, $attr, $data) = @_;
+
+    my $composite_name = $request->{composite}{name};
 
     # Check whether Simp::Data retrieved anything from Redis
     if (!defined($data)) {
-        $self->logger->error("[$name] Could not retrieve data from Redis using Simp::Data");
+        $self->logger->error("[$composite_name] Simp::Data could not retrieve \"$name\" from Redis");
         return;
     }
-
-    # Get the OID map
-    my $map = $attr->{map};
 
     # Determine the type of the element, scan or data element
     # Data elements have a 'source' attribute
@@ -560,7 +527,7 @@ sub _cache_data {
 
         # Skip the host when there's no data for it
         if (!exists($data->{$host}) || !defined($data->{$host})) {
-            $self->logger->error("[$name] $host has no data to cache for this");
+            $self->logger->error("[$composite_name] $host has no data to cache for \"$name\"");
             next;
         }
 
@@ -577,7 +544,7 @@ sub _cache_data {
             next unless (defined $value && defined $time);
             
             # Only OIDs with matching constant values and required OID vars present are kept
-            next unless ($oid =~ $map->{regex});
+            next unless ($oid =~ $attr->{regex});
 
             # Scans are cached in a flat array
             if ($type eq 'scan') {
@@ -592,19 +559,19 @@ sub _cache_data {
             else {
                 $request->{raw}{$type}{$host}{$oid} = $data->{$host}{$oid};
             }
-
         }
     }
-
-    $self->logger->debug("[$name] Successfully cached data");
 }
 
 
 =head2 _digest_data()
-    
+    Digests the raw data into arrays of data hashes per-host.
+    This function wraps the data parser in a host loop.
 =cut
 sub _digest_data {
-    my ($self, $request, $cv) = @_;
+    my ($self, $request) = @_;
+
+    $self->logger->debug("[".$request->{composite}{name}."] Digesting raw data");
 
     # Parse the data for each host
     for my $host (@{$request->{hosts}}) {
@@ -617,7 +584,10 @@ sub _digest_data {
 }
 
 =head2 _parse_data()
-
+    Parses the raw data and pushes complete data objects for a host into an array recursively.
+    Scans are recursed through in order, then a data object is built using those scan parameters.
+    We pass an environment hash to each recursion containing KVPs for scan poll_values and oid_suffixes.
+    When scans depth is exhausted, we build the data for the combination by calling _build_data().
 =cut
 sub _parse_data {
 
@@ -627,10 +597,9 @@ sub _parse_data {
     $i   = 0 if (!defined($i));
     $env = {} if ($i == 0);
 
-    # Get the config and OID map for the scan
+    # Get the config for the scan
     my $scans = $request->{composite}{scans};
     my $scan  = $scans->[$i];
-    my $map   = $scan->{map};
 
     # Once recursion hits a leaf, build data for the current environment
     if ($i > $#$scans) {
@@ -653,7 +622,7 @@ sub _parse_data {
         my $oid   = $datum->{oid};
 
         # Check if the OID matches the scan's regex and store any matching variables
-        my @oid_vars = ($oid =~ $map->{regex});
+        my @oid_vars = ($oid =~ $scan->{regex});
         
         # Skip non-matching OIDs
         next unless (@oid_vars);
@@ -664,7 +633,7 @@ sub _parse_data {
         }
 
         # Short circuit for elements without vars
-        if (!defined($map->{first_var})) {
+        if (!scalar(@{$scan->{oid_vars}})) {
             $env->{$suffix_name} = undef;
             $env->{$value_name}  = $datum->{value};
 
@@ -680,7 +649,7 @@ sub _parse_data {
         for (my $index = 0; $index <= $#oid_vars; $index++) {
             
             # Grab the var name and value from the map and data OID
-            my $var = $map->{oid_vars}[$index];
+            my $var = $scan->{oid_vars}[$index];
             my $val = $oid_vars[$index];
 
             # Validate the var->val combination by checking this:
@@ -715,7 +684,8 @@ sub _parse_data {
 }
 
 =head2 _build_data()
-    Builds data output for a combination of OID variables from scanning
+    Builds data output for a combination of scan parameters contained in $env.
+    Returns exactly one data object per $env unless the produced data is invalidated.
 =cut
 sub _build_data {
     my ($self, $request, $host, $env) = @_;
@@ -726,26 +696,26 @@ sub _build_data {
     # Get raw data for the host
     my $data = $request->{raw}{data}{$host};
 
-    # Flag to indicate whether the produced data should be kept
-    my $keep = 1;
+    # Flag to indicate whether the produced data is valid
+    my $valid = 1;
 
     # Handle each wanted data element for metadata and values
     while (my ($name, $attr) = each(%{$request->{composite}{data}})) {
 
-        $self->logger->debug("Processing $name for combination");
-
-        # Skip the node for backward compatibility
+        # Skip the node value for backward compatibility
         next if ($name eq 'node');
 
-        my $map    = $attr->{map};
+        # Get the source for the data element
         my $source = $attr->{source};
 
-        # Handling for OID sources
+        # Values derived from OID data
         if ($attr->{source_type} eq 'oid') {
 
-            # Replace all vars in the source with values from $env
+            # Replace all vars in the source with the values from $env
             for my $var (keys %$env) {
                 my $val = $env->{$var};
+
+                # Non-destructive replacement
                 $source = $source =~ s/$var/$val/gr;
             }
 
@@ -755,42 +725,50 @@ sub _build_data {
                 # Assign its value
                 $output{$name} = $data->{$source}{value};
 
-                # Add the time only once
+                # Assign time only once for the output hash
                 unless (exists($output{time}) || !exists($data->{$source}{time})) {
                     $output{time} = $data->{$source}{time};
                 }
             }
         }
-        # Handling for values derived from scans
+        # Values derived from scans
         elsif ($attr->{source_type} eq 'scan') {
             $output{$name} = $env->{$source};
         }
+        # Values derived from a defined constant
         elsif ($attr->{source_type} eq 'constant') {
             $output{$name} = $request->{composite}{constants}{$source};
         }
 
-        # Verify the data and apply any matches and match exclusions
-        $keep = 0 unless ($self->_check_data(\%output, $name, $attr));
+        # Verify the data value and apply any required matching and exclusion
+        $valid = 0 unless ($self->_check_value(\%output, $name, $attr));
     }
 
     # Ensure that a value for "time" has been set
     unless (exists($output{'time'}) && defined($output{'time'})) {
 
-        # Set time from $env where the only data with time is from a scan
+        # Set time from $env where the only data with a time is from a scan
         if (exists($env->{TIME})) {
             $output{time} = $env->{TIME};
         }
+        # If we still couldn't set the time, the data is invalid
         else {
-            $self->logger->error("ERROR: Simp.Comp Worker has data without a time. This shouldn't be possible!");
+            $valid = 0;
+            $self->logger->error("[".$request->{composite}{name}."] Produced data without a time value!");
         }
     }
 
-    return \%output if ($keep);
-    return;
+    # Returns the output hash if valid, otherwise returns nothing
+    return ($valid) ? \%output : undef;
 }
 
 
-sub _check_data {
+=head2 _check_value()
+    Checks whether data for a specific value is valid.
+    Applies require_match and invert_match functionality for the value.
+    Initializes the value's key in the hash if it doesn't exist.
+=cut
+sub _check_value {
     my ($self, $data, $name, $attr) = @_;
         
     # Initialize the data element's value as undef if it does not already exist
@@ -800,7 +778,6 @@ sub _check_data {
     if (exists($attr->{'require_match'})) {
 
         # Does the value for the field match the given pattern?
-        # If so, we keep the data object (unless inverted)
         my $match  = $data->{$name} =~ $attr->{'require_match'};
 
         # Indicates that we should drop the data hash on match instead of keeping it
@@ -810,7 +787,6 @@ sub _check_data {
         #   1. The pattern didn't match and we don't want to invert that
         #   2. The pattern did match, but we're removing matches due to inversion
         if ((!$match && !$invert) || ($match && $invert)) {
-
             return;
         }
     }
@@ -819,35 +795,32 @@ sub _check_data {
 
 
 =head2 _convert_data()
-    Applies conversions to the host data before sending to TSDS
+    Applies conversionsto the host data before sending to TSDS
 =cut
 sub _convert_data {
 
     my $self    = shift;
-    my $request = shift;    # Global evironment hash
-    my $cv      = shift;    # AnyEvent condition var (assumes it's been begin()'ed)
+    my $request = shift;
 
-    my $composite = $request->{composite};
+    my $composite      = $request->{composite};
+    my $composite_name = $composite->{name};
 
     # Get the array of all conversions
     my $conversions = $composite->{'conversions'};
 
-    $self->logger->debug("Applying conversions to the data");
+    $self->logger->debug("[$composite_name] Applying conversions to the data");
 
     # Iterate over the data array for each host
     for my $host (keys %{$request->{'data'}}) {
 
         # Skip and use empty results if host has no data
         if (!$request->{'data'}{$host} || (ref($request->{'data'}{$host}) ne ref([]))) {
-            $self->logger->error("ERROR: No data array was generated for $host!");
+            $self->logger->error("[$composite_name] No data array was generated for $host!");
             next;
         }
 
-        # Set final values if no functions are being applied to the hosts's data
-        unless ($conversions) {
-            $request->{'final'}{$host} = $request->{'data'}{$host};
-            next;
-        }
+        # Skip the host if no functions are being applied to the hosts's data
+        next unless ($conversions);
 
         # Apply each function included in conversions
         for my $conversion (@$conversions) {
@@ -875,7 +848,7 @@ sub _convert_data {
 
                     %vars = map { $_ => 1 } $target_def =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
 
-                    $self->logger->debug("Function has the following definition and vars:");
+                    $self->logger->debug("[$composite_name] Function has the following definition and vars:");
                     $self->debug_dump($target_def);
                     $self->debug_dump(\%vars);
                 }
@@ -891,7 +864,7 @@ sub _convert_data {
 
                     %vars = map { $_ => 1 } $combo =~ m/\$\{([a-zA-Z0-9_-]+)\}/g;
 
-                    $self->logger->debug("Replacement has the follwing vars:");
+                    $self->logger->debug("[$composite_name] Replacement has the follwing vars:");
                     $self->debug_dump(\%vars);
                 }
 
@@ -906,25 +879,22 @@ sub _convert_data {
                         $target_pattern = $conversion->{'pattern'};
                     }
 
-                    $self->logger->debug("Match has the following pattern and vars:");
+                    $self->logger->debug("[$composite_name] Match has the following pattern and vars:");
                     $self->debug_dump($target_pattern);
                     $self->debug_dump(\%vars);
                 }
 
-                # Apply the conversion for the target to each data object
-                # for the host
+                # Apply the conversion for the target to each data object for the host
                 for my $data (@{$request->{'data'}{$host}}) {
 
-                    # Initialize all temporary conversion attributes
-                    # for the data object
+                    # Initialize all temporary conversion attributes for the data object
                     my $temp_def     = $target_def;
                     my $temp_this    = $target_this;
                     my $temp_with    = $target_with;
                     my $temp_pattern = $target_pattern;
 
-                    # Skip if the target data element doesn't exist
-                    # in the object
-                    next unless (exists $data->{$target});# && defined $data->{$target});
+                    # Skip if the target data element doesn't exist in the object
+                    next unless (exists $data->{$target});
 
                     my $conversion_err = 0;
 
@@ -951,13 +921,11 @@ sub _convert_data {
                                 $var_value = '';
                             }
                         }
-
                         # If not, see if the var is a user-defined constant,
                         # then assign it
                         elsif (exists($request->{'constants'}{$var})) {
                             $var_value = $request->{'constants'}{$var};
                         }
-
                         # If the var isn't anywhere, flag a conversion err
                         # and end the loop
                         else {
@@ -972,9 +940,8 @@ sub _convert_data {
 
                             # Replace the var indicators with their value
                             $temp_def =~ s/\$\{$var\}/$var_value/;
-                            $self->logger->debug("Applying function: $temp_def");
+                            $self->logger->debug("[$composite_name] Applying function: $temp_def");
                         }
-
                         # Replacements
                         elsif ($conversion->{'type'} eq 'replace') {
 
@@ -984,9 +951,8 @@ sub _convert_data {
 
                             $temp_this = '' if (!defined($temp_this));
 
-                            $self->logger->debug("Replacing \"$temp_this\" with \"$temp_with\"");
+                            $self->logger->debug("[$composite_name] Replacing \"$temp_this\" with \"$temp_with\"");
                         }
-
                         # Matches
                         elsif ($conversion->{'type'} eq 'match') {
 
@@ -996,8 +962,7 @@ sub _convert_data {
                         }
                     }
 
-                    # Don't send a value for the data if the conversion
-                    # can't be completed as requested
+                    # Don't send a value for the data if the conversion can't be completed as requested
                     if ($conversion_err) {
                         $data->{$target} = undef;
                         next;
@@ -1019,7 +984,6 @@ sub _convert_data {
                             $host
                         );
                     }
-
                     # Replacement application
                     elsif ($conversion->{'type'} eq 'replace') {
 
@@ -1038,7 +1002,6 @@ sub _convert_data {
                             );
                         }
                     }
-
                     # Match application
                     elsif ($conversion->{'type'} eq 'match') {
 
@@ -1053,17 +1016,16 @@ sub _convert_data {
                             $new_value = ($exclude != 1) ? undef : $data->{$target};
                         }
                     }
-
                     # Drops
                     elsif ($conversion->{'type'} eq 'drop') {
 
-                        $self->logger->debug("Dropping composite field $target");
+                        $self->logger->debug("[$composite_name] Dropping composite field $target");
                         delete $data->{$target};
                         next;
                     }
 
                     if (defined $new_value) {
-                        $self->logger->debug("Set value for $target to $new_value");
+                        $self->logger->debug("[$composite_name] Set value for $target to $new_value");
                     }
 
                     # Assign the new value to the data target
@@ -1080,13 +1042,10 @@ sub _convert_data {
                 }
             }
         }
-
-        # Once all conversions are applied for the host, set the final data to that hash
-        $request->{'final'}{$host} = $request->{'data'}{$host};
     }
 
-    $self->debug_dump($request->{'final'});
-    $self->logger->debug("Finished applying conversions to the data");
+    $self->logger->debug("[$composite_name] Finished applying conversions to the data");
+    $self->debug_dump($request->{data});
 }
 
 
@@ -1149,7 +1108,9 @@ sub _rpn_calc {
             # Treat as a function
             else {
                 if (!defined($_RPN_FUNCS{$token})) {
-                    $self->logger->error("RPN function $token not defined!") if !$func_errors{$token};
+                    if (!$func_errors{$token}) {
+                        $self->logger->error("[".$request->{composite}{name}."] RPN function $token not defined!");
+                    }
                     $func_errors{$token} = 1;
                     next;
                 }

@@ -243,7 +243,7 @@ sub _make_composites {
         $self->_validate_config($file, $config, $self->composite_xsd);
 
         # Begin building the composite hash used by Workers from the config
-        my %composite;
+        my %composite = (name => $composite_name);
         
         # Get the hash of parameters
         my $parameters = $config->get('/composite')->[0];
@@ -279,15 +279,15 @@ sub _make_composites {
 
                 my $scan_name = $scan->{'poll_value'};
                 
-                my $scan_params = {#$composite{'scans'}{$scan_name} = {
+                my $scan_params = {
                     'oid'    => $scan->{'oid'},
-                    'map'    => $self->_map_oid($scan->{'poll_value'}, $scan, 'scan'),
                     'suffix' => $scan->{oid_suffix},
                     'value'  => $scan->{poll_value}
                 };
 
-                push(@{$composite{'scans'}}, $scan_params);
+                $self->_map_oid($scan_params, 'scan');
 
+                push(@{$composite{'scans'}}, $scan_params);
             }
         }
 
@@ -309,7 +309,7 @@ sub _make_composites {
 
             if ($attr->{'source'} =~ /.*\.+.*/) {
                 $attr->{'source_type'} = 'oid';
-                $attr->{'map'} = $self->_map_oid($meta, $attr, 'data');
+                $self->_map_oid($attr, 'data');
             }
             elsif (exists($composite{constants}{$attr->{'source'}})) {
                 $attr->{'source_type'} = 'constant';
@@ -329,7 +329,7 @@ sub _make_composites {
 
             if ($attr->{'source'} =~ /.*\.+.*/) {
                 $attr->{'source_type'} = 'oid';
-                $attr->{'map'} = $self->_map_oid($value, $attr, 'data');
+                $self->_map_oid($attr, 'data');
             }
             elsif (exists($composite{constants}{$attr->{'source'}})) {
                 $attr->{'source_type'} = 'constant';
@@ -384,30 +384,25 @@ sub _make_composites {
 
 
 =head2 _map_oid
-    Creates a map hash for an OID having:
-    - split_oid (The OID split into it's elements)
-    - base_oid  (The OID made from the max elems we can poll w/o having vars in it)
-    - first_var (The index position of the first var elem)
-    - last_var  (The index position of the last var elem)
-    - vars      (A hash of OID elem vars set to their index in the OID)
+    Parses an OID and maps out variables specific to the OID:
+    - base_oid (The OID made from the max elems we can poll w/o having vars in it)
+    - oid_vars (Array of OID variables in order of appearance)
+    - reqex    (Regex that matches an OID capturing OID variables in matching order of oid_vars)
 =cut
 sub _map_oid {
 
     my $self = shift;
-    my $name = shift;
     my $elem = shift;
     my $type = shift;
 
-    # Init the hash map to return for the OID
-    my %oid_map;
 
     # Init the base OID to be requested from Redis by Data
     # The attribute containing it differs by element type
     if ($type eq 'scan') {
-        $oid_map{'base_oid'} = $elem->{'oid'};
+        $elem->{'base_oid'} = $elem->{'oid'};
     }
     elsif ($type eq 'data') {
-        $oid_map{'base_oid'} = $elem->{'source'};
+        $elem->{'base_oid'} = $elem->{'source'};
     }
     else {
         # OIDs are always contained within an "oid" or "source" attribute
@@ -415,15 +410,11 @@ sub _map_oid {
     }
 
     # Split the oid into its nodes
-    my @split_oid = split(/\./, $oid_map{'base_oid'});
+    my @split_oid = split(/\./, $elem->{'base_oid'});
 
-    # Save the split_oid in the map for Workers to use later
-    $oid_map{'split_oid'} = \@split_oid;
-
-    # We track the first and last index of the OID nodes before the first OID variable
-    # These indexes are then used to join portions of the OID not containing variable OID nodes
+    # We track the first index of the OID nodes before the first OID variable
+    # The index is then used to join portions of the OID not containing variable OID nodes
     my $first_index;
-    my $last_index;
 
     # Create a regex pattern that will capture OID variables and any tailing OID nodes
     my @re_elems;
@@ -439,8 +430,8 @@ sub _map_oid {
 
         # Change * to the name of the OID suffix for backward compatibility
         if ($type eq 'scan' && $oid_node eq '*') {
-            $oid_node      = $elem->{oid_suffix};
-            $split_oid[$i] = $elem->{oid_suffix};
+            $oid_node      = $elem->{suffix};
+            $split_oid[$i] = $elem->{suffix};
         }
 
         # Check if the OID node is an OID node variable, including *
@@ -450,14 +441,8 @@ sub _map_oid {
             # Add the name of the variable OID node and its index to the map
             push(@oid_vars, $oid_node);
 
-            # Initialize the first and last normal OID node indexes
-            if (!defined $first_index) {
-                $first_index = $i;
-                $last_index  = $i;
-            }
-
-            # Update the last OID node index
-            $last_index = $i if ($last_index < $i);
+            # Initialize the first variable OID node index
+            $first_index = $i if (!defined $first_index);
 
             # Add a number capture to our regex for the OID variable
             push(@re_elems, '(\d+)')
@@ -470,24 +455,18 @@ sub _map_oid {
 
     # Set the regex pattern for the OID
     my $regex = '^' . join('\.', @re_elems) . '$';
-    $oid_map{'regex'} = qr/$regex/;
+    $elem->{'regex'} = qr/$regex/;
 
     # Set the ordered oid_vars array
-    $oid_map{'oid_vars'} = \@oid_vars;
-
-    $oid_map{'first_var'} = $first_index;
-    $oid_map{'last_var'}  = $last_index;
+    $elem->{'oid_vars'} = \@oid_vars;
 
     # Update the base OID when variable OID nodes were found
     # The first/last index will be undefined if not found
     if ($first_index) {
-        # The .* is appended for simp-data's request to Redis
-        # Without it, Data will match any OID suffix starting with that num
-        # i.e. (1.2.3.1 would get 1.2.3.10, 1.2.3.17, 1.2.3.108, etc.)
-        $oid_map{'base_oid'} = (join '.', @split_oid[0 .. ($first_index - 1)]) . '.*';
-    }
 
-    return \%oid_map;
+        # The .* is appended for simp-data's request to Redis
+        $elem->{'base_oid'} = (join '.', @split_oid[0 .. ($first_index - 1)]) . '.*';
+    }
 }
 
 
