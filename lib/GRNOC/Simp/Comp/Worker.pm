@@ -712,11 +712,9 @@ sub _build_data {
         if ($attr->{source_type} eq 'oid') {
 
             # Replace all vars in the source with the values from $env
-            for my $var (keys %$env) {
-                my $val = $env->{$var};
-
-                # Non-destructive replacement
-                $source = $source =~ s/$var/$val/gr;
+            # This is a non-destructive replacement
+            if (keys %$env) {
+                $source = $source =~ s/(@{[join("|", keys %$env)]})/$env->{$1}/gr;
             }
 
             # Does our generated OID have a key in the raw data?
