@@ -607,20 +607,34 @@ sub _parse_data {
         push(@$acc, $output) if ($output);
         return;
     }
+<<<<<<< HEAD
 
     # The data for the scan
     my $data = $request->{raw}{scan}{$host};
 
+=======
+
+    # The data for the scan
+    my $data = $request->{raw}{scan}{$host};
+
+>>>>>>> 42a2ce16516cd73e7dcf7da730cf5f18b6837f0c
     # The name of this scan's poll_value and oid_suffix
     my $value_name  = $scan->{value};
     my $suffix_name = $scan->{suffix};
 
     # Iterate over the raw data for the host
     for (my $j = 0; $j <= $#$data; $j++) {
+<<<<<<< HEAD
 
         my $datum = $data->[$j];
         my $oid   = $datum->{oid};
 
+=======
+
+        my $datum = $data->[$j];
+        my $oid   = $datum->{oid};
+
+>>>>>>> 42a2ce16516cd73e7dcf7da730cf5f18b6837f0c
         # Check if the OID matches the scan's regex and store any matching variables
         my @oid_vars = ($oid =~ $scan->{regex});
         
@@ -671,10 +685,17 @@ sub _parse_data {
                 my %new_env = %$env;
                 $new_env{$suffix_name} = $val;
                 $new_env{$value_name}  = $datum->{value};
+<<<<<<< HEAD
 
                 # Once we have the suffix, we're done with the vars
                 $self->_parse_data($request, $host, $acc, ($i+1), \%new_env);
 
+=======
+
+                # Once we have the suffix, we're done with the vars
+                $self->_parse_data($request, $host, $acc, ($i+1), \%new_env);
+
+>>>>>>> 42a2ce16516cd73e7dcf7da730cf5f18b6837f0c
                 # Stop iterating over the OID variables for this particular OID
                 last;
             }
@@ -718,6 +739,7 @@ sub _build_data {
                 # Non-destructive replacement
                 $source = $source =~ s/$var/$val/gr;
             }
+<<<<<<< HEAD
 
             # Does our generated OID have a key in the raw data?
             if (exists($data->{$source})) {
@@ -725,6 +747,15 @@ sub _build_data {
                 # Assign its value
                 $output{$name} = $data->{$source}{value};
 
+=======
+
+            # Does our generated OID have a key in the raw data?
+            if (exists($data->{$source})) {
+
+                # Assign its value
+                $output{$name} = $data->{$source}{value};
+
+>>>>>>> 42a2ce16516cd73e7dcf7da730cf5f18b6837f0c
                 # Assign time only once for the output hash
                 unless (exists($output{time}) || !exists($data->{$source}{time})) {
                     $output{time} = $data->{$source}{time};
@@ -743,10 +774,17 @@ sub _build_data {
         # Verify the data value and apply any required matching and exclusion
         $valid = 0 unless ($self->_check_value(\%output, $name, $attr));
     }
+<<<<<<< HEAD
 
     # Ensure that a value for "time" has been set
     unless (exists($output{'time'}) && defined($output{'time'})) {
 
+=======
+
+    # Ensure that a value for "time" has been set
+    unless (exists($output{'time'}) && defined($output{'time'})) {
+
+>>>>>>> 42a2ce16516cd73e7dcf7da730cf5f18b6837f0c
         # Set time from $env where the only data with a time is from a scan
         if (exists($env->{TIME})) {
             $output{time} = $env->{TIME};
