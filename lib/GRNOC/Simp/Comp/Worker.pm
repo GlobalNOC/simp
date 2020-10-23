@@ -525,6 +525,9 @@ sub _cache_data {
 
     for my $host (@{$request->{hosts}}) {
 
+        # Raw scan data for a host needs to be wrapped in an array per individual scan
+        my @scan_arr;
+
         # Skip the host when there's no data for it
         if (!exists($data->{$host}) || !defined($data->{$host})) {
             $self->logger->error("[$composite_name] $host has no data to cache for \"$name\"");
@@ -552,13 +555,18 @@ sub _cache_data {
                 # Add the oid to the data to flatten for scans
                 $data->{$host}{$oid}{oid} = $oid;
                 
-                # Push the scan data
-                push(@{$request->{raw}{$type}{$host}}, $data->{$host}{$oid});
+                # Push the scan data into the scan's array
+                push(@scan_arr, $data->{$host}{$oid});
             }
             # Data is cached in a flat hash
             else {
                 $request->{raw}{$type}{$host}{$oid} = $data->{$host}{$oid};
             }
+        }
+
+        # Push the array of raw data for the scan
+        if ($type eq 'scan') {
+            push(@{$request->{raw}{$type}{$host}}, \@scan_arr);
         }
     }
 }
@@ -609,13 +617,13 @@ sub _parse_data {
     }
 
     # The data for the scan
-    my $data = $request->{raw}{scan}{$host};
+    my $data = $request->{raw}{scan}{$host}[$i];
 
     # The name of this scan's poll_value and oid_suffix
     my $value_name  = $scan->{value};
     my $suffix_name = $scan->{suffix};
 
-    # Iterate over the raw data for the host
+    # Iterate over each data hash in the scan's array
     for (my $j = 0; $j <= $#$data; $j++) {
 
         my $datum = $data->[$j];
@@ -623,7 +631,7 @@ sub _parse_data {
 
         # Check if the OID matches the scan's regex and store any matching variables
         my @oid_vars = ($oid =~ $scan->{regex});
-        
+
         # Skip non-matching OIDs
         next unless (@oid_vars);
 
