@@ -467,6 +467,7 @@ sub _request_data {
     # more time and CPU. That's why we request the subtree.
     my $oid = $attr->{base_oid};
 
+
     # Add to the AnyEvent condition variable to make the request async
     # We end it within the callback after data caching completes
     $cv->begin;

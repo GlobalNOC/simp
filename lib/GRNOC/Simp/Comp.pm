@@ -428,15 +428,26 @@ sub _map_oid {
         # Get the specific node from the OID
         my $oid_node = $split_oid[$i];
 
+        # Determine what we should add to our regex
+        my $re_elem = '';
+
         # Change * to the name of the OID suffix for backward compatibility
-        if ($type eq 'scan' && $oid_node eq '*') {
+        if ($type eq 'scan' && ($oid_node eq '**' || $oid_node eq '*')) {
+
+            # *  Captures the number in the OID exactly at position $i
+            # ** Captures everything in the OID from position $i to the right
+            $re_elem = ($oid_node eq '**') ? '([\d\.]+)' : '(\d+)';
+
             $oid_node      = $elem->{suffix};
             $split_oid[$i] = $elem->{suffix};
-        }
 
+            push(@oid_vars, $oid_node);
+
+            $first_index = $i if (!defined $first_index);
+        }
         # Check if the OID node is an OID node variable, including *
         # The regex will match for standard variable naming conventions
-        if ($oid_node =~ /^((?![\s\d])\$?[a-z]+[\da-z_-]*)*$/i) {
+        elsif ($oid_node =~ /^((?![\s\d])\$?[a-z]+[\da-z_-]*)*$/i) {
 
             # Add the name of the variable OID node and its index to the map
             push(@oid_vars, $oid_node);
@@ -444,17 +455,19 @@ sub _map_oid {
             # Initialize the first variable OID node index
             $first_index = $i if (!defined $first_index);
 
-            # Add a number capture to our regex for the OID variable
-            push(@re_elems, '(\d+)')
+            # Match this OID node only
+            $re_elem = '(\d+)';
         }
         else {
             # Add the constant to our regex
-            push(@re_elems, $oid_node);
+            $re_elem = $oid_node;
         }
+
+        push(@re_elems, $re_elem);
     }
 
     # Set the regex pattern for the OID
-    my $regex = '^' . join('\.', @re_elems) . '$';
+    my $regex = '^' . join('\.', @re_elems);
     $elem->{'regex'} = qr/$regex/;
 
     # Set the ordered oid_vars array
