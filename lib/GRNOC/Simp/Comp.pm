@@ -147,7 +147,9 @@ sub _validate_config {
         return;
     }
     elsif ($validation_code == 0) {
-        $self->logger->error("ERROR: Failed to validate $file!\n" . $conf->{error}->{backtrace});
+        $self->logger->error("ERROR: Failed to validate $file!");
+        $self->logger->error($conf->{error}->{error});
+        $self->logger->error($conf->{error}->{backtrace});
     }
     else {
         $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $conf->{error}->{backtrace});
