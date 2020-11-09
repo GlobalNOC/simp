@@ -3,7 +3,7 @@
 <composite>
     <variables>
         <input name="node" value="node_name" />
-        <scan poll_value="vdom_name" oid_suffix="vdom_id" oid="1.3.6.1.4.1.12356.101.3.2.1.1.2.vdom" />
+        <scan poll_value="vdom_name" oid_suffix="vdom_id" oid="1.3.6.1.4.1.12356.101.3.2.1.1.2.*" />
     </variables>
 
     <data>

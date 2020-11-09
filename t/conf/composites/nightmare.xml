@@ -1,0 +1,68 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+
+<!-- 
+    This composite covers a worst-case-scenario data model.
+    Make no mistake, this must work or else.
+    Should produce 8 individual data objects with values joined on scan variables.
+
+    Requires recursively nested scanning.
+    Requires OID constants between and following OID variables.
+    Requires use of poll values and oid suffixes within recursively nested scans.
+    Requires the mixed use of scanned poll_values and oid_suffixes in a single OID.
+    Requires static scanning without variables.
+    Requires constants as an OID variable.
+    Requires adequate sadness.
+-->
+
+<composite>
+
+    <variables>
+        <input    name='node'  value='node_name' />
+        <constant name='const' value='1234'      />
+        
+        <scan poll_value='P1' oid_suffix='S1' oid='1.*'       /> <!-- Numbers -->
+        <scan poll_value='P2' oid_suffix='S2' oid='2.S1.*'    /> <!-- Numbers -->
+        <scan poll_value='P3' oid_suffix='S3' oid='3.S1.P2.*' /> <!-- Strings -->
+
+    </variables>
+
+    <data>
+        <meta name='node' source='node_name' />
+        
+        <!-- Use values from a scan -->
+        <meta  name='M1' source='P3'               />
+
+        <!-- Standard single suffix scan -->
+        <meta  name='M2' source='9.S1'             />
+
+        <!-- Nested suffixes to the max -->
+        <value name='V1' source='11.S1.S2.S3'      />
+
+        <!-- Nested values to the max -->
+        <value name='V2' source='22.P1.P2'         />
+
+        <!-- Mixed values and suffixes -->
+        <value name='V3' source='33.S1.P2.S3'      />
+
+        <!-- Static OID -->
+        <value name='V4' source='44.0'             />
+
+        <!-- Mixed values and suffixes with constants *audible groaning* -->
+        <value name='V5' source='55.S1.55.P2.P3.55' />
+    </data>
+
+    <conversions>
+        
+        <!-- Using constant in conversion -->
+        <replace this='${}' with='${}-${const}'>
+            <data name='M2'/>
+        </replace>
+
+        <!-- Using value as variable in conversion -->
+        <function definition='${} ${V1} *'>
+            <data name='V4' />
+        </function>
+
+    </conversions>
+
+</composite>

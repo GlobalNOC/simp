@@ -15,7 +15,7 @@ use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Poller::Worker;
 
-our $VERSION = '1.4.3';
+our $VERSION = '1.5.0';
 
 ### Required Attributes ###
 
@@ -252,8 +252,9 @@ sub _validate_config
     {
         if ($validation_code == 0)
         {
-            $self->logger->error("ERROR: Failed to validate $file!\n"
-                  . $config->{error}->{backtrace});
+            $self->logger->error("ERROR: Failed to validate $file!");
+            $self->logger->error($config->{error}->{error});
+            $self->logger->error($config->{error}->{backtrace});
         }
         else
         {

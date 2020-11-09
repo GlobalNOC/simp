@@ -15,7 +15,7 @@ use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Comp::Worker;
 
-our $VERSION = '1.4.3';
+our $VERSION = '1.5.0';
 
 ### REQUIRED ATTRIBUTES ###
 
@@ -147,7 +147,9 @@ sub _validate_config {
         return;
     }
     elsif ($validation_code == 0) {
-        $self->logger->error("ERROR: Failed to validate $file!\n" . $conf->{error}->{backtrace});
+        $self->logger->error("ERROR: Failed to validate $file!");
+        $self->logger->error($conf->{error}->{error});
+        $self->logger->error($conf->{error}->{backtrace});
     }
     else {
         $self->logger->error("ERROR: XML schema in $xsd is invalid!\n" . $conf->{error}->{backtrace});
@@ -243,7 +245,7 @@ sub _make_composites {
         $self->_validate_config($file, $config, $self->composite_xsd);
 
         # Begin building the composite hash used by Workers from the config
-        my %composite;
+        my %composite = (name => $composite_name);
         
         # Get the hash of parameters
         my $parameters = $config->get('/composite')->[0];
@@ -271,18 +273,23 @@ sub _make_composites {
             $composite{'constants'} = {};
         }
 
-        # Process scans
+        # Process scans, preserving ordering
+        $composite{'scans'} = [];
         if (exists $variables->{'scan'} && ref $variables->{'scan'} eq 'ARRAY') {
 
             for my $scan (@{$variables->{'scan'}}) {
-                
+
                 my $scan_name = $scan->{'poll_value'};
                 
-                $composite{'scans'}{$scan_name} = {
+                my $scan_params = {
                     'oid'    => $scan->{'oid'},
-                    'suffix' => $scan->{'oid_suffix'},
-                    'map'    => $self->_map_oid($scan_name, $scan, 'scan')
+                    'suffix' => $scan->{oid_suffix},
+                    'value'  => $scan->{poll_value}
                 };
+
+                $self->_map_oid($scan_params, 'scan');
+
+                push(@{$composite{'scans'}}, $scan_params);
             }
         }
 
@@ -291,17 +298,23 @@ sub _make_composites {
 
         my $metadata = exists $data->{'meta'} ? $data->{'meta'} : {};
         my $values   = exists $data->{'value'} ? $data->{'value'} : {};
+        #my @metadata;
+        #my @values;
 
         # Process metadata
-        for my $meta (keys %$metadata) {
+        for my $meta (keys %{$data->{'meta'}}) {
 
-            my $attr = $metadata->{$meta};
+            my $attr = $data->{'meta'}{$meta};
 
             $attr->{'data_type'} = 'metadata';
+            $attr->{'name'}      = $meta;
 
             if ($attr->{'source'} =~ /.*\.+.*/) {
                 $attr->{'source_type'} = 'oid';
-                $attr->{'map'} = $self->_map_oid($meta, $attr, 'data');
+                $self->_map_oid($attr, 'data');
+            }
+            elsif (exists($composite{constants}{$attr->{'source'}})) {
+                $attr->{'source_type'} = 'constant';
             }
             else {
                 $attr->{'source_type'} = 'scan';
@@ -309,15 +322,19 @@ sub _make_composites {
         }
 
         # Process values
-        for my $value (keys %$values) {
+        for my $value (keys %{$data->{'value'}}) {
             
-            my $attr = $values->{$value};
+            my $attr = $data->{'value'}{$value};
 
             $attr->{'data_type'} = 'value';
+            $attr->{'name'}      = $value;
 
             if ($attr->{'source'} =~ /.*\.+.*/) {
                 $attr->{'source_type'} = 'oid';
-                $attr->{'map'} = $self->_map_oid($value, $attr, 'data');
+                $self->_map_oid($attr, 'data');
+            }
+            elsif (exists($composite{constants}{$attr->{'source'}})) {
+                $attr->{'source_type'} = 'constant';
             }
             else {
                 $attr->{'source_type'} = 'scan';
@@ -369,30 +386,25 @@ sub _make_composites {
 
 
 =head2 _map_oid
-    Creates a map hash for an OID having:
-    - split_oid (The OID split into it's elements)
-    - base_oid  (The OID made from the max elems we can poll w/o having vars in it)
-    - first_var (The index position of the first var elem)
-    - last_var  (The index position of the last var elem)
-    - vars      (A hash of OID elem vars set to their index in the OID)
+    Parses an OID and maps out variables specific to the OID:
+    - base_oid (The OID made from the max elems we can poll w/o having vars in it)
+    - oid_vars (Array of OID variables in order of appearance)
+    - reqex    (Regex that matches an OID capturing OID variables in matching order of oid_vars)
 =cut
 sub _map_oid {
 
     my $self = shift;
-    my $name = shift;
     my $elem = shift;
     my $type = shift;
 
-    # Init the hash map to return for the OID
-    my %oid_map;
 
     # Init the base OID to be requested from Redis by Data
     # The attribute containing it differs by element type
     if ($type eq 'scan') {
-        $oid_map{'base_oid'} = $elem->{'oid'};
+        $elem->{'base_oid'} = $elem->{'oid'};
     }
     elsif ($type eq 'data') {
-        $oid_map{'base_oid'} = $elem->{'source'};
+        $elem->{'base_oid'} = $elem->{'source'};
     }
     else {
         # OIDs are always contained within an "oid" or "source" attribute
@@ -400,15 +412,17 @@ sub _map_oid {
     }
 
     # Split the oid into its nodes
-    my @split_oid = split(/\./, $oid_map{'base_oid'});
+    my @split_oid = split(/\./, $elem->{'base_oid'});
 
-    # Save the split_oid in the map for Workers to use later
-    $oid_map{'split_oid'} = \@split_oid;
-
-    # We track the first and last index of the OID nodes before the first OID variable
-    # These indexes are then used to join portions of the OID not containing variable OID nodes
+    # We track the first index of the OID nodes before the first OID variable
+    # The index is then used to join portions of the OID not containing variable OID nodes
     my $first_index;
-    my $last_index;
+
+    # Create a regex pattern that will capture OID variables and any tailing OID nodes
+    my @re_elems;
+
+    # Create an array of the OID variables as they occur preserving ordering
+    my @oid_vars;
 
     # Loop over the OID nodes
     for (my $i = 0; $i <= $#split_oid; $i++) {
@@ -416,43 +430,58 @@ sub _map_oid {
         # Get the specific node from the OID
         my $oid_node = $split_oid[$i];
 
-        # Change * to the name of the element for backward compatibility
-        if ($oid_node eq '*') {
-            $oid_node      = $name;
-            $split_oid[$i] = $name;
-        }
+        # Determine what we should add to our regex
+        my $re_elem = '';
 
+        # Change * to the name of the OID suffix for backward compatibility
+        if ($type eq 'scan' && ($oid_node eq '**' || $oid_node eq '*')) {
+
+            # *  Captures the number in the OID exactly at position $i
+            # ** Captures everything in the OID from position $i to the right
+            $re_elem = ($oid_node eq '**') ? '([\d\.]+)' : '(\d+)';
+
+            $oid_node      = $elem->{suffix};
+            $split_oid[$i] = $elem->{suffix};
+
+            push(@oid_vars, $oid_node);
+
+            $first_index = $i if (!defined $first_index);
+        }
         # Check if the OID node is an OID node variable, including *
-        # The regex will match for standard varriable naming conventions
-        if ($oid_node =~ /^((?![\s\d])\$?[a-z]+[\da-z_-]*)*$/i) {
+        # The regex will match for standard variable naming conventions
+        elsif ($oid_node =~ /^((?![\s\d])\$?[a-z]+[\da-z_-]*)*$/i) {
 
             # Add the name of the variable OID node and its index to the map
-            $oid_map{'vars'}{$oid_node}{'index'} = $i;
+            push(@oid_vars, $oid_node);
 
-            # Initialize the first and last normal OID node indexes
-            if (!defined $first_index) {
-                $first_index = $i;
-                $last_index  = $i;
-            }
+            # Initialize the first variable OID node index
+            $first_index = $i if (!defined $first_index);
 
-            # Update the last OID node index
-            $last_index = $i if ($last_index < $i);
+            # Match this OID node only
+            $re_elem = '(\d+)';
         }
+        else {
+            # Add the constant to our regex
+            $re_elem = $oid_node;
+        }
+
+        push(@re_elems, $re_elem);
     }
 
-    $oid_map{'first_var'} = $first_index;
-    $oid_map{'last_var'}  = $last_index;
+    # Set the regex pattern for the OID
+    my $regex = '^' . join('\.', @re_elems);
+    $elem->{'regex'} = qr/$regex/;
+
+    # Set the ordered oid_vars array
+    $elem->{'oid_vars'} = \@oid_vars;
 
     # Update the base OID when variable OID nodes were found
     # The first/last index will be undefined if not found
     if ($first_index) {
-        # The .* is appended for simp-data's request to Redis
-        # Without it, Data will match any OID suffix starting with that num
-        # i.e. (1.2.3.1 would get 1.2.3.10, 1.2.3.17, 1.2.3.108, etc.)
-        $oid_map{'base_oid'} = (join '.', @split_oid[0 .. ($first_index - 1)]) . '.*';
-    }
 
-    return \%oid_map;
+        # The .* is appended for simp-data's request to Redis
+        $elem->{'base_oid'} = (join '.', @split_oid[0 .. ($first_index - 1)]) . '.*';
+    }
 }
 
 
@@ -520,9 +549,8 @@ sub start
 
             $self->_create_workers();
         }
-
-        # Run in the foreground
     }
+    # Foreground
     else {
 
         $self->logger->debug('Running in foreground.');

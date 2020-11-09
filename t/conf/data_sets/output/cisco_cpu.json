@@ -4,12 +4,12 @@
             "cpu": 1,
             "*node": "single.grnoc.iu.edu",
             "time": "1591890375",
-            "*name": "Single CPU"
+            "*name": "Switch 1"
         }
     ],
     "r0.grnoc.iu.edu": [
         {
-            "cpu": 1,
+            "cpu": 10,
             "*node": "r0.grnoc.iu.edu",
             "time": "1591890375",
             "*name": "CPU R0/0"
@@ -17,7 +17,7 @@
     ],
     "r1.grnoc.iu.edu": [
         {
-            "cpu": 1,
+            "cpu": 11,
             "*node": "r1.grnoc.iu.edu",
             "time": "1591890375",
             "*name": "CPU R0/1"

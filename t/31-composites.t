@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use Data::Dumper;
-use Test::Deep qw(cmp_details deep_diag num any code);
+use Test::Deep qw(cmp_details deep_diag num any bag code);
 use Test::More;
 use Test::MockModule;
 use Test::MockObject;
@@ -39,8 +39,11 @@ sub load_expected {
 # Get every composite name from the composite configs in t/conf/composites/
 my @composites = map {$_ =~ m/.*\/(.*)\.xml/} glob($FindBin::Bin . '/conf/composites/*.xml');
 
-# Declare one test per composite
-plan tests => scalar(@composites);
+# Track the number of tests we run
+my $total = 0;
+
+# Create some output for our tests
+my $summary = "\n";
 
 # Run a test for every composite
 for my $composite (@composites) {
@@ -61,10 +64,10 @@ for my $composite (@composites) {
     }
 
     # Get the expected output data
-    my $expect = load_expected($composite);
+    my $expected = load_expected($composite);
 
     # Get the nodes we want data for from the expected data
-    my @nodes = keys %$expect;
+    my @nodes = keys %$expected;
 
     # Create a new test instance
     my $test = SimpTesting->new(
@@ -76,33 +79,53 @@ for my $composite (@composites) {
     for (my $i = 0; $i < $runs; $i++) {
 
         # Get the actual output data from Simp.Comp
-        my $got = $test->comp_get(\@nodes, $composite);
+        my $output = $test->comp_get(\@nodes, $composite);
 
         # Perform the test, checking the data against expected data
         unless ($benchmarking) {
 
-            warn "\n";
+            for my $node (@nodes) {
+
+                $total++;
+                
+                # Init the comparison result variables
+                my $ok;
+                my $stack;
+
+                # Get the actual and expected output for the node
+                my $got    = $output->{$node};
+                my $expect = $expected->{$node};  
+
+                # Compare the data returned from Simp.Comp with the expected data
+                ($ok, $stack) = cmp_details($got, bag(@$expect));
+
+                # Test that the result of the comparison is good
+                ok($ok, "Data returned by Simp.Comp for \"$composite\" and \"$node\" does not match the expected output");
+
+                # Display stack details when a test failed or confirm it passed
+                if ($ok) {
+                    $summary .= "[PASS] ($composite) $node\n";
+                }
+                else {
+
+                    $summary .= "[FAIL] ($composite) $node\n";
+                    $summary .= Dumper(deep_diag($stack));
+                    $summary .= "EXPECTED: " . Dumper($expect) . "\n";
+                    $summary .= "RECEIVED: " . Dumper($got) . "\n";
+                }
+            }
+
+            if ($debug->{enable} && !$debug->{composite}) {
+                warn("\nPRESS ENTER TO CONTINUE\n");
+                last if (lc <STDIN> =~ m/[no]{,2}/g);
+            }
             
-            # Init the comparison results variables
-            my $ok;
-            my $stack;
-
-            # Compare the data returned from Simp.Comp with the expected data
-            ($ok, $stack) = cmp_details($got, $expect);
-
-            # Display stack details when a test failed or confirm it passed
-            if ($ok) {
-                warn "[PASSED] ($composite)";
-            }
-            else {
-                warn "[FAILED] ($composite): " . Dumper(deep_diag($stack));
-                warn "\n\n\"$composite\" RESULTS:\n";
-                warn "EXPECTED: " . Dumper($expect);
-                warn "GOT THIS: " . Dumper($got) . "\n";
-            }
-
-            # Test that the result of the comparison is good
-            ok($ok, "Data returned by Simp.Comp for \"$composite\" does not match the expected output");
         }
     }
 }
+
+warn($summary);
+
+# Declare one test per composite
+#plan tests => $total;
+done_testing($total);
