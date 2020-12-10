@@ -23,7 +23,7 @@ Requires: perl-GRNOC-RabbitMQ >= 1.2.1
 Requires: perl-Moo
 Requires: perl-Parallel-ForkManager
 Requires: perl(POSIX)
-Requires: perl-Redis >= 1.991
+Requires: perl-Redis-Fast >= 0.28
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
 Requires: perl(Class::Accessor::Fast)

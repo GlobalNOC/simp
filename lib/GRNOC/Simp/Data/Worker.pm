@@ -8,7 +8,7 @@ use Data::Dumper;
 use List::MoreUtils qw(none);
 use Moo;
 use POSIX;
-use Redis;
+use Redis::Fast;
 use Scalar::Util qw(looks_like_number);
 use Time::HiRes qw(gettimeofday tv_interval);
 use Try::Tiny;
@@ -159,12 +159,12 @@ sub _start
     my $redis;
 
    #--- try to connect twice per second for 30 seconds, 60 attempts every 500ms.
-    $redis = Redis->new(
+    $redis = Redis::Fast->new(
         server        => "$redis_host:$redis_port",
         reconnect     => $redis_reconnect,
         every         => $redis_reconnect_every,
         read_timeout  => $redis_read_timeout,
-        write_timeout => $redis_write_timeout,
+        write_timeout => $redis_write_timeout
     );
 
     $self->_set_redis($redis);
@@ -345,11 +345,9 @@ sub _find_groups
     {
         $self->redis->select(3);
         %host_groups = $self->redis->hgetall($host);
-        $self->redis->select(0);
     }
     catch
     {
-        $self->redis->select(0);
         $self->logger->error("Error fetching all groups host is a part of");
         return;
     };
@@ -470,18 +468,38 @@ sub _find_keys
         return;
     }
 
-    my @sets;
+    # What we're finally returning
+    my $sets = [];
 
+    # To store async responses
+    my $group_results = [];
+
+    # Grab all the groups async
+    $self->redis->select(2, sub {});
     for my $group (@$groups)
     {
         next if !defined($group);
 
         # ok so we have the group name we want now...
         # grab the key that leads to the current time chunk
-        $self->redis->select(2);
-        my $res = $self->redis->get($host . "," . $group->{'group'});
-        $self->redis->select(0);
-        next if !defined($res);
+	$self->redis->get($host . "," . $group->{'group'}, 
+			  sub { 
+			      my $g = shift;
+			      return sub {
+				  my ($reply, $err) = @_; 
+				  push(@$group_results, {"result" => $reply, "group" => $g}) if ($reply);
+			      };
+			  }->($group)
+	    );
+    }
+
+    $self->redis->wait_all_responses();
+    
+    # Now that we have the groups, we can try to find the sets
+    $self->redis->select(1, sub {});
+    foreach my $reply (@$group_results){
+	my $res   = $reply->{'result'};
+	my $group = $reply->{'group'};
 
         #key should be poll_id,ts
         my ($poll_id, $time) = split(',', $res);
@@ -496,8 +514,8 @@ sub _find_keys
         else
         {
             #find the closest poll cycle
-            my $poll_ids_back =
-              floor(($time - $requested) / $group->{'interval'});
+            my $poll_ids_back = floor(($time - $requested) / $group->{'interval'});
+
             if ($poll_id >= $poll_ids_back)
             {
                 $self->logger->debug("looking " . $poll_ids_back);
@@ -517,13 +535,18 @@ sub _find_keys
 
         #ok so lookup is now defined
         #lookup will give us the right set to sscan through
-        $self->redis->select(1);
-        my $set = $self->redis->get($lookup);
-        push @sets, $set if defined($set);
-        $self->redis->select(0);
+
+        $self->redis->get($lookup, 
+			  sub {
+			      my ($reply, $err) = @_;
+			      push(@$sets, $reply) if defined ($reply);
+			  });
+	   
     }
 
-    return \@sets;
+    $self->redis->wait_all_responses();
+
+    return $sets;
 }
 
 sub _get
@@ -562,6 +585,9 @@ sub _get
                     $self->logger->error("Unable to find set to look at");
                     next;
                 }
+
+		# Switch back to DB 0 for the sscan's
+		$self->redis->select(0);
 
                 for my $set (@$sets)
                 {

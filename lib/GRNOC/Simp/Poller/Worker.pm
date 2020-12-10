@@ -9,7 +9,7 @@ use Data::Dumper;
 use JSON;
 use Moo;
 use Net::SNMP::XS;    # Faster than non-XS
-use Redis;
+use Redis::Fast;
 use Try::Tiny;
 
 # Raised from 64, Default value
@@ -206,7 +206,7 @@ sub start
     {
         # Try to connect twice per second for 30 seconds,
         # 60 attempts every 500ms.
-        $redis = Redis->new(
+        $redis = Redis::Fast->new(
             server        => "$redis_host:$redis_port",
             reconnect     => $reconnect,
             every         => $reconnect_every,
@@ -353,21 +353,25 @@ sub _poll_cb
 
     my $group_interval = $self->group_name . "," . $self->interval;
 
+
+    # Specifying a callback makes use of Redis pipelining
+    # which saves us some RTTs.
+
     try
     {
-        $redis->select(0);
+        $redis->select(0, sub {});
 
         my $key = $host_name . "," . $self->worker_name . ",$timestamp";
 
-        $redis->sadd($key, @values) if (@values);
+        $redis->sadd($key, @values, sub {}) if (@values);
 
         if (scalar(keys %{$host->{'pending_replies'}}) == 0)
         {
-            #$self->logger->error("Received all responses!");
-            $redis->expireat($key, $expires);
+            #$self->logger->error("Received all respoqnses!");
+            $redis->expireat($key, $expires, sub {});
 
             # Our poll_id to time lookup
-            $redis->select(1);
+            $redis->select(1, sub {});
 
             my $node_base_key      = $host_name . "," . $self->group_name;
             my $ip_base_key        = $ip . "," . $self->group_name;
@@ -375,23 +379,21 @@ sub _poll_cb
             my $host_name_key      = $node_base_key . "," . $poll_id;
             my $ip_key             = $ip_base_key . "," . $poll_id;
 
-            $redis->set($host_name_key, $key);
-            $redis->set($ip_key,        $key);
+            $redis->set($host_name_key, $key, sub {});
+            $redis->set($ip_key,        $key, sub {});
 
             # ...and expire
-            $redis->expireat($host_name_key, $expires);
-            $redis->expireat($ip_key,        $expires);
-
-            $redis->select(0);
-
-            #$self->logger->error(Dumper($host->{'group'}{$self->group_name}));
+            $redis->expireat($host_name_key, $expires, sub {});
+            $redis->expireat($ip_key,        $expires, sub {});
 
             if ($self->hosts->{$host_name} && defined($host->{'host_variable'}))
             {
+
                 $self->logger->debug("Adding host variables for $host_name");
 
                 my %add_values = %{$host->{'host_variable'}};
 
+		$redis->select(0, sub {});
                 for my $name (keys %add_values)
                 {
                     my $sanitized_name = $name;
@@ -402,40 +404,37 @@ sub _poll_cb
                       . $sanitized_name . ","
                       . $add_values{$name}->{'value'};
 
-                    $redis->select(0);
-                    $redis->sadd($key, $str);
+                    $redis->sadd($key, $str, sub {});
                 }
 
-                $redis->select(3);
-                $redis->hset($host_name, "vars", $group_interval);
-                $redis->hset($ip,        "vars", $group_interval);
+                $redis->select(3, sub {});
+                $redis->hset($host_name, "vars", $group_interval, sub {});
+                $redis->hset($ip,        "vars", $group_interval, sub {});
             }
 
             # ...and the current poll_id lookup
             $redis->select(2);
-            $redis->set($node_base_key, $poll_timestamp_val);
-            $redis->set($ip_base_key,   $poll_timestamp_val);
+            $redis->set($node_base_key, $poll_timestamp_val, sub {});
+            $redis->set($ip_base_key,   $poll_timestamp_val, sub {});
 
             # ...and expire
-            $redis->expireat($node_base_key, $expires);
-            $redis->expireat($ip_base_key,   $expires);
+            $redis->expireat($node_base_key, $expires, sub {});
+            $redis->expireat($ip_base_key,   $expires, sub {});
 
             # Increment the actual reference instead of local var
             $host->{'poll_id'}++;
         }
 
-        $redis->select(3);
-        $redis->hset($host_name, $main_oid, $group_interval);
-        $redis->hset($ip,        $main_oid, $group_interval);
-
-        # Change back to the primary db...
-        $redis->select(0);
+        $redis->select(3, sub {});
+        $redis->hset($host_name, $main_oid, $group_interval, sub {});
+        $redis->hset($ip,        $main_oid, $group_interval, sub {});
 
         # Complete the transaction
+	$redis->wait_all_responses();
     }
     catch
     {
-        $redis->select(0);
+	$redis->wait_all_responses();
         $self->logger->error(
             $self->worker_name . " $id Error in hset for data: $_");
     };
@@ -562,7 +561,6 @@ sub _connect_to_snmp
         {
             $self->redis->select(2);
             $host_poll_id = $self->redis->get($host_name . ",main_oid");
-            $self->redis->select(0);
 
             if (!defined($host_poll_id))
             {

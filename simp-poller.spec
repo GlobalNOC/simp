@@ -24,7 +24,7 @@ Requires: perl-Net-SNMP
 Requires: perl-Net-SNMP-XS
 Requires: perl-Parallel-ForkManager
 Requires: perl(POSIX)
-Requires: perl-Redis >= 1.991
+Requires: perl-Redis-Fast >= 0.28
 Requires: perl-Try-Tiny
 Requires: perl-Type-Tiny
 Requires: perl-Crypt-Rijndael
