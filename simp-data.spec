@@ -24,7 +24,7 @@ Requires: perl-Moo
 Requires: perl-Parallel-ForkManager
 Requires: perl(POSIX)
 Requires: perl-Redis-Fast >= 0.28
-Requires: perl-Try-Tiny
+Requires: perl-Syntax-Keyword-Try
 Requires: perl-Type-Tiny
 Requires: perl(Class::Accessor::Fast)
 

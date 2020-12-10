@@ -10,7 +10,7 @@ use JSON;
 use Moo;
 use Net::SNMP::XS;    # Faster than non-XS
 use Redis::Fast;
-use Try::Tiny;
+use Syntax::Keyword::Try;
 
 # Raised from 64, Default value
 $AnyEvent::SNMP::MAX_RECVQUEUE = 128;
@@ -214,10 +214,10 @@ sub start
             write_timeout => $write_timeout
         );
     }
-    catch
+    catch ($e)
     {
         $self->logger->error(
-            $self->worker_name . " Error connecting to Redis: $_");
+            $self->worker_name . " Error connecting to Redis: $e");
     };
 
     $self->_set_redis($redis);
@@ -432,11 +432,11 @@ sub _poll_cb
         # Complete the transaction
 	$redis->wait_all_responses();
     }
-    catch
+    catch ($e)
     {
 	$redis->wait_all_responses();
         $self->logger->error(
-            $self->worker_name . " $id Error in hset for data: $_");
+            $self->worker_name . " $id Error in hset for data: $e");
     };
 
     AnyEvent->now_update;
@@ -567,16 +567,16 @@ sub _connect_to_snmp
                 $host_poll_id = 0;
             }
         }
-        catch
+        catch ($e)
         {
             $self->redis->select(0);
             $host_poll_id = 0;
             $self->logger->error(
-                "Error fetching the current poll cycle id from redis: $_");
+                "Error fetching the current poll cycle id from redis: $e");
             $host->{snmp_errors}{redis} = {
                 time => time,
                 error =>
-                  "Error fetching the current poll cycle id from redis $_"
+                  "Error fetching the current poll cycle id from redis $e"
             };
         };
 

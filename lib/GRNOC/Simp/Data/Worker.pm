@@ -11,7 +11,7 @@ use POSIX;
 use Redis::Fast;
 use Scalar::Util qw(looks_like_number);
 use Time::HiRes qw(gettimeofday tv_interval);
-use Try::Tiny;
+use Syntax::Keyword::Try;
 
 use GRNOC::RabbitMQ::Method;
 use GRNOC::RabbitMQ::Dispatcher;
@@ -346,9 +346,9 @@ sub _find_groups
         $self->redis->select(3);
         %host_groups = $self->redis->hgetall($host);
     }
-    catch
+    catch ($e)
     {
-        $self->logger->error("Error fetching all groups host is a part of");
+        $self->logger->error("Error fetching all groups host is a part of: $e");
         return;
     };
 
@@ -628,9 +628,9 @@ sub _get
         #--- wait for all pending responses to hmget requests
         $redis->wait_all_responses;
     }
-    catch
+    catch ($e)
     {
-        $self->logger->error(" in get: " . $_);
+        $self->logger->error(" in get: " . $e);
     };
 
     $self->logger->debug("Response ready!");
