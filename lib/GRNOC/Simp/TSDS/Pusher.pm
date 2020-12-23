@@ -3,7 +3,12 @@ package GRNOC::Simp::TSDS::Pusher;
 use strict;
 use warnings;
 
+# Messages pushed with invalid chars have their contents dumped to the error log
+# For this reason, we set Dumper to use a more compact output format
 use Data::Dumper;
+$Data::Dumper::Terse = 1;
+$Data::Dumper::Indent = 0;
+
 use Moo;
 use JSON::XS qw(encode_json);
 
@@ -76,29 +81,51 @@ sub BUILD
 
 =cut
 
-sub push
-{
+sub push {
     my ($self, $msg_list) = @_;
 
-    # Push messages to TSDS in MAX_TSDS_MESSAGES chunks
-    if (scalar @$msg_list > 0)
-    {
-        my @msgs = splice(@$msg_list, 0, MAX_TSDS_MESSAGES);
-        $self->logger->info($self->worker_name
-              . " Pushing "
-              . scalar @msgs
-              . " messages to TSDS");
-        my $res = $self->tsds_svc->add_data(data => encode_json(\@msgs));
-        if (!defined($res) || $res->{'error'})
-        {
-            $self->logger->error($self->worker_name
-                  . " Error pushing data to TSDS: "
-                  . GRNOC::Simp::TSDS::error_message($res));
+    # Return early if there are no messages to send
+    if (scalar(@$msg_list) < 1) {
+        $self->logger->info(sprintf("[%s] Nothing to push to TSDS", $self->worker_name));
+        return;
+    };
+
+    # Split messages to TSDS into block sizes of MAX_TSDS_MESSAGES
+    my @msgs = splice(@$msg_list, 0, MAX_TSDS_MESSAGES);
+
+    $self->logger->info(sprintf("[%s] Pushing %s messages to TSDS", $self->worker_name, scalar(@msgs)));
+
+    # Add the block of messages to TSDS using push.cgi
+    my $res = $self->tsds_svc->add_data(data => encode_json(\@msgs));
+
+    # Check the response from TSDS
+    if (!defined($res) || $res->{'error'}) {
+
+        my $error = sprintf("[%s] Error pushing to TSDS: %s", $self->worker_name, GRNOC::Simp::TSDS::error_message($res));
+
+        # Check whether the issue was sending a message that has invalid characters
+        if ($res && $res->{error_text} && $res->{error_text} =~ m/only accepts printable characters/g) {
+
+            # Track individual bad messages to dump in the error log
+            my @bad;
+
+            # Try sending each message individually in-case only one had character issues
+            for my $msg (@msgs) {
+                $res = $self->tsds_svc->add_data(data => encode_json([$msg]));
+                if (!defined($res) || $res->{error}) {
+                    push(@bad, $msg);
+                }
+            }
+
+            # Update the error message
+            $error .= " - %s out of %s total messages contained invalid characters: %s";
+            $error = sprintf($error, scalar(@bad), scalar(@msgs), Dumper(\@bad));
         }
-        return 1;
+        $self->logger->error($error);
     }
-    $self->logger->info($self->worker_name . " Nothing to push to TSDS");
-    return;
+
+    # Return 1 when any messages were actually pushed
+    return 1;
 }
 
 1;
