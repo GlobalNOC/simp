@@ -300,7 +300,7 @@ sub _poll_cb {
         db0 => sprintf("%s,%s,%s", $ip, $self->worker_name, $timestamp),
         db1 => sprintf("%s,%s,%s", $ip, $self->group_name, $poll_id),
         db2 => sprintf("%s,%s", $ip, $self->group_name),
-        db3 => sprintf("%s,%s", $ip, $poll_id
+        db3 => sprintf("%s,%s", $ip, $poll_id)
     );
 
     # Attempt to set the data for all of the Redis databases
