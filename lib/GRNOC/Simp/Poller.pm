@@ -126,11 +126,12 @@ sub BUILD {
         config => $self->logging_file,
         watch  => 120
     );
-
     my $logger = GRNOC::Log->get_logger();
     $self->_set_logger($logger);
+    $self->logger->debug("Started the logger");
 
     # Create the main config object
+    $self->logger->debug("Configuring the main Poller process");
     my $config = GRNOC::Config->new(
         config_file => $self->config_file,
         force_array => 1
@@ -144,8 +145,10 @@ sub BUILD {
 
     # Set the config if it validated
     $self->_set_config($config);
+    $self->logger->debug("Finished configuring the main Poller process");
 
     # Set status_dir to path in the configs, if defined and is a dir
+    $self->logger->debug("Setting up status writing for Poller");
     my $status_path = $self->config->get('/config/status');
     my $status_dir = $status_path ? $status_path->[0]->{dir} : undef;
 
@@ -162,6 +165,7 @@ sub BUILD {
         # Use default if not defined in configs, or invalid
         $self->logger->debug("No valid poller_status dir defined in config, using: " . $self->status_dir);
     }
+    $self->logger->debug("Finished setting up status writing for Poller");
 
     return $self;
 }
@@ -271,8 +275,6 @@ sub _get_config_objects {
 sub _process_hosts_config {
     my $self = shift;
 
-    $self->logger->debug("BEGIN processing hosts_dir from config");
-
     # Get the hosts from the hosts.d file
     my $hosts = $self->_get_config_objects(
         '/config/host', 
@@ -365,7 +367,7 @@ sub _process_hosts_config {
     }
 
     $self->_set_hosts($hosts);
-    $self->logger->debug("FINISHED processing hosts_dir from config");
+    $self->logger->debug("Finished processing host configurations");
 }
 
 
@@ -375,8 +377,6 @@ sub _process_hosts_config {
 =cut
 sub _process_groups_config {
     my $self = shift;
-
-    $self->logger->debug("BEGIN processing groups_dir from config");
 
     # Get the default results-per-request size (max_repetitions)
     # from the poller config. (Default to 15)
@@ -418,18 +418,16 @@ sub _process_groups_config {
         # Set the packet results size (max_repetitions) or default to size from poller config
         unless ($group_attr->{request_size}) {
             $group_attr->{request_size} = $num_results;
-            $self->logger->debug("Request Size: $group_attr->{request_size} results (default)\n\n");
+            $self->logger->debug("Request Size: $group_attr->{request_size} results (default)");
         }
         else {
-            $self->logger->debug("Request Size: $group_attr->{request_size} results (specified)\n\n");
+            $self->logger->debug("Request Size: $group_attr->{request_size} results (specified)");
         }
 
         # Set the hosts that belong to the polling group
         $group_attr->{hosts} = ();
         while (my ($host_name, $host_attr) = each(%{$self->hosts})) {
 
-            $self->logger->debug(Dumper($host_attr));
-            
             # Skip any hosts that don't belong to the group
             next unless (exists($host_attr->{group}{$group_name}));
 
@@ -476,7 +474,7 @@ sub _process_groups_config {
     $self->_set_total_workers($total_workers);
     $self->_set_groups($groups);
 
-    $self->logger->debug('FINISHED processing groups_dir from config');
+    $self->logger->debug('Finished processing group configurations');
 }
 
 =head2 start
@@ -485,12 +483,10 @@ sub _process_groups_config {
 sub start {
     my ($self) = @_;
 
-    $self->logger->info('Starting.');
-
     # Daemonized
     if ($self->daemonize) {
 
-        $self->logger->debug('Daemonizing.');
+        $self->logger->debug('Starting Poller in daemonized mode');
 
         # Set the PID file from config or use the default
         my $pid_file = $self->config->get('/config/@pid-file')->[0] || '/var/run/simp_poller.pid';
@@ -532,10 +528,8 @@ sub start {
     }
     # Foreground
     else {
-        $self->logger->debug('Running in foreground.');
+        $self->logger->info('Starting Poller in foreground mode');
     }
-
-    $self->logger->debug('Setting up signal handlers.');
 
     # Setup the signal handlers
     $SIG{'TERM'} = sub {
@@ -548,18 +542,22 @@ sub start {
         $self->stop();
     # Create and store the host portion of the config
     };
+    $self->logger->debug("Signal handlers ready");
 
     # Parse configs and create workers from within the reload loop
     # When reloaded, hosts.d and groups.d will be re-parsed
     while (1) {
-        $self->logger->info('Main loop, running process_hosts_config');
+        $self->logger->info("Processing host configurations");
         $self->_process_hosts_config();
 
-        $self->logger->info('Main loop, running process_groups_config');
+        $self->logger->info("Processing group configurations");
         $self->_process_groups_config();
 
-        $self->logger->info('Main loop, running create_workers');
+        $self->logger->info("Creating worker processes");
         $self->_create_workers();
+
+        # We only arrive here if the loop is running or poller is killed
+        $self->logger->info("Poller has exited successfully");
 
         last if (!$self->do_reload);
         $self->_set_do_reload(0);
@@ -648,17 +646,11 @@ sub stop {
 sub _create_workers {
     my ($self) = @_;
 
-    $self->logger->debug("BEGIN creating workers");
-
     # Create a fork for each worker that is needed
     my $forker = Parallel::ForkManager->new($self->total_workers);
 
-    $self->logger->debug(Dumper($self->groups));
-
     # Create workers for each group
     while (my ($group_name, $group_attr) = each(%{$self->groups})) {
-
-        $self->logger->debug("Creating worker for group: " . $group_name);
 
         # Get the range of worker IDs in an array
         my @worker_ids = map {$_} (0 .. ($group_attr->{workers} - 1));
@@ -708,13 +700,13 @@ sub _create_workers {
             $worker_loads{$worker_id} += $host_obj->{load};
         }
 
-        $self->logger->info("Creating $group_attr->{workers} child processes for group: $group_name");
+        $self->logger->info("Creating $group_attr->{workers} worker processes for $group_name");
 
         # Keep track of children pids
         $forker->run_on_finish(
             sub {
                 my ($pid) = @_;
-                $self->logger->error("Child worker process $pid ($group_name) has died.");
+                $self->logger->error(sprintf("%s worker with PID %s has died", $group_name, $pid));
             }
         );
 
@@ -725,7 +717,7 @@ sub _create_workers {
 
             # We're still in the parent if so
             if ($pid) {
-                $self->logger->debug("Child worker process $pid ($group_name) created.");
+                $self->logger->debug(sprintf("PID %s created for %s [%s]", $pid, $group_name, $worker_id));
                 push(@{$self->children}, $pid);
                 next;
             }
@@ -745,10 +737,8 @@ sub _create_workers {
                 hosts        => $worker_hosts{$worker_id} || {}
             );
 
-            # This should only return if we tell it to stop via TERM signal etc.
+            # This should only return when the worker has stopped (TERM, No hosts, etc)
             $worker->start();
-
-            $self->logger->info("worker->start has finished for $$");
 
             # Exit child process
             $forker->finish();
@@ -762,8 +752,6 @@ sub _create_workers {
     $self->_set_children([]);
 
     $self->logger->info('All child workers have exited.');
-
-    $self->logger->debug("FINISHED creating workers");
 }
 
 1;

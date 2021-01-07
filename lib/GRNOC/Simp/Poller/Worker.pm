@@ -129,23 +129,23 @@ sub start {
     my $logger = GRNOC::Log->get_logger($self->worker_name);
     $self->_set_logger($logger);
 
-    my $worker_name = $self->worker_name;
-    $self->logger->error(sprintf("%s - Starting...", $self->worker_name));
+    my $worker = $self->worker_name;
+    $self->logger->error(sprintf("%s - Starting...", $worker));
 
     # Flag that we're running
     $self->_set_is_running(1);
 
     # Change our process name
-    $0 = "simp_poller($worker_name)";
+    $0 = "simp_poller($worker)";
 
     # Setup signal handlers
     $SIG{'TERM'} = sub {
-        $self->logger->info($self->worker_name . " - Received SIG TERM.");
+        $self->logger->info($worker . " - Received SIG TERM.");
         $self->stop();
     };
 
     $SIG{'HUP'} = sub {
-        $self->logger->info($self->worker_name . " - Received SIG HUP.");
+        $self->logger->info($worker . " - Received SIG HUP.");
     };
 
     # Connect to redis
@@ -156,14 +156,10 @@ sub start {
     my $read_timeout    = $self->config->get('/config/redis/@read_timeout')->[0];
     my $write_timeout   = $self->config->get('/config/redis/@write_timeout')->[0];
 
-    $self->logger->debug(
-        $self->worker_name . 
-        " Connecting to Redis $redis_host:$redis_port" .
-        " (reconnect = $reconnect," .
-        " every = $reconnect_every," .
-        " read_timeout = $read_timeout," .
-        " write_timeout = $write_timeout)"
-    );
+    $self->logger->debug(sprintf("%s - Connecting to Redis", $worker));
+    $self->logger->debug(sprintf("%s - Redis Host %s:%s", $worker, $redis_host, $redis_port));
+    $self->logger->debug(sprintf("%s - Redis reconnect after %ss every %ss", $worker, $reconnect, $reconnect_every));
+    $self->logger->debug(sprintf("%s - Redis timeouts [Read: %ss, Write: %ss]", $worker, $read_timeout, $write_timeout));
 
     my $redis;
     try {
@@ -178,24 +174,25 @@ sub start {
         );
     }
     catch ($e) {
-        $self->logger->error(sprintf("%s - Error connecting to Redis: %s", $self->worker_name, $e));
+        $self->logger->error(sprintf("%s - Error connecting to Redis: %s", $worker, $e));
     };
 
     $self->_set_redis($redis);
+    $self->logger->debug(sprintf('%s - Finished connecting to Redis', $worker));
 
     $self->_set_need_restart(0);
 
-    $self->logger->debug(sprintf('%s - Starting SNMP Poll loop', $self->worker_name));
+    $self->logger->debug(sprintf('%s - Starting SNMP Poll loop', $worker));
 
     # Establish all of the SNMP sessions for every host the worker has
     $self->_connect_to_snmp();
 
     unless (scalar(@{$self->hosts})) {
-        $self->logger->debug(sprintf("%s - No hosts found!", $self->worker_name));
+        $self->logger->debug(sprintf("%s - No hosts found!", $worker));
     }
     else {
         my $host_names = join(', ', (map {$_->{name}} @{$self->hosts}));
-        $self->logger->debug(sprintf("%s - hosts: %s", $self->worker_name, $host_names));
+        $self->logger->debug(sprintf("%s - hosts: %s", $worker, $host_names));
     }
 
     # Start AnyEvent::SNMP's max outstanding requests window equal to the total
@@ -206,7 +203,7 @@ sub start {
         AnyEvent::SNMP::set_max_outstanding(scalar(@{$self->hosts}) * scalar(@{$self->oids}));
     }
     else {
-        $self->logger->error(sprintf("%s - Hosts or OIDs were not defined!", $self->worker_name));
+        $self->logger->error(sprintf("%s - Hosts or OIDs were not defined!", $worker));
         return;
     }
 
@@ -239,68 +236,77 @@ sub _poll_cb {
     my $self   = shift;
     my %params = @_;
 
-    # Set params
-    my $session    = $params{'session'};
-    my $host       = $params{'host'};
-    my $host_name  = $params{'host_name'};
-    my $req_time   = $params{'timestamp'};
-    my $reqstr     = $params{'reqstr'};
-    my $main_oid   = $params{'oid'};
-    my $context_id = $params{'context_id'};
+    # Set the arguments for the callback
+    my $session = $params{session};
+    my $time    = $params{time};
+    my $name    = $params{name};
+    my $ip      = $params{ip};
+    my $oid     = $params{oid};
+    my $reqstr  = $params{reqstr};
+    my $vars    = $params{vars};
 
-    $self->logger->debug("Poll Callback Session:\n".Dumper($session));
+    # Get some variables from the worker
+    my $redis    = $self->redis;
+    my $group    = $self->group_name;
+    my $worker   = $self->worker_name;
 
-    my $redis     = $self->redis;
-    my $id        = $self->group_name;
-    my $data      = $session->var_bind_list();
-    my $timestamp = $req_time;
+    # Get a reference to the SNMP session, context, and poll ID
+    my $snmp    = $session->{session};
+    my $port    = $session->{port};
+    my $poll_id = $session->{poll_id};
+    my $context = $session->{context};
 
-    my $ip      = $host->{'ip'};
-    my $poll_id = $host->{'poll_id'};
+    #$self->logger->debug("Poll Callback Session:\n".Dumper($session));
 
-    $self->logger->debug("_poll_cb running for $host_name: $main_oid");
+    $self->logger->debug(sprintf("%s - _poll_cb processing %s:%s %s", $worker, $name, $port, $oid));
 
-    # Reset the pending reply status of the OID for the host
+    # Reset the session's pending reply status for the OID
     # This advances pending replies even if we didn't get anything back for the OID
     # We do this because the polling cycle has completed in both cases
-    my $pending_reply = defined($context_id) ? sprintf('%s,%s', $main_oid, $context_id) : $main_oid;
-    delete $host->{'pending_replies'}{$pending_reply};
+    delete $session->{'pending_replies'}{$oid};
+
+    # Get the data returned by the session's SNMP request
+    my $data = $snmp->var_bind_list();
 
     # Parse the values from the data for Redis as an array of "oid,value" strings
     my @values = map {sprintf("%s,%s", $_, $data->{$_})} keys(%$data) if ($data);
 
     # Handle errors where there was no value data for the OID 
     unless (@values) {
-        $host->{failed_oids}{$main_oid} = {
+        $session->{failed_oids}{$oid} = {
             error     => "OID_DATA_ERROR",
             timestamp => time()
         };
-        $host->{failed_oids}{$main_oid}{context} = $context_id if (defined($context_id));
 
-        my $error = $session->error();
-        $self->logger->error("Host/Context ID: $host_name " . (defined($context_id) ? $context_id : '[no context ID]'));
-        $self->logger->error("Group \"$id\" failed: $reqstr");
-        $self->logger->error("Error: $error");
+        # Add the context to the hash of failed OIDs for the session
+        $session->{failed_oids}{$oid}{context} = $context if (defined($context));
+
+        my $error = "%s - ERROR: %s failed to request %s: %s"; 
+        $self->logger->error(sprintf($error, $worker, $name, $reqstr, $session->error()));
     }
 
-    # Determine the expiration date for the data in Redis
-    my $expiration = $timestamp + $self->retention;
+    # Determine the expiration date of the data being stored in Redis
+    my $expire = $time + $self->retention;
 
     # Special key for the interval of the group (used by DB[3] to declare host variables)
-    my $group_interval = sprintf("%s,%s", $self->group_name, $self->interval);
+    my $group_interval = sprintf("%s,%s", $group, $self->interval);
+
+    # Create a key from our hostname/ip, port, and context
+    my $name_id = defined($context) ? "$name:$port:$context" : "$name:$port";
+    my $ip_id   = defined($context) ? "$ip:$port:$context"   : "$ip:$port";
 
     # These hashes hold all of the keys for Redis for each DB entry
     my %host_keys = (
-        db0 => sprintf("%s,%s,%s", $host_name, $self->worker_name, $timestamp),
-        db1 => sprintf("%s,%s,%s", $host_name, $self->group_name, $poll_id),
-        db2 => sprintf("%s,%s", $host_name, $self->group_name),
-        db3 => sprintf("%s,%s", $host_name, $poll_id)
+        db0 => sprintf("%s,%s,%s", $name_id, $worker, $time),
+        db1 => sprintf("%s,%s,%s", $name_id, $group,  $poll_id),
+        db2 => sprintf("%s,%s",    $name_id, $group),
+        db3 => sprintf("%s,%s",    $name_id, $poll_id)
     );
     my %ip_keys = (
-        db0 => sprintf("%s,%s,%s", $ip, $self->worker_name, $timestamp),
-        db1 => sprintf("%s,%s,%s", $ip, $self->group_name, $poll_id),
-        db2 => sprintf("%s,%s", $ip, $self->group_name),
-        db3 => sprintf("%s,%s", $ip, $poll_id)
+        db0 => sprintf("%s,%s,%s", $ip_id, $worker, $time),
+        db1 => sprintf("%s,%s,%s", $ip_id, $group,  $poll_id),
+        db2 => sprintf("%s,%s",    $ip_id, $group),
+        db3 => sprintf("%s,%s",    $ip_id, $poll_id)
     );
 
     # Attempt to set the data for all of the Redis databases
@@ -324,67 +330,66 @@ sub _poll_cb {
         # Allows us to build keys for DB[2]
 
         # Select DB[0] of Redis so we can insert value data
-        # Specifying the callback causes Redis piplining to reduce RTTs for this
+        # Specifying the callback causes Redis piplining to reduce RTTs
         $redis->select(0, sub{});
 
         # Assign our value data from SNMP polling
         $redis->sadd($host_keys{db0}, @values, sub{}) if (@values);
 
-        # Check that there are no pending replies left
-        if (scalar(keys(%{$host->{'pending_replies'}})) == 0) {
+        # Check that the session has no pending replies left
+        if (scalar(keys(%{$session->{'pending_replies'}})) == 0) {
 
             # Set the expiration time for the master key once all replies are received
-            $redis->expireat($host_keys{db0}, $expiration, sub{});
+            $redis->expireat($host_keys{db0}, $expire, sub{});
 
             # Create keys for the Host, IP and Time
-            my $time_key = sprintf("%s,%s", $poll_id, $timestamp);
+            my $time_key = sprintf("%s,%s", $poll_id, $time);
 
             # Set the Poll ID => Timestamp lookup table data and its expiration
             $redis->select(1, sub{});
             $redis->set(     $host_keys{db1}, $host_keys{db0}, sub{});
             $redis->set(       $ip_keys{db1}, $ip_keys{db0},   sub{});
-            $redis->expireat($host_keys{db1}, $expiration,     sub{});
-            $redis->expireat(  $ip_keys{db1}, $expiration,     sub{});
+            $redis->expireat($host_keys{db1}, $expire,         sub{});
+            $redis->expireat(  $ip_keys{db1}, $expire,         sub{});
 
             # Set the Host/IP => Timestamp lookup table data
             $redis->select(2, sub{});
-            $redis->set(     $host_keys{db2}, $time_key,   sub{});
-            $redis->set(       $ip_keys{db2}, $time_key,   sub{});
-            $redis->expireat($host_keys{db2}, $expiration, sub{});
-            $redis->expireat(  $ip_keys{db2}, $expiration, sub{});
+            $redis->set(     $host_keys{db2}, $time_key, sub{});
+            $redis->set(       $ip_keys{db2}, $time_key, sub{});
+            $redis->expireat($host_keys{db2}, $expire,   sub{});
+            $redis->expireat(  $ip_keys{db2}, $expire,   sub{});
 
-            # Add any host variables to the SNMP data in Redis as "vars.$variable,$value"
-            if (exists($host->{host_variable}) && defined($host->{host_variable})) {
+            # Add any host-defined variables to the SNMP data in Redis as "vars.$var,$value"
+            if (defined($vars)) {
 
-                $self->logger->debug("Adding host variables for $host_name");
+                $self->logger->debug("Adding host variables for $name");
 
                 # Set Redis back to DB[0] to insert the var data with values
                 $redis->select(0, sub{});
 
                 # Add each host variable and its value (remove commas from var name)
-                while(my ($host_var, $value) = each(%{$host->{host_variable}})) {
-                    $host_var = ($host_var =~ s/,//gr);
-                    $redis->sadd($host_keys{db0}, sprintf("vars.%s,%s", $host_var, $value->{value}), sub{});
+                while(my ($var, $value) = each(%$vars)) {
+                    $var = ($var =~ s/,//gr);
+                    $redis->sadd($host_keys{db0}, sprintf("vars.%s,%s", $var, $value->{value}), sub{});
                 }
 
                 # Set the host variable's interval lookup 
                 $redis->select(3, sub{});
-                $redis->hset($host_name, "vars", $group_interval, sub{});
-                $redis->hset($ip,        "vars", $group_interval, sub{});
+                $redis->hset($name, "vars", $group_interval, sub{});
+                $redis->hset($ip,   "vars", $group_interval, sub{});
             }
 
-            # Increment the host's poll_id
-            # TODO: Poll IDs will need to be stored by SNMP session, not host
-            $host->{'poll_id'}++;
+            # Increment the session's poll_id
+            $session->{poll_id}++;
         }
 
         # Set an OID lookup using vars and interval for the OIDs
         $redis->select(3, sub{});
-        $redis->hset($host_name, $main_oid, $group_interval, sub{});
-        $redis->hset($ip,        $main_oid, $group_interval, sub{});
+        $redis->hset($name_id, $oid, $group_interval, sub{});
+        $redis->hset($ip_id,   $oid, $group_interval, sub{});
     }
     catch ($e) {
-        $self->logger->error($self->worker_name . " $id Error in hset for data: $e");
+        $self->logger->error(sprintf('%s - ERROR: could not hset Redis data: %s', $worker, $e));
     };
 
     # Wait for all async responses from Redis to complete before continuing
@@ -407,7 +412,6 @@ sub _get_session_args {
         -translate   => [-octetstring => 0],
         -maxmsgsize  => 65535,
     );
-
 
     # Optional session argument mappings to their host attribute from config
     my %optional_args = (
@@ -454,7 +458,7 @@ sub _connect_to_snmp {
     for my $host_attr (@{$self->hosts}) {
 
         # We will store our SNMP session objects in here for the host
-        my @host_sessions;
+        $host_attr->{sessions} = [];
 
         # Get the hostname, SNMP version, array of session args, and failed session tracker
         my $host_name    = $host_attr->{name};
@@ -463,8 +467,8 @@ sub _connect_to_snmp {
         my $session_args = $self->_get_session_args($host_attr);
         my $failed       = 0;
 
-        # Get the current poll ID for the host from Redis
-        # Initializes and Defaults to 0
+        # Get the current poll ID for the host from Redis, stored by each session
+        # Initializes/Defaults to 0
         my $poll_id;
         try {
             $self->redis->select(2);
@@ -478,30 +482,32 @@ sub _connect_to_snmp {
             };
             $self->redis->select(0);
         };
-        $host_attr->{poll_id} = $poll_id || 0;
 
         # Create the session data hashes for each session
         # Apply the session args that were generated, multiplying by context IDs
         # If we don't have any contexts, pretend we do to avoid duplicate code
         for my $args (@$session_args) {
 
+            $self->logger->debug(sprintf("%s - Creating session for %s:%s", $self->worker_name, $host_name, $args->{'-port'}));
+
             # This will allow the next loop to run when there are not context IDs
-            my $total_contexts = defined($context_ids) ? scalar(@$context_ids) : 1;
+            my $total_contexts = exists($host_attr->{contexts}) ? scalar(@{$host_attr->{contexts}}) : 1;
 
             for (my $i = 0; $i < $total_contexts; $i++ ) {
 
                 my $context_id = $context_ids->[$i];
 
-                # We store the SNMP session, port, context, and error data in this hash
+                # We store the SNMP session, poll_id, port, context, and error data in this hash
                 my %session_data = (
                     session         => 0,
+                    poll_id         => $poll_id || 0,
                     port            => $args->{'-port'},
                     errors          => {},
                     failed_oids     => {},
                     pending_replies => {},
                 ); 
                 $session_data{context} = $context_id if (defined($context_id));
-
+        
                 # Send an error when there's no community specified and we have V1 or V2
                 if ($version < 3 && !defined($args->{'-community'})) {
                     $self->logger->error("SNMP is v1 or v2, but no community is defined for $host_name!");
@@ -511,13 +517,12 @@ sub _connect_to_snmp {
                     };
                 }
 
-
                 # Connect the SNMP session and add it to the session hash
                 my ($snmp_session, $session_error) = Net::SNMP->session(%$args);
-                $session_data{session}  = $snmp_session;
+                $session_data{session} = $snmp_session;
             
                 # Add the session hash to the host's sessions array
-                push(@host_sessions, \%session_data);
+                push(@{$host_attr->{sessions}}, \%session_data);
 
                 # Check for errors creating the SNMP session
                 if (!$snmp_session || $session_error) {
@@ -544,9 +549,6 @@ sub _connect_to_snmp {
                 }
             }
         }
-
-        # Add the array of sessions to the worker's session hash
-        $host_attr->{sessions} = \@host_sessions;
     }
 }
 
@@ -644,8 +646,7 @@ sub _collect_data {
                     $self->worker_name,
                     $host->{ip},
                     $host_name,
-                    $self->group_name,
-                    Dumper($host->{pending_replies})
+                    Dumper($session->{pending_replies})
                 ));
                 next;
             }
@@ -659,12 +660,13 @@ sub _collect_data {
             }
 
             for my $oid_attr (@$oids) {
+
                 my $oid     = $oid_attr->{oid};
                 my $is_leaf = $oid_attr->{single} || 0;
 
                 # Log an error if the OID is failing
-                if (exists $session->{'failed_oids'}->{$oid}) {
-                    $self->logger->error($session->{'failed_oids'}->{$oid}->{'error'});
+                if (exists $session->{'failed_oids'}{$oid}) {
+                    $self->logger->error($session->{'failed_oids'}{$oid}{'error'});
                 }
 
                 my $reqstr = " $oid -> $host->{ip}:$session->{port} ($host_name)";
@@ -686,44 +688,31 @@ sub _collect_data {
                     $args{-maxrepetitions} = $self->request_size;
                 }
 
-                # Callback without context ID
-                if (!exists($session->{context})) {
-                    $args{-callback} = sub {
-                        my $session = shift;
-                        $self->_poll_cb(
-                            host      => $host,
-                            host_name => $host_name,
-                            timestamp => $timestamp,
-                            reqstr    => $reqstr,
-                            oid       => $oid,
-                            session   => $session
-                        );
-                    };
-                }
-                # Callback with context ID
-                else {
+                # Add the context to session args if present
+                if (exists($session->{context})) {
                     $args{'-contextengineid'} = $session->{context};
-                    $args{'-callback'} = sub {
-                        my $session = shift;
-                        $self->_poll_cb(
-                            host       => $host,
-                            host_name  => $host_name,
-                            timestamp  => $timestamp,
-                            reqstr     => $reqstr,
-                            oid        => $oid,
-                            context_id => $session->{context},
-                            session    => $session
-                        );
-                    };
                 }
 
+                # Define the callback with params for the session args
+                $args{'-callback'} = sub {
+                    $self->_poll_cb(
+                        session    => $session,
+                        time       => $timestamp,
+                        name       => $host_name,
+                        ip         => $host->{ip},
+                        oid        => $oid,
+                        reqstr     => $reqstr,
+                        vars       => $host->{host_variable}
+                    );
+                }; 
+
                 # Use the SNMP session to request data using our args
-                $self->logger->debug($self->worker_name . " requesting " . $reqstr . " with method $get_method");
+                $self->logger->debug(sprintf("%s - %s request for %s", $self->worker_name, $get_method, $reqstr));
                 $res = $snmp_session->$get_method(%args);
 
                 if ($res) {
                     # Add the OID to pending replies if the request succeeded
-                    $session->{pending_replies}->{$oid} = 1;
+                    $session->{pending_replies}{$oid} = 1;
                 }
                 else {
                     # Add oid and info to failed_oids if it failed during request
@@ -732,7 +721,7 @@ sub _collect_data {
                         description => $snmp_session->error(),
                         timestamp   => time()
                     };
-                    $self->logger->error("$res_err: " . $snmp_session->error());
+                    $self->logger->error(sprintf("%s - %s: %s", $self->worker_name, $res_err, $snmp_session->error()));
                 }
             }
         }
