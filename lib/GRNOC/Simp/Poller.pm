@@ -661,7 +661,7 @@ sub _create_workers {
         $self->logger->debug("Creating worker for group: " . $group_name);
 
         # Get the range of worker IDs in an array
-        my @worker_ids = map {$_} (0 .. ($group_attr->{workers}));
+        my @worker_ids = map {$_} (0 .. ($group_attr->{workers} - 1));
 
         # Track the session load a worker has been assigned
         my %worker_loads = map {$_ => 0} @worker_ids;
@@ -672,22 +672,18 @@ sub _create_workers {
         # Track the worker ID we should be adding a host to
         my $worker_id = 0;
 
-        $self->logger->debug(Dumper(\%worker_loads));
-
         # Add hosts to workers and load balance them based upon the load of hosts the worker has
         for my $host_obj (@{$group_attr->{hosts}}) {            
 
-            $self->logger->debug(sprintf("ID: %s - LOAD %s", $worker_id, $worker_loads{$worker_id}));
-
             # Add at least one host to each worker before load balancing
-            if ($worker_loads{"$worker_id"} == 0) {
+            if ($worker_loads{$worker_id} == 0) {
 
                 # Add the host and it's load to our tracking hashes
                 push(@{$worker_hosts{$worker_id}}, $host_obj);
                 $worker_loads{$worker_id} += $host_obj->{load};
 
                 # Increment the worker ID until each worker has a host, then set back to 0
-                $worker_id = ($worker_id >= $group_attr->{workers}) ? 0 : $worker_id + 1;
+                $worker_id = ($worker_id >= $#worker_ids) ? 0 : $worker_id + 1;
 
                 # Skip to the next host
                 next;
@@ -712,7 +708,6 @@ sub _create_workers {
             $worker_loads{$worker_id} += $host_obj->{load};
         }
 
-
         $self->logger->info("Creating $group_attr->{workers} child processes for group: $group_name");
 
         # Keep track of children pids
@@ -725,6 +720,7 @@ sub _create_workers {
 
         # Create workers
         for (my $worker_id = 0; $worker_id < $group_attr->{workers}; $worker_id++) {
+
             my $pid = $forker->start();
 
             # We're still in the parent if so
