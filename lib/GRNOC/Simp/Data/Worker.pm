@@ -152,7 +152,7 @@ sub _start {
     ));
 
     my $redis = Redis::Fast->new(
-        server        => "$redis_host:$redis_port",
+        server        => sprintf("%s:%s", $redis_host, $redis_port),
         reconnect     => $redis_reconnect,
         every         => $redis_reconnect_every,
         read_timeout  => $redis_read_timeout,
@@ -363,6 +363,7 @@ sub _find_groups {
     try {
         $redis->select(3);
         %oid_to_group = $self->redis->hgetall($host);
+        $self->logger->debug(Dumper(\%oid_to_group));
     }
     catch ($e) {
         $redis_err = 1;
@@ -409,6 +410,7 @@ sub _find_groups {
     # Log an error if no groups were defined
     $self->logger->error("[_find_groups] No host groups found for $host and $oid") unless ($groups);
 
+    $self->logger->debug(Dumper($groups));
     return $groups;
 }
 
@@ -493,7 +495,7 @@ sub _find_keys {
         # Set a lookup key if our Poll ID is valid for the current time
         my $lookup;
         if ($requested > $time) {
-            $lookup = sprintf("%s,%s,%s", $host, $group->{'group'}, $poll_id);
+            $lookup = sprintf("%s:*,%s,%s", $host, $group->{'group'}, $poll_id);
         }
         else {
 
@@ -502,7 +504,7 @@ sub _find_keys {
 
             # Set the lookup if the retrieved Poll ID is the same or newer than the closest poll cycle 
             if ($poll_id >= $poll_ids_back) {
-                $lookup = sprintf("%s,%s,%s", $host, $group->{'group'}, ($poll_id - ($poll_ids_back + 1)));
+                $lookup = sprintf("%s:*,%s,%s", $host, $group->{'group'}, ($poll_id - ($poll_ids_back + 1)));
             }
             else {
                 # Return here if the Poll ID is invalid
@@ -510,16 +512,28 @@ sub _find_keys {
                 return;
             }
         }
+        $self->logger->debug(sprintf("Finding keys from lookup: %s", $lookup));
 
-        # Lookup will give us the right key for our scan
         try {
-            $redis->get(
-                $lookup,
-                sub {
-                    my ($reply, $err) = @_;
-                    push(@$keys, $reply) if (defined ($reply));
-                }
-            );
+            my $entries;
+            my $cursor = 0;
+
+            while (1) {
+
+                # Get the set of hash entries that match our lookup pattern
+                # COUNT will limit the number of entries returned per call to sscan()
+                ($cursor, $entries) = $redis->scan(
+                    $cursor,
+                    MATCH => $lookup,
+                    COUNT => 2000
+                );
+
+                # Add the returned entries to the keys array
+                push(@$keys, @$entries);
+
+                # Redis has indicated that it finished all iterations
+                last if ($cursor == 0);
+            }
         }
         catch ($e) {
             $self->logger->error("[_find_keys] Could not retrieve a set for $host from Redis: $_");
@@ -528,6 +542,8 @@ sub _find_keys {
 
     # Wait for all of the Redis requests to return before continuing
     $redis->wait_all_responses();
+
+    $self->logger->debug(sprintf("Keys from lookup: %s", Dumper($keys)));
 
     # Return the keys we found for each group
     return $keys;
@@ -554,7 +570,7 @@ sub _get {
     my %results;
 
     # Switch back to DB 0 for the sscan's
-    $self->redis->select(0);
+    #$self->redis->select(0);
 
     # Process every requested OID individually for each host
     for my $oid (@$oidmatch) {
@@ -566,6 +582,8 @@ sub _get {
                 oid       => $oid,
                 requested => $requested
             );
+
+            $self->redis->select(0);
 
             # Skip the host for this OID if no keys for it were found
             if (!defined($keys) || (none {defined($_)} @$keys)) {
@@ -580,9 +598,20 @@ sub _get {
                 next unless (defined($key));
 
                 # Split the key into host, group, and timestamp
-                my ($host, $group, $time) = split(',', $key);
+                my ($host_key, $group, $time) = split(',', $key);
+                my ($host, $port, $context) = split(':', $host_key);
+
+                $self->logger->debug(sprintf(
+                    "DATA LOOKUP PARAMS\nGROUP: %s\nTIME: %s\nHOST: %s\nPORT: %s\nCONTEXT: %s\n",
+                    $group,
+                    $time,
+                    $host,
+                    $port,
+                    $context
+                ));
 
                 try {
+                    $self->logger->debug('TRYING TO GET DATA FOR: '.$key);
                     # Scan Redis for hash entries, each scan will have a new set of entries
                     # Redis requires a cursor equal to zero to begin scanning
                     # It will return new cursor values with each call to sscan()
@@ -599,6 +628,7 @@ sub _get {
                             MATCH => $oid . "*",
                             COUNT => 2000
                         );
+                        $self->logger->debug(Dumper($entries));
 
                         # Process each hash entry
                         for my $entry (@$entries) {
@@ -607,8 +637,8 @@ sub _get {
                             my ($oid, $value) = $entry =~ /^([^,]*),(.*)/;
 
                             # Set the OID data for the host in our results
-                            $results{$host}{$oid}{'value'} = $value;
-                            $results{$host}{$oid}{'time'}  = $time;
+                            $results{$host}{$port}{$oid}{'value'} = $value;
+                            $results{$host}{$port}{$oid}{'time'}  = $time;
                         }
 
                         # Redis has indicated that it finished all iterations
@@ -628,6 +658,7 @@ sub _get {
     $self->logger->debug("[_get] All responses are ready!");
 
     # Return the results we processed from Redis
+    $self->logger->debug(Dumper(\%results));
     return \%results;
 }
 

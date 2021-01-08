@@ -297,16 +297,16 @@ sub _poll_cb {
 
     # These hashes hold all of the keys for Redis for each DB entry
     my %host_keys = (
-        db0 => sprintf("%s,%s,%s", $name_id, $worker, $time),
+        db0 => sprintf("%s,%s,%s", $name_id, $group, $time),
         db1 => sprintf("%s,%s,%s", $name_id, $group,  $poll_id),
-        db2 => sprintf("%s,%s",    $name_id, $group),
-        db3 => sprintf("%s,%s",    $name_id, $poll_id)
+        db2 => sprintf("%s,%s",    $name, $group),
+        db3 => sprintf("%s,%s",    $name, $poll_id)
     );
     my %ip_keys = (
-        db0 => sprintf("%s,%s,%s", $ip_id, $worker, $time),
+        db0 => sprintf("%s,%s,%s", $ip_id, $group, $time),
         db1 => sprintf("%s,%s,%s", $ip_id, $group,  $poll_id),
-        db2 => sprintf("%s,%s",    $ip_id, $group),
-        db3 => sprintf("%s,%s",    $ip_id, $poll_id)
+        db2 => sprintf("%s,%s",    $ip, $group),
+        db3 => sprintf("%s,%s",    $ip, $poll_id)
     );
 
     # Attempt to set the data for all of the Redis databases
@@ -385,8 +385,8 @@ sub _poll_cb {
 
         # Set an OID lookup using vars and interval for the OIDs
         $redis->select(3, sub{});
-        $redis->hset($name_id, $oid, $group_interval, sub{});
-        $redis->hset($ip_id,   $oid, $group_interval, sub{});
+        $redis->hset($name, $oid, $group_interval, sub{});
+        $redis->hset($ip,   $oid, $group_interval, sub{});
     }
     catch ($e) {
         $self->logger->error(sprintf('%s - ERROR: could not hset Redis data: %s', $worker, $e));
