@@ -356,61 +356,78 @@ sub _find_groups {
     # Remove any ".*" suffixes from the requested OID
     $oid =~ s/(\.\*+)*$//;
 
-    # Try to get every field=>value combo for the hostname key from DB[3]
-    # Data is returned with this structure: { OID => "group,interval" }
-    my %oid_to_group;
-    my $redis_err;
+    # Get group name mappings for OIDs associated with the host
+    my %host_oid_map;
     try {
         $redis->select(3);
-        %oid_to_group = $self->redis->hgetall($host);
-        $self->logger->debug(Dumper(\%oid_to_group));
+
+        # Scan for keys using the hostname or IP
+        # The returned keys are in the format "host:port" or "host:port:context"
+        # We then use the keys to get all OID => "group,interval" hashes associated with them
+        my ($cursor, $keys) = (0, undef);
+        while (1) {
+            ($cursor, $keys) = $redis->scan(
+                $cursor,
+                MATCH => sprintf("%s:*", $host),
+                COUNT => 2000
+            );
+
+            for my $key (@$keys) {
+                # Redis returns a hash as an array ref
+                # We convert the array ref to a hash when adding it to our own hash under the host/ip key
+                %{$host_oid_map{$key}} = $redis->hgetall($key);
+            }
+
+            # Redis has indicated that it finished all iterations
+            last if ($cursor == 0);
+        }
     }
     catch ($e) {
-        $redis_err = 1;
-        $self->logger->error("[_find_groups] Error fetching all groups $host is a part of: $e");
+        $self->logger->error("[_find_groups] Error fetching polling groups with data for $host: $e");
+        return;
     };
 
-    # Return if Redis had an error
-    return if ($redis_err);
 
     # Process the host groups from what Redis returned
-    my @host_groups;
-    my @host_groups_rev;
-    for my $base_oid (keys(%oid_to_group)) {
+    # We will return a hashref of host keys pointing to their array of groups
+    my $groups = {};
+    while (my ($host_key, $oid_group_map) = each(%host_oid_map)) {
 
-        # Parse the group name and interval from the value string for the OID
-        my ($group, $interval) = split(',', $oid_to_group{$base_oid});
+        my @host_groups;
+        my @host_groups_rev;
 
-        # Group match if the base OID is a prefix of the requested OID
-        if (_is_oid_prefix($base_oid, $oid)) {
-            push(@host_groups, {base_oid => $base_oid, group => $group, interval => $interval});
+        while (my ($base_oid, $group_key) = each(%$oid_group_map)) {
+
+            # Parse the group name and interval from the value string for the OID
+            my ($group, $interval) = split(',', $group_key);
+
+            # Group match if the base OID is a prefix of the requested OID
+            if (_is_oid_prefix($base_oid, $oid)) {
+                push(@host_groups, {base_oid => $base_oid, name => $group, interval => $interval});
+            }
+            # Group match if the requested OID is a prefix of the base_oid for reverse lookups
+            elsif (_is_oid_prefix($oid, $base_oid)) {
+                push(@host_groups_rev, {base_oid => $base_oid, name => $group, interval => $interval});
+            }
         }
-        # Group match if the requested OID is a prefix of the base_oid for reverse lookups
-        elsif (_is_oid_prefix($oid, $base_oid)) {
-            push(@host_groups_rev, {base_oid => $base_oid, group => $group, interval => $interval});
+
+        # Set the best matching host group if any were found
+        if (scalar(@host_groups) >= 1) {
+            $groups->{$host_key} = $self->_best_host_groups(\@host_groups);
         }
+        # Set the best matches from a reverse lookup
+        else {
+            # If we got here, we had no groups where $base_oid was a prefix of the OID tree we're interested in.
+            # This might be because there are one or more groups whose base OID has $oid as a prefix!
+            # We now look for these. If we find more than one, we then remove groups that are redundant,
+            # i.e., groups for which there is a shorter-prefix group with the same or shorter interval.
+            $groups->{$host_key} = $self->_best_host_groups(\@host_groups_rev, 1);
+        }
+
+        # Log an error if no groups were defined
+        $self->logger->error("[_find_groups] No host groups found for $host and $oid") unless ($groups->{$host_key});
     }
 
-    # Reference to the array of groups we want to return
-    my $groups;
-
-    # Set the best matching host group if any were found
-    if (scalar(@host_groups) >= 1) {
-        $groups = $self->_best_host_groups(\@host_groups);
-    }
-    # Set the best matches from a reverse lookup
-    else {
-        # If we got here, we had no groups where $base_oid was a prefix of the OID tree we're interested in.
-        # This might be because there are one or more groups whose base OID has $oid as a prefix!
-        # We now look for these. If we find more than one, we then remove groups that are redundant,
-        # i.e., groups for which there is a shorter-prefix group with the same or shorter interval.
-        $groups = $self->_best_host_groups(\@host_groups_rev, 1);
-    }
-
-    # Log an error if no groups were defined
-    $self->logger->error("[_find_groups] No host groups found for $host and $oid") unless ($groups);
-
-    $self->logger->debug(Dumper($groups));
     return $groups;
 }
 
@@ -429,53 +446,55 @@ sub _find_keys {
     my $requested = $params{'requested'};
     my $redis     = $self->redis;
 
-    # Get the host's collection groups from Redis
-    my $groups = $self->_find_groups(
+    # Get the host's collection groups and their keys from Redis
+    my $host_groups = $self->_find_groups(
         host      => $host,
         oid       => $oid,
     );
 
     # Ensure that groups were found for the host and OID
-    if (!defined($groups) || (none {defined($_)} @$groups)) {
+    if (!defined($host_groups) || (none {defined($host_groups->{$_})} keys(%$host_groups))) {
         $self->logger->error("[_find_keys] Unable to find groups for $host -> $oid");
         return;
     }
-    
-    # Array of keys for the sets we want to scan through per host+group
-    my $keys = [];
-
-    # Array of response objects containing hostgroup keys for the group
-    my $hostgroup_keys = [];
-
+   
     # Select the hostgroup DB in Redis
     $redis->select(2, sub{});
 
-    # Try to find keys by iterating over the array of possible groups from _find_groups()
-    for my $group (@$groups) {
+    # Hash of response objects containing hostgroup keys
+    my $hostgroup_keys = {};
 
-        # Skip undefined groups
-        next if !defined($group);
+    # Array of keys for the data to scan through for the host+group
+    my $keys = [];
 
-        # Get the Poll ID & Timestamp for the hostgroup combination asyncronously
-        try {
-            # Get the poll_id,timestamp string using the "host,group" key asynchronously
-            $redis->get(
-                sprintf("%s,%s", $host, $group->{'group'}),
-                sub {
-                    my $g = shift;
-                    return sub {
-                        my ($reply, $err) = @_;
-                        push(@$hostgroup_keys, {'result' => $reply, 'group' => $g}) if ($reply);
-                    };
-                }->($group)
-            );
+    while (my ($host_key, $groups) = each(%$host_groups)) {
+
+        # Try to find keys by iterating over the array of possible groups from _find_groups()
+        for my $group (@$groups) {
+
+            # Skip undefined groups
+            next if !defined($group);
+
+            # Get the Poll ID & Timestamp for the hostgroup combination asyncronously
+            try {
+                $redis->get(
+                    sprintf("%s,%s", $host_key, $group->{name}),
+                    sub {
+                        my $group_data = shift;
+                        return sub {
+                            my ($reply, $err) = @_;
+                            $hostgroup_keys->{$host_key} = {'result' => $reply, 'group' => $group_data} if ($reply);
+                        };
+                    }->($group)
+                );
+            }
+            catch ($e) {
+                $self->logger->error("[_find_keys] Could not retrieve Poll ID/Timestamp data for $host -> $group->{group}: $e");
+                next;
+            };
         }
-        catch ($e) {
-            $self->logger->error("[_find_keys] Could not retrieve Poll ID/Timestamp data for $host -> $group->{group}: $e");
-            next;
-        };
     }
-    
+
     # Wait until all the group keys have been returned
     $redis->wait_all_responses();
 
@@ -483,11 +502,11 @@ sub _find_keys {
     $redis->select(1, sub{});
 
     # Lookup the returned hostgroup keys from earlier in the keys DB of redis
-    for my $hostgroup (@$hostgroup_keys) {
+    while (my ($host_key, $group_data) =  each(%$hostgroup_keys)) {
 
         # Pull the hostgroup key and group name from the reply
-        my $res   = $hostgroup->{result};
-        my $group = $hostgroup->{group};
+        my $res   = $group_data->{result};
+        my $group = $group_data->{group};
     
         # Get the Poll ID and Timestamp from the returned value for the group
         my ($poll_id, $time) = split(',', $res);
@@ -495,7 +514,7 @@ sub _find_keys {
         # Set a lookup key if our Poll ID is valid for the current time
         my $lookup;
         if ($requested > $time) {
-            $lookup = sprintf("%s:*,%s,%s", $host, $group->{'group'}, $poll_id);
+            $lookup = sprintf("%s,%s,%s", $host_key, $group->{name}, $poll_id);
         }
         else {
 
@@ -504,36 +523,24 @@ sub _find_keys {
 
             # Set the lookup if the retrieved Poll ID is the same or newer than the closest poll cycle 
             if ($poll_id >= $poll_ids_back) {
-                $lookup = sprintf("%s:*,%s,%s", $host, $group->{'group'}, ($poll_id - ($poll_ids_back + 1)));
+                $lookup = sprintf("%s,%s,%s", $host_key, $group->{name}, ($poll_id - ($poll_ids_back + 1)));
             }
             else {
-                # Return here if the Poll ID is invalid
+                # Skip to the next host key here if the Poll ID is invalid
                 $self->logger->debug("[_find_keys] No time available that matches the requested time!");
-                return;
+                next;
             }
         }
-        $self->logger->debug(sprintf("Finding keys from lookup: %s", $lookup));
 
+        #$self->logger->debug(sprintf("Finding keys from lookup: %s", $lookup));
         try {
-            my $entries;
-            my $cursor = 0;
-
-            while (1) {
-
-                # Get the set of hash entries that match our lookup pattern
-                # COUNT will limit the number of entries returned per call to sscan()
-                ($cursor, $entries) = $redis->scan(
-                    $cursor,
-                    MATCH => $lookup,
-                    COUNT => 2000
-                );
-
-                # Add the returned entries to the keys array
-                push(@$keys, @$entries);
-
-                # Redis has indicated that it finished all iterations
-                last if ($cursor == 0);
-            }
+            $redis->get(
+                $lookup,
+                sub {
+                    my ($reply, $err) = @_;
+                    push(@$keys, $reply) if (defined ($reply));
+                }
+            );
         }
         catch ($e) {
             $self->logger->error("[_find_keys] Could not retrieve a set for $host from Redis: $_");
@@ -542,8 +549,6 @@ sub _find_keys {
 
     # Wait for all of the Redis requests to return before continuing
     $redis->wait_all_responses();
-
-    $self->logger->debug(sprintf("Keys from lookup: %s", Dumper($keys)));
 
     # Return the keys we found for each group
     return $keys;
@@ -559,6 +564,7 @@ sub _get {
     my $self      = shift;
     my $requested = shift;
     my $params    = shift;
+    my $rate_calc = shift;
     my $hosts     = $params->{'node'}{'value'};
     my $oidmatch  = $params->{'oidmatch'}{'value'};
     my $redis     = $self->redis;
@@ -566,11 +572,11 @@ sub _get {
     $self->logger->debug("[_get] Processing get request for time " . $requested);
 
     # The hash of data we will return
-    # {$host => {$oid => {value => $value, time => $timestamp}}}
+    # {$host => $port(s) => {$oid(s) => {value => $value, time => $timestamp}}}
     my %results;
 
-    # Switch back to DB 0 for the sscan's
-    #$self->redis->select(0);
+    # This is returned and used for rate calculation if needed
+    my $prev_time;
 
     # Process every requested OID individually for each host
     for my $oid (@$oidmatch) {
@@ -583,7 +589,7 @@ sub _get {
                 requested => $requested
             );
 
-            $self->redis->select(0);
+            $redis->select(0, sub{});
 
             # Skip the host for this OID if no keys for it were found
             if (!defined($keys) || (none {defined($_)} @$keys)) {
@@ -601,13 +607,18 @@ sub _get {
                 my ($host_key, $group, $time) = split(',', $key);
                 my ($host, $port, $context) = split(':', $host_key);
 
+                # Set the time for the previous cycle to return for rate calculations
+                if ($rate_calc && !defined($prev_time) && $time) {
+                    $prev_time = $time - $params->{period}{value};
+                }
+
                 $self->logger->debug(sprintf(
                     "DATA LOOKUP PARAMS\nGROUP: %s\nTIME: %s\nHOST: %s\nPORT: %s\nCONTEXT: %s\n",
                     $group,
                     $time,
                     $host,
                     $port,
-                    $context
+                    $context || "N/A"
                 ));
 
                 try {
@@ -628,7 +639,6 @@ sub _get {
                             MATCH => $oid . "*",
                             COUNT => 2000
                         );
-                        $self->logger->debug(Dumper($entries));
 
                         # Process each hash entry
                         for my $entry (@$entries) {
@@ -658,8 +668,13 @@ sub _get {
     $self->logger->debug("[_get] All responses are ready!");
 
     # Return the results we processed from Redis
-    $self->logger->debug(Dumper(\%results));
-    return \%results;
+    unless ($rate_calc) {
+        return \%results;
+    }
+    # For rate calculations, return a timestamp for the previous poll cycle and the current results
+    else {
+        return [\%results, $prev_time];
+    }
 }
 
 
@@ -667,19 +682,19 @@ sub _get {
     Calculates a requested value as a rate over the time period of an interval.
 =cut
 sub _rate {
-    my ($self, $cur_val, $cur_ts, $pre_val, $pre_ts, $context) = @_;
+    my ($self, $c_val, $c_time, $p_val, $p_time, $context) = @_;
 
     # Return the current value if it is NaN
-    return $cur_val unless ($cur_val =~ /\d+$/);
+    return $c_val unless ($c_val =~ /\d+$/);
 
     # Return 0 if there was none or negative time delta
-    return 0 if ($pre_ts >= $cur_ts);
+    return 0 if ($p_time >= $c_time);
 
     # Determine the elapsed time delta
-    my $delta = $cur_ts - $pre_ts;
+    my $delta = $c_time - $p_time;
 
     # Get the difference between current and previous value
-    my $diff = $cur_val - $pre_val;
+    my $diff = $c_val - $p_val;
 
     # A negative difference means that a 32 or 64-bit counter reset itself to 0 after reaching the maximum
     if ($diff < 0) {
@@ -687,11 +702,11 @@ sub _rate {
     
         # Determine whether the counter max value is a 32 or 64-bit unsigned integer
         # Then, set the difference as the difference between the max and previous value, plus the current value
-        if ($cur_val > MAX_UINT32 || $pre_val > MAX_UINT32) {
-            $diff = (MAX_UINT64 - $pre_val) + $cur_val;
+        if ($c_val > MAX_UINT32 || $p_val > MAX_UINT32) {
+            $diff = (MAX_UINT64 - $p_val) + $c_val;
         }
         else {
-            $diff = (MAX_UINT32 - $pre_val) + $cur_val;
+            $diff = (MAX_UINT32 - $p_val) + $c_val;
         }
     }
 
@@ -713,59 +728,45 @@ sub _get_rate {
     my $params = shift;
     my $redis  = $self->redis;
 
-    my %current_data;
-    my %previous_data;
-
     if (!defined($params->{'period'}{'value'})) {
         $params->{'period'}{'value'} = 60;
+        $self->logger->error("Rate value was requested, but no interval was given! Using default interval of 60s");
     }
 
-    #--- get the data for the current and a past poll cycle
-    my $current_data = $self->_get(time(), $params);
-    my $previous_data;
+    # Get data for the current and previous poll cycle
+    my ($c_data, $last) = $self->_get(time(), $params, 1);
+    my $p_data          = $self->_get($last, $params);
 
-    my @ips = keys %{$current_data};
-    if (defined($ips[0])) {
-        my @oids = keys %{$current_data->{$ips[0]}};
-
-        if (defined($oids[0])) {
-            my $time = $current_data->{$ips[0]}{$oids[0]}{'time'};
-            $time -= $params->{'period'}{'value'};
-
-            $previous_data = $self->_get($time, $params);
-        }
-    }
-
+    # The results hash to return
+    # We return early if there isn't previous data to allow rate calculations
     my %results;
+    return \%results unless (defined($p_data));
 
-    return \%results if !defined($previous_data);
+    # Iterate over current and previous data to calculate rate values
+    while (my ($host, $ports) = each(%$c_data)) {
+        while (my ($port, $oids) = each(%$ports)) {
+            while (my ($oid, $data) = each(%$oids)) {
+            
+                my $c_val  = $data->{value};
+                my $c_time = $data->{time};
+                my $p_val  = $p_data->{$host}{$port}{$oid}{value};
+                my $p_time = $p_data->{$host}{$port}{$oid}{time};
 
-    #iterate over current and previous data to calculate rates where sensible
-    for my $ip (keys(%$current_data)) {
-        for my $oid (keys(%{$current_data->{$ip}})) {
-            my $current_val  = $current_data->{$ip}{$oid}{'value'};
-            my $current_ts   = $current_data->{$ip}{$oid}{'time'};
-            my $previous_val = $previous_data->{$ip}{$oid}{'value'};
-            my $previous_ts  = $previous_data->{$ip}{$oid}{'time'};
+                # Check that current and previous values are defined numbers
+                # Skip rate calculation for the combination if not
+                next if (   
+                       !defined $c_val
+                    || !defined $p_val
+                    || !defined $c_time
+                    || !defined $p_time
+                    || !looks_like_number($c_val)
+                    || !looks_like_number($p_val)
+                );
 
-            #--- sanity check
-            if (   !defined $current_val
-                || !defined $previous_val
-                || !defined $current_ts
-                || !defined $previous_ts) {
-
-                #--- incomplete data
-                next;
+                # Set the returned results to the calculated rate value using the current time
+                $results{$host}{$port}{$oid}{value} = $self->_rate($c_val, $c_time, $p_val, $p_time, sprintf("%s->%s->%s",$host,$port,$oid));
+                $results{$host}{$port}{$oid}{time}  = $c_time;
             }
-
-            # Skip rate if it's NaN
-            unless (looks_like_number($current_val)) {
-                next;
-            }
-
-            $results{$ip}{$oid}{'value'} = $self->_rate($current_val, $current_ts, $previous_val, $previous_ts, "$ip->$oid");
-            $results{$ip}{$oid}{'time'}  = $current_ts;
-
         }
     }
     return \%results;
