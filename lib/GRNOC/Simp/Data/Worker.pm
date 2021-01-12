@@ -735,8 +735,10 @@ sub _get_rate {
     }
 
     # Get data for the current and previous poll cycle
-    my ($c_data, $last) = $self->_get(time(), $params, 1);
-    my $p_data          = $self->_get($last, $params);
+    my $current = $self->_get(time(), $params, 1);
+    my $last    = $current->[1];
+    my $c_data  = $current->[0];
+    my $p_data  = $self->_get($last, $params);
 
     # The results hash to return
     # We return early if there isn't previous data to allow rate calculations
