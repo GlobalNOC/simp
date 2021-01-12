@@ -672,7 +672,7 @@ sub _collect_data {
             my $snmp_session = $session->{session};
 
             if (!defined($snmp_session)) {
-                $self->logger->error("$self->worker_name - No SNMP session defined for $host_name");
+                $self->logger->error($self->worker_name . " - No SNMP session defined for $host_name");
                 next;
             }
 
