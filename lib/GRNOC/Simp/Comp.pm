@@ -15,7 +15,7 @@ use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Comp::Worker;
 
-our $VERSION = '1.5.0';
+our $VERSION = '1.6.0';
 
 ### REQUIRED ATTRIBUTES ###
 

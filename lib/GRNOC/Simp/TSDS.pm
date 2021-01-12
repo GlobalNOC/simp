@@ -3,7 +3,7 @@ package GRNOC::Simp::TSDS;
 use strict;
 use warnings;
 
-our $VERSION = '1.5.0';
+our $VERSION = '1.6.0';
 
 =head1 NAME
 
