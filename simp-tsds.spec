@@ -9,6 +9,10 @@ Source0: %{name}-%{version}.tar.gz
 BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 BuildArch:noarch
 
+# This prevents automatic dependency resolution from failing in external imports.
+# Without it, the created RPMs may not install properly
+AutoReqProv: no
+
 BuildRequires: perl
 Requires: perl(AnyEvent)
 Requires: perl(AnyEvent::Subprocess)
