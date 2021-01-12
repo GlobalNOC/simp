@@ -256,8 +256,6 @@ sub _poll_cb {
     my $poll_id = $session->{poll_id};
     my $context = $session->{context};
 
-    #$self->logger->debug("Poll Callback Session:\n".Dumper($session));
-
     $self->logger->debug(sprintf("%s - _poll_cb processing %s:%s %s", $worker, $name, $port, $oid));
 
     # Reset the session's pending reply status for the OID
@@ -273,7 +271,7 @@ sub _poll_cb {
 
     # Handle errors where there was no value data for the OID 
     unless (@values) {
-        $session->{failed_oids}{$oid} = {
+        $session->{failed_oids}{"$oid:$port"} = {
             error     => "OID_DATA_ERROR",
             timestamp => time()
         };
@@ -475,11 +473,7 @@ sub _connect_to_snmp {
             $poll_id = $self->redis->get($host_name . ",main_oid");
         }
         catch ($e) {
-            $self->logger->error("Error fetching the current poll cycle ID from Redis: $e");
-            $host_attr->{errors}{redis} = {
-                time  => time,
-                error => "Error fetching the current poll cycle id from Redis: $e"
-            };
+            $self->logger->error("Error fetching the current poll cycle ID from Redis for $host_name: $e");
             $self->redis->select(0);
         };
 
@@ -575,17 +569,39 @@ sub _write_mon_data {
 
     # Add filename to the path for writing
     $mon_dir .= $self->group_name . "_status.json";
+    
+    $self->logger->debug("Writing status file $mon_dir");
 
     my %mon_data = (
         timestamp   => time(),
-        failed_oids => scalar($host->{failed_oids}) ? $host->{failed_oids} : '',
-        snmp_errors => scalar($host->{snmp_errors}) ? $host->{snmp_errors} : '',
+        failed_oids => '',
+        snmp_errors => '',
         config      => $self->config->{config_file},
         interval    => $self->interval
     );
-    $self->logger->debug(Dumper(\%mon_data));
 
-    $self->logger->debug("Writing status file $mon_dir");
+    # Aggregation of all the error data for each session's failed OIDs
+    my $failed_oids = {};
+
+    # Aggregation of each session's SNMP errors
+    # Note: The community and version subsections are deprecated by config validation
+    # They are left in here for backward compatibility with poller-monitoring.
+    my $snmp_errors = {
+        session   => [],
+        community => 0,
+        version   => 0
+    };
+    my $session_errors = $snmp_errors->{session};
+
+    for my $session (@{$host->{sessions}}) {
+        for my $oid (keys($session->{failed_oids})) {
+            $failed_oids->{$oid} = $session->{failed_oids}{$oid};
+        }
+        push(@{$session_errors}, $session->{errors}{session}) if ($session->{errors}{session});
+    }
+
+    $mon_data{snmp_errors} = $snmp_errors;
+    $mon_data{failed_oids} = $failed_oids;
 
     # Write out the status file
     if (open(my $fh, '>:encoding(UTF-8)', $mon_dir)) {
@@ -599,6 +615,7 @@ sub _write_mon_data {
 
     $self->logger->debug("Writing completed for status file $mon_dir");
 }
+
 
 sub _collect_data {
     my $self = shift;
@@ -716,7 +733,7 @@ sub _collect_data {
                 }
                 else {
                     # Add oid and info to failed_oids if it failed during request
-                    $session->{'failed_oids'}{$oid} = {
+                    $session->{'failed_oids'}{"$oid:$session->{port}"} = {
                         error       => "OID_REQUEST_ERROR",
                         description => $snmp_session->error(),
                         timestamp   => time()

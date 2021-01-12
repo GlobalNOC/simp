@@ -647,8 +647,8 @@ sub _get {
                             my ($oid, $value) = $entry =~ /^([^,]*),(.*)/;
 
                             # Set the OID data for the host in our results
-                            $results{$host}{$port}{$oid}{'value'} = $value;
-                            $results{$host}{$port}{$oid}{'time'}  = $time;
+                            $results{$port}{$host}{$oid}{'value'} = $value;
+                            $results{$port}{$host}{$oid}{'time'}  = $time;
                         }
 
                         # Redis has indicated that it finished all iterations
@@ -669,6 +669,7 @@ sub _get {
 
     # Return the results we processed from Redis
     unless ($rate_calc) {
+        $self->logger->debug(Dumper(\%results));
         return \%results;
     }
     # For rate calculations, return a timestamp for the previous poll cycle and the current results
