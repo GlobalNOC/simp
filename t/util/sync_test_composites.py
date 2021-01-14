@@ -82,4 +82,4 @@ if missing:
 
         print('Note: Remember to update the contents of new files in conf/data_sets!')
 
-print('\nAll composite test files now synchronized with the host!\n')
+print('\nAll composite test files now synchronized with the host!\nTip: Run "git status" to see new or changed files.\n')
