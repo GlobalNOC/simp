@@ -107,8 +107,8 @@ sub _mock_comp_handler {
         # Get data results for all the requested nodes
         for my $node (@{$nodes}) {
             #warn "Getting data for $node -> $oidmatch";
-	        my $res = $testing_self->data_set->{$node}{$oidmatch};
-            $data->{'results'}{$node} = $res;
+	        my $oid_data = $testing_self->data_set->{161}{$node}{$oidmatch};
+            $data->{'results'}{161}{$node} = $oid_data;
 	    }
         &$callback($data);
     };
