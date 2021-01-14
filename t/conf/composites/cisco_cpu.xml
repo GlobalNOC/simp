@@ -7,13 +7,12 @@
 
     <data>
         <meta name="name" source="1.3.6.1.2.1.47.1.1.1.1.7.cpu_id" />
-        <value name="cpu" source="1.3.6.1.4.1.9.9.109.1.1.1.1.7.cpu_id" />
+        <value name="cpu" source="1.3.6.1.4.1.9.9.109.1.1.1.1.7.cpu_sfx" />
     </data>
 
     <conversions>
-        <function definition='_ == "Switch 1" "${}" ifelse'>
-            <data name="name"/>
+        <function definition='_ == "CPU" "${}" ifelse'>
+            <data name="name" />
         </function>
     </conversions>
-
 </composite>

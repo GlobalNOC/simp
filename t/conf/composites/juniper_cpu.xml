@@ -2,18 +2,16 @@
 
 <composite>
     <variables>
-        <input name="node" value="node_name" />
-        <scan poll_value="intf_name" oid_suffix="intf_id" oid="1.3.6.1.4.1.2636.3.1.13.1.5.*" />
+        <scan poll_value="hw_name" oid_suffix="hw_id" oid="1.3.6.1.4.1.2636.3.1.13.1.5.**" />
     </variables>
 
     <data>
-        <meta name="node" source="node_name" />
-        <meta name="name" source="intf_name" />
-        <value name="cpu" source="1.3.6.1.4.1.2636.3.1.13.1.8.intf_id" />
+        <meta name="name" source="hw_name" />
+        <value name="cpu" source="1.3.6.1.4.1.2636.3.1.13.1.8.hw_id" />
     </data>
 
     <conversions>
-        <match pattern='^(FPC:.*|Routing Engine.*)$'>
+        <match pattern='^(FPC:.*|Routing Engine.*)$' >
             <data name="name" />
         </match>
     </conversions>

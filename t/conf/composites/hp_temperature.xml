@@ -2,11 +2,11 @@
 
 <composite>
     <variables>
-        <scan poll_value="temperature" oid_suffix="index" oid="1.3.6.1.2.1.99.1.1.1.4.*" />
+        <scan poll_value="temperature" oid_suffix="temp_idx" oid="1.3.6.1.2.1.99.1.1.1.4.*" />
     </variables>
 
     <data>
-        <meta  name="name" source="index" />
+        <meta name="name" source="temp_idx" />
         <value name="temp" source="temperature" />
     </data>
 
