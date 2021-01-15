@@ -597,11 +597,14 @@ sub _digest_data {
         my %ports;
         @ports{keys(%{$request->{raw}{data}})} = ();
         @ports{keys(%{$request->{raw}{scan}})} = ();
-
-        for my $port (keys(%{$request->{raw}{data}})) {
+        
+        for my $port (keys(%ports)) {
 
             # Skip the host if it has no data from sessions using the port
-            next unless (exists($request->{raw}{data}{$port}{$host}));
+            next unless (
+                exists($request->{raw}{data}{$port}{$host}) ||
+                exists($request->{raw}{scan}{$port}{$host})
+            );
 
             # Accumulate parsed data objects for the host+port to an array
             my @host_data;
