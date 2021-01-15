@@ -592,6 +592,12 @@ sub _digest_data {
 
     # Parse the data for each host and port
     for my $host (@{$request->{hosts}}) {
+
+        # Determine the unique ports used as the superset of ports returned for scans and data
+        my %ports;
+        @ports{keys(%{$request->{raw}{data}})} = ();
+        @ports{keys(%{$request->{raw}{scan}})} = ();
+
         for my $port (keys(%{$request->{raw}{data}})) {
 
             # Skip the host if it has no data from sessions using the port
@@ -619,7 +625,7 @@ sub _parse_data {
 
     # Initialize $i and $env for the first iterations
     $i   = 0 if (!defined($i));
-    $env = {} if ($i == 0);
+    $env = {PORT => $port, NODE => $host} if ($i == 0);
 
     # Get the config for the scan
     my $scans = $request->{composite}{scans};
