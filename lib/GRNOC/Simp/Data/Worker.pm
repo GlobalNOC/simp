@@ -3,8 +3,9 @@ package GRNOC::Simp::Data::Worker;
 use strict;
 use warnings;
 
+#use Data::Dumper;
+
 use Carp;
-use Data::Dumper;
 use List::MoreUtils qw(none);
 use Moo;
 use POSIX;
@@ -532,7 +533,6 @@ sub _find_keys {
             }
         }
 
-        #$self->logger->debug(sprintf("Finding keys from lookup: %s", $lookup));
         try {
             $redis->get(
                 $lookup,
@@ -569,7 +569,7 @@ sub _get {
     my $oidmatch  = $params->{'oidmatch'}{'value'};
     my $redis     = $self->redis;
 
-    $self->logger->debug("[_get] Processing get request for time " . $requested);
+    #$self->logger->debug("[_get] Processing get request for time " . $requested);
 
     # The hash of data we will return
     # {$host => $port(s) => {$oid(s) => {value => $value, time => $timestamp}}}
@@ -612,17 +612,7 @@ sub _get {
                     $prev_time = $time - $params->{period}{value};
                 }
 
-                $self->logger->debug(sprintf(
-                    "DATA LOOKUP PARAMS\nGROUP: %s\nTIME: %s\nHOST: %s\nPORT: %s\nCONTEXT: %s\n",
-                    $group,
-                    $time,
-                    $host,
-                    $port,
-                    $context || "N/A"
-                ));
-
                 try {
-                    $self->logger->debug('TRYING TO GET DATA FOR: '.$key);
                     # Scan Redis for hash entries, each scan will have a new set of entries
                     # Redis requires a cursor equal to zero to begin scanning
                     # It will return new cursor values with each call to sscan()
@@ -669,7 +659,6 @@ sub _get {
 
     # Return the results we processed from Redis
     unless ($rate_calc) {
-        $self->logger->debug(Dumper(\%results));
         return \%results;
     }
     # For rate calculations, return a timestamp for the previous poll cycle and the current results
