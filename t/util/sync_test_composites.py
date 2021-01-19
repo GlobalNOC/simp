@@ -45,6 +45,8 @@ total_m = 0
 updates = []
 missing = []
 for c in sorted(composites):
+    if c == 'composite.xml.example':
+        next
     if c not in current:
         total_m += 1
         missing.append(c)
