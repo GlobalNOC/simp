@@ -1,6 +1,6 @@
 Summary: SIMP TSDS Collector
 Name: simp-tsds
-Version: 1.5.0
+Version: 1.6.0
 Release: 1%{dist}
 License: APL 2.0
 Group: Network
@@ -8,6 +8,10 @@ URL: http://globalnoc.iu.edu
 Source0: %{name}-%{version}.tar.gz
 BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 BuildArch:noarch
+
+# This prevents automatic dependency resolution from failing in external imports.
+# Without it, the created RPMs may not install properly
+AutoReqProv: no
 
 BuildRequires: perl
 Requires: perl(AnyEvent)

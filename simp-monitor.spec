@@ -1,11 +1,15 @@
 Name: simp-monitor
-Version: 1.5.0
+Version: 1.6.0
 Release: 1%{?dist}
 Summary: A functionality to monitor SIMP
 License: GRNOC
 Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
 Source0: simp-monitor-%{version}.tar.gz
+
+# This prevents automatic dependency resolution from failing in external imports.
+# Without it, the created RPMs may not install properly
+AutoReqProv: no
 
 BuildRequires: perl
 BuildRequires: perl(Test::Deep)

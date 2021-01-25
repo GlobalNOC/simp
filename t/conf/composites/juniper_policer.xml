@@ -2,12 +2,10 @@
 
 <composite>
     <variables>
-        <input name="node" value="node_name" />
-        <scan poll_value="policer_name" oid_suffix="policer_id" oid="1.3.6.1.4.1.2636.3.5.2.1.7.*" />
+        <scan poll_value="policer_name" oid_suffix="policer_id" oid="1.3.6.1.4.1.2636.3.5.2.1.7.**" />
     </variables>
 
     <data>
-        <meta name="node" source="node_name" />
         <meta name="policer" source="policer_name" />
         <meta name="filter" source="1.3.6.1.4.1.2636.3.5.2.1.6.policer_id" />
         <value name="packets" source="1.3.6.1.4.1.2636.3.5.2.1.4.policer_id" type="rate" />

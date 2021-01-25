@@ -1,11 +1,15 @@
 Summary: A small system for fetching SNMP data from redis and returning it via RabbitMQ
 Name: simp-data
-Version: 1.5.0
+Version: 1.6.0
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
 Source0: simp-data-%{version}.tar.gz
+
+# This prevents automatic dependency resolution from failing in external imports.
+# Without it, the created RPMs may not install properly
+AutoReqProv: no
 
 BuildRequires: perl
 BuildRequires: perl(Test::Deep)

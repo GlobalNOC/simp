@@ -56,7 +56,16 @@ $ make test TEST_FILES=t/31-composites.t
 ## Adding Composite Tests for Simp-Comp
 The test file for composites is `t/31-composites.t`, which can be run individually when testing a composite.
 
-To add a test for a *new* composite do the following:
+
+To AUTOMATICALLY synchronize or add composite test files from composites installed on a host running SIMP:
+1. Change to the `t/` directory in your repository.
+2. Enter the command `util/sync_test_composites.py`.
+3. The script will run, synchronizing any composites the host has installed in `/etc/simp/comp/composites.d/` with ones currently included in `t/conf/composites/`.
+4. Any composites the host has installed that aren't in `t/conf/composites/` will be shown. If you want to add their composite files and create template JSON for them in `t/conf/data_sets/input` and `t/conf/data_sets/output`, simply answer "y" when asked if you'd like to add them.
+5. If new files were created in `t/conf/data_sets`, you will need to fill out those template files for the composite manually.
+
+
+To MANUALLY add a test for a *new* composite do the following:
 1. Add the composite's XML configuration file to `t/conf/composites/`
 2. Create a new JSON file in `t/conf/data_sets/input/` with the name like `composite_name.json`
 3. Add the data expected from the node as would be retrieved by Simp-Data to the JSON file. Other [composite input files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/input) are a great example.

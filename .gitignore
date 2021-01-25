@@ -15,6 +15,9 @@ dist/*
 /t/conf/*.pid
 /t/redis.[0-9]*
 
+# NYTProf Profiles
+nytpro*
+
 # Editor tempfiles
 ~*
 *~

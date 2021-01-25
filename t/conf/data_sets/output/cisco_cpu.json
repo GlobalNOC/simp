@@ -4,7 +4,7 @@
             "cpu": 1,
             "*node": "single.grnoc.iu.edu",
             "time": "1591890375",
-            "*name": "Switch 1"
+            "*name": "CPU"
         }
     ],
     "r0.grnoc.iu.edu": [

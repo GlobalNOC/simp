@@ -15,7 +15,7 @@ use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Comp::Worker;
 
-our $VERSION = '1.5.0';
+our $VERSION = '1.6.0';
 
 ### REQUIRED ATTRIBUTES ###
 
@@ -279,8 +279,6 @@ sub _make_composites {
 
             for my $scan (@{$variables->{'scan'}}) {
 
-                my $scan_name = $scan->{'poll_value'};
-                
                 my $scan_params = {
                     'oid'    => $scan->{'oid'},
                     'suffix' => $scan->{oid_suffix},
@@ -295,11 +293,8 @@ sub _make_composites {
 
         # Begin processing the given parameters for "data"
         my $data = $parameters->{'data'}[0];
-
         my $metadata = exists $data->{'meta'} ? $data->{'meta'} : {};
         my $values   = exists $data->{'value'} ? $data->{'value'} : {};
-        #my @metadata;
-        #my @values;
 
         # Process metadata
         for my $meta (keys %{$data->{'meta'}}) {

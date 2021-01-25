@@ -348,7 +348,7 @@ sub _get {
 
     # Gather the raw SNMP data for every host and OID in scans or data elements from Redis
     $cv[0]->begin(sub { $self->_gather_data($request, $cv[1]); });
-   
+    
     # Wait until the data has been fully gathered before performing any steps
     $cv[1]->begin(sub {
 
@@ -406,9 +406,9 @@ sub _init_request {
 
     # Create host-specific hash entries
     for my $host (@{$request{hosts}}) {
-        $request{data}{$host}      = [];
-        $request{raw}{scan}{$host} = [];
-        $request{raw}{data}{$host} = {};
+        $request{data}{$host} = [];
+        $request{raw}{scan} = {};
+        $request{raw}{data} = {};
     }
 
     # Map metadata names for TSDS
@@ -524,50 +524,58 @@ sub _cache_data {
     # Data elements have a 'source' attribute
     my $type = exists $attr->{source} ? 'data' : 'scan';
 
+    # Cache data for host+port combinations returned from simp-data
     for my $host (@{$request->{hosts}}) {
+        for my $port (keys(%$data)) {
 
-        # Raw scan data for a host needs to be wrapped in an array per individual scan
-        my @scan_arr;
+            # Raw scan data for a host needs to be wrapped in an array per individual scan
+            my @scan_arr;
 
-        # Skip the host when there's no data for it
-        if (!exists($data->{$host}) || !defined($data->{$host})) {
-            $self->logger->error("[$composite_name] $host has no data to cache for \"$name\"");
-            next;
-        }
+            # Skip the host when there's no data for it
+            if (!exists($data->{$port}{$host}) || !defined($data->{$port}{$host})) {
+                $self->logger->error("[$composite_name] $host has no data to cache for \"$name\"");
+                next;
+            }
 
-        # For scans, we want an ordered array of arrays where the outer array indicates which scan we want
-        my @output;
+            # For scans, we want an ordered array of arrays where the outer array indicates which scan we want
+            my @output;
+ 
+            for my $oid (keys %{$data->{$port}{$host}}) {
 
-        # Check all of the OID data returned for the host
-        for my $oid (keys %{$data->{$host}}) {
+                my $value = $data->{$port}{$host}{$oid}{value};
+                my $time  = $data->{$port}{$host}{$oid}{time};
 
-            my $value = $data->{$host}{$oid}{value};
-            my $time  = $data->{$host}{$oid}{time};
-
-            # Only OIDs that have a value and time are kept
-            next unless (defined $value && defined $time);
+                # Only OIDs that have a value and time are kept
+                next unless (defined $value && defined $time);
             
-            # Only OIDs with matching constant values and required OID vars present are kept
-            next unless ($oid =~ $attr->{regex});
+                # Only OIDs with matching constant values and required OID vars present are kept
+                next unless ($oid =~ $attr->{regex});
 
-            # Scans are cached in a flat array
-            if ($type eq 'scan') {
+                # Scans are cached in a flat array
+                if ($type eq 'scan') {
 
-                # Add the oid to the data to flatten for scans
-                $data->{$host}{$oid}{oid} = $oid;
+                    # Add the oid to the data to flatten for scans
+                    $data->{$port}{$host}{$oid}{oid} = $oid;
                 
-                # Push the scan data into the scan's array
-                push(@scan_arr, $data->{$host}{$oid});
+                    # Push the scan data into the scan's array
+                    push(@scan_arr, $data->{$port}{$host}{$oid});
+                }
+                # Data is cached in a flat hash
+                else {
+                    $request->{raw}{$type}{$port}{$host}{$oid} = $data->{$port}{$host}{$oid};
+                }
             }
-            # Data is cached in a flat hash
-            else {
-                $request->{raw}{$type}{$host}{$oid} = $data->{$host}{$oid};
-            }
-        }
 
-        # Push the array of raw data for the scan
-        if ($type eq 'scan') {
-            push(@{$request->{raw}{$type}{$host}}, \@scan_arr);
+            # Push the array of raw data for the scan
+            if ($type eq 'scan') {
+                unless (exists($request->{raw}{$type}{$port})) {
+                    $request->{raw}{$type}{$port} = {};
+                }
+                unless (exists $request->{raw}{$type}{$port}{$host}) {
+                    $request->{raw}{$type}{$port}{$host} = [];
+                }
+                push(@{$request->{raw}{$type}{$port}{$host}}, \@scan_arr);
+            }
         }
     }
 }
@@ -582,13 +590,29 @@ sub _digest_data {
 
     $self->logger->debug("[".$request->{composite}{name}."] Digesting raw data");
 
-    # Parse the data for each host
+    # Parse the data for each host and port
     for my $host (@{$request->{hosts}}) {
 
-        # Accumulate the host data then assign it
-        my @host_data;
-        $self->_parse_data($request, $host, \@host_data);
-        $request->{data}{$host} = \@host_data;
+        # Determine the unique ports used as the superset of ports returned for scans and data
+        my %ports;
+        @ports{keys(%{$request->{raw}{data}})} = ();
+        @ports{keys(%{$request->{raw}{scan}})} = ();
+        
+        for my $port (keys(%ports)) {
+
+            # Skip the host if it has no data from sessions using the port
+            next unless (
+                exists($request->{raw}{data}{$port}{$host}) ||
+                exists($request->{raw}{scan}{$port}{$host})
+            );
+
+            # Accumulate parsed data objects for the host+port to an array
+            my @host_data;
+            $self->_parse_data($request, $port, $host, \@host_data);
+
+            # Add the accumulation to the data for the host
+            push(@{$request->{data}{$host}}, @host_data);
+        }
     }
 }
 
@@ -600,11 +624,11 @@ sub _digest_data {
 =cut
 sub _parse_data {
 
-    my ($self, $request, $host, $acc, $i, $env) = @_;
+    my ($self, $request, $port, $host, $acc, $i, $env) = @_;
 
     # Initialize $i and $env for the first iterations
     $i   = 0 if (!defined($i));
-    $env = {} if ($i == 0);
+    $env = {PORT => $port, NODE => $host} if ($i == 0);
 
     # Get the config for the scan
     my $scans = $request->{composite}{scans};
@@ -612,13 +636,13 @@ sub _parse_data {
 
     # Once recursion hits a leaf, build data for the current environment
     if ($i > $#$scans) {
-        my $output = $self->_build_data($request, $host, $env);
+        my $output = $self->_build_data($request, $port, $host, $env);
         push(@$acc, $output) if ($output);
         return;
     }
 
     # The data for the scan
-    my $data = $request->{raw}{scan}{$host}[$i];
+    my $data = $request->{raw}{scan}{$port}{$host}[$i];
 
     # The name of this scan's poll_value and oid_suffix
     my $value_name  = $scan->{value};
@@ -646,7 +670,7 @@ sub _parse_data {
             $env->{$suffix_name} = undef;
             $env->{$value_name}  = $datum->{value};
 
-            $self->_parse_data($request, $host, $acc, ($i+1), $env);
+            $self->_parse_data($request, $port, $host, $acc, ($i+1), $env);
 
             next;
         }
@@ -682,7 +706,7 @@ sub _parse_data {
                 $new_env{$value_name}  = $datum->{value};
 
                 # Once we have the suffix, we're done with the vars
-                $self->_parse_data($request, $host, $acc, ($i+1), \%new_env);
+                $self->_parse_data($request, $port, $host, $acc, ($i+1), \%new_env);
 
                 # Stop iterating over the OID variables for this particular OID
                 last;
@@ -697,13 +721,13 @@ sub _parse_data {
     Returns exactly one data object per $env unless the produced data is invalidated.
 =cut
 sub _build_data {
-    my ($self, $request, $host, $env) = @_;
+    my ($self, $request, $port, $host, $env) = @_;
 
     # The data hash to return
     my %output = (node => $host);
 
     # Get raw data for the host
-    my $data = $request->{raw}{data}{$host};
+    my $data = $request->{raw}{data}{$port}{$host};
 
     # Flag to indicate whether the produced data is valid
     my $valid = 1;
