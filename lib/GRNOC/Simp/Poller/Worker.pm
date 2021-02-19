@@ -280,7 +280,7 @@ sub _poll_cb {
         $session->{failed_oids}{$oid}{context} = $context if (defined($context));
 
         my $error = "%s - ERROR: %s failed to request %s: %s"; 
-        $self->logger->error(sprintf($error, $worker, $name, $reqstr, $session->error()));
+        $self->logger->error(sprintf($error, $worker, $name, $reqstr, $snmp->error()));
     }
 
     # Determine the expiration date of the data being stored in Redis
