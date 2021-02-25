@@ -431,8 +431,11 @@ sub _gather_data {
     $self->logger->debug('['.$composite->{name}."] Gathering data from Redis...");
 
     # Gather data for scans
+    # Keep track of what index this scan is so we can store it correctly,
+    # these might return in a different order because async
+    my $scan_index = 0;
     for my $scan (@{$composite->{'scans'}}) {   
-        $self->_request_data($request, $scan->{value}, $scan, $cv);
+        $self->_request_data($request, $scan->{value}, $scan, $scan_index++, $cv);
     }
 
     # Gather data for data elements
@@ -444,7 +447,7 @@ sub _gather_data {
         # Skip data elements where their source is a constant
         next if ($attr->{source_type} eq 'constant');
 
-        $self->_request_data($request, $name, $attr, $cv);
+        $self->_request_data($request, $name, $attr, undef, $cv);
     }
 
     # Signal that we have finished gathering all of the data
@@ -458,7 +461,7 @@ sub _gather_data {
     OID data is cached in $request->{raw} by the callback.
 =cut
 sub _request_data {
-    my ($self, $request, $name, $attr, $cv) = @_;
+    my ($self, $request, $name, $attr, $scan_index, $cv) = @_;
 
     # Get the base OID subtree to request.
     # It is tempting to request just the OIDs you know you want,
@@ -483,7 +486,7 @@ sub _request_data {
             oidmatch       => [$oid],
             async_callback => sub {
                 my $data = shift;
-                $self->_cache_data($request, $name, $attr, $data->{results});
+                $self->_cache_data($request, $name, $attr, $scan_index, $data->{results});
                 $cv->end;
             }
         );
@@ -495,7 +498,7 @@ sub _request_data {
             oidmatch       => [$oid],
             async_callback => sub {
                 my $data = shift;
-                $self->_cache_data($request, $name, $attr, $data->{results});
+                $self->_cache_data($request, $name, $attr, $oid, $scan_index, $data->{results});
                 $cv->end;
             }
         );
@@ -510,7 +513,7 @@ sub _request_data {
     OIDs returned from Redis are checked to see if they match what was requested.
 =cut
 sub _cache_data {
-    my ($self, $request, $name, $attr, $data) = @_;
+    my ($self, $request, $name, $attr, $original_oid, $scan_index, $data) = @_;
 
     my $composite_name = $request->{composite}{name};
 
@@ -574,7 +577,8 @@ sub _cache_data {
                 unless (exists $request->{raw}{$type}{$port}{$host}) {
                     $request->{raw}{$type}{$port}{$host} = [];
                 }
-                push(@{$request->{raw}{$type}{$port}{$host}}, \@scan_arr);
+
+                $request->{raw}{$type}{$port}{$host}->[$scan_index] = \@scan_arr;
             }
         }
     }
@@ -608,6 +612,7 @@ sub _digest_data {
 
             # Accumulate parsed data objects for the host+port to an array
             my @host_data;
+
             $self->_parse_data($request, $port, $host, \@host_data);
 
             # Add the accumulation to the data for the host
