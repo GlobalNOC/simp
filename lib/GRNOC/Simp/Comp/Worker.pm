@@ -498,7 +498,7 @@ sub _request_data {
             oidmatch       => [$oid],
             async_callback => sub {
                 my $data = shift;
-                $self->_cache_data($request, $name, $attr, $oid, $scan_index, $data->{results});
+                $self->_cache_data($request, $name, $attr, $scan_index, $data->{results});
                 $cv->end;
             }
         );
@@ -513,7 +513,7 @@ sub _request_data {
     OIDs returned from Redis are checked to see if they match what was requested.
 =cut
 sub _cache_data {
-    my ($self, $request, $name, $attr, $original_oid, $scan_index, $data) = @_;
+    my ($self, $request, $name, $attr, $scan_index, $data) = @_;
 
     my $composite_name = $request->{composite}{name};
 
