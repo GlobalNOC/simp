@@ -277,12 +277,15 @@ sub _make_composites {
         $composite{'scans'} = [];
         if (exists $variables->{'scan'} && ref $variables->{'scan'} eq 'ARRAY') {
 
-            for my $scan (@{$variables->{'scan'}}) {
+            for (my $i = 0; $i <= $#{$variables->{'scan'}}; $i++) {
+
+                my $scan = $variables->{'scan'}[$i];
 
                 my $scan_params = {
                     'oid'    => $scan->{'oid'},
                     'suffix' => $scan->{oid_suffix},
-                    'value'  => $scan->{poll_value}
+                    'value'  => $scan->{poll_value},
+                    'index'  => $i # Index used to preserve ordering for async responses
                 };
 
                 $self->_map_oid($scan_params, 'scan');
