@@ -431,11 +431,8 @@ sub _gather_data {
     $self->logger->debug('['.$composite->{name}."] Gathering data from Redis...");
 
     # Gather data for scans
-    # Keep track of what index this scan is so we can store it correctly,
-    # these might return in a different order because async
-    my $scan_index = 0;
     for my $scan (@{$composite->{'scans'}}) {   
-        $self->_request_data($request, $scan->{value}, $scan, $scan_index++, $cv);
+        $self->_request_data($request, $scan->{value}, $scan, $cv);
     }
 
     # Gather data for data elements
@@ -447,7 +444,7 @@ sub _gather_data {
         # Skip data elements where their source is a constant
         next if ($attr->{source_type} eq 'constant');
 
-        $self->_request_data($request, $name, $attr, undef, $cv);
+        $self->_request_data($request, $name, $attr, $cv);
     }
 
     # Signal that we have finished gathering all of the data
@@ -461,7 +458,7 @@ sub _gather_data {
     OID data is cached in $request->{raw} by the callback.
 =cut
 sub _request_data {
-    my ($self, $request, $name, $attr, $scan_index, $cv) = @_;
+    my ($self, $request, $name, $attr, $cv) = @_;
 
     # Get the base OID subtree to request.
     # It is tempting to request just the OIDs you know you want,
@@ -469,7 +466,6 @@ sub _request_data {
     # bunch of requests for individual OIDs takes significantly
     # more time and CPU. That's why we request the subtree.
     my $oid = $attr->{base_oid};
-
 
     # Add to the AnyEvent condition variable to make the request async
     # We end it within the callback after data caching completes
@@ -486,7 +482,7 @@ sub _request_data {
             oidmatch       => [$oid],
             async_callback => sub {
                 my $data = shift;
-                $self->_cache_data($request, $name, $attr, $scan_index, $data->{results});
+                $self->_cache_data($request, $name, $attr, $data->{results});
                 $cv->end;
             }
         );
@@ -498,7 +494,7 @@ sub _request_data {
             oidmatch       => [$oid],
             async_callback => sub {
                 my $data = shift;
-                $self->_cache_data($request, $name, $attr, $scan_index, $data->{results});
+                $self->_cache_data($request, $name, $attr, $data->{results});
                 $cv->end;
             }
         );
@@ -513,7 +509,7 @@ sub _request_data {
     OIDs returned from Redis are checked to see if they match what was requested.
 =cut
 sub _cache_data {
-    my ($self, $request, $name, $attr, $scan_index, $data) = @_;
+    my ($self, $request, $name, $attr, $data) = @_;
 
     my $composite_name = $request->{composite}{name};
 
@@ -531,18 +527,15 @@ sub _cache_data {
     for my $host (@{$request->{hosts}}) {
         for my $port (keys(%$data)) {
 
-            # Raw scan data for a host needs to be wrapped in an array per individual scan
-            my @scan_arr;
-
             # Skip the host when there's no data for it
             if (!exists($data->{$port}{$host}) || !defined($data->{$port}{$host})) {
                 $self->logger->error("[$composite_name] $host has no data to cache for \"$name\"");
                 next;
             }
 
-            # For scans, we want an ordered array of arrays where the outer array indicates which scan we want
-            my @output;
- 
+            # Raw scan data for a host needs to be wrapped in an array per individual scan
+            my @scan_arr;
+
             for my $oid (keys %{$data->{$port}{$host}}) {
 
                 my $value = $data->{$port}{$host}{$oid}{value};
@@ -571,14 +564,22 @@ sub _cache_data {
 
             # Push the array of raw data for the scan
             if ($type eq 'scan') {
+
+                # Initialize the port hash for hosts
                 unless (exists($request->{raw}{$type}{$port})) {
                     $request->{raw}{$type}{$port} = {};
                 }
+                # Initialize the array of scans for the host and port
                 unless (exists $request->{raw}{$type}{$port}{$host}) {
                     $request->{raw}{$type}{$port}{$host} = [];
                 }
 
-                $request->{raw}{$type}{$port}{$host}->[$scan_index] = \@scan_arr;
+                # Get the scan's index to preserve scan ordering
+                # Async responses from multiple simp-data workers can cause unordered scan data caching
+                my $scan_index = $attr->{index};
+
+                # Assign the scan data to the appropriate index
+                $request->{raw}{$type}{$port}{$host}[$scan_index] = \@scan_arr;
             }
         }
     }
