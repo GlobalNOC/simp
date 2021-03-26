@@ -28,6 +28,7 @@ dist:
 	mkdir -p dist/simp-data-$(VERSION)/conf/data
 	mkdir -p dist/simp-comp-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-comp-$(VERSION)/bin
+	mkdir -p dist/simp-comp-$(VERSION)/scripts
 	mkdir -p dist/simp-comp-$(VERSION)/conf/comp
 	mkdir -p dist/simp-poller-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-poller-$(VERSION)/bin
@@ -52,7 +53,7 @@ dist:
 	cp -r bin/response_timer.pl dist/simp-monitor-$(VERSION)/bin/
 	cp -r bin/redis_tsds.pl dist/simp-monitor-$(VERSION)/bin/
 
-	cp -r scripts/simp-test.pl dist/simp-comp-$(VERSION)/bin/
+	cp -r scripts/simp-test.pl dist/simp-comp-$(VERSION)/scripts
 
 	cp -r conf/poller/config.xml dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/config.xsd dist/simp-poller-$(VERSION)/conf/poller/
