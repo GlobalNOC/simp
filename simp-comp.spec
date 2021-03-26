@@ -67,6 +67,8 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} conf/comp/config.xsd %{buildroot}/etc/simp/comp/validation.d/config.xsd
 %{__install} conf/comp/composite.xsd %{buildroot}/etc/simp/comp/validation.d/composite.xsd
 
+%{__install} scripts/simp-test.pl %{buildroot}/usr/bin/simp-test.pl
+
 %if 0%{?rhel} >= 7
 %{__install} conf/comp/simp-comp.systemd %{buildroot}/etc/systemd/system/simp-comp.service
 %else
@@ -83,6 +85,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %defattr(755,root,root,755)
 /usr/bin/simp-comp.pl
+/usr/bin/simp-test.pl
 
 %defattr(644,root,root,644)
 /etc/simp/comp/validation.d/config.xsd

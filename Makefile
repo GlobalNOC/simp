@@ -52,6 +52,8 @@ dist:
 	cp -r bin/response_timer.pl dist/simp-monitor-$(VERSION)/bin/
 	cp -r bin/redis_tsds.pl dist/simp-monitor-$(VERSION)/bin/
 
+	cp -r scripts/simp-test.pl dist/simp-comp-$(VERSION)/bin/
+
 	cp -r conf/poller/config.xml dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/config.xsd dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/simp-poller.systemd dist/simp-poller-$(VERSION)/conf/poller/
