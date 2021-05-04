@@ -314,10 +314,11 @@ sub _create_workers
 {
     my $self = shift;
 
+    my $global_offset = 0;
     # Create separate groups of workers for each collection
     for my $collection (@{$self->collections})
     {
-        $self->_create_collection_workers($collection);
+        $global_offset += $self->_create_collection_workers($collection, $global_offset);
     }
 
     $running = AnyEvent->condvar;
@@ -363,12 +364,11 @@ sub _create_workers
 # Creates workers for a single collection
 sub _create_collection_workers
 {
-    my ($self, $collection) = @_;
+    my ($self, $collection, $offset) = @_;
     my %worker_hosts;
 
     # Divide up hosts in config among number of workers defined in config
     my $i = 0;
-
     for my $host (@{$collection->{'host'}})
     {
         push(@{$worker_hosts{$i}}, $host);
@@ -386,17 +386,15 @@ sub _create_collection_workers
     {
         my $worker_name = "$collection->{'composite'} [$worker_id]";
 
-        $self->logger->info("Staggering creation of $worker_name by "
-              . $self->stagger_interval
-              . "sec...");
-        sleep($self->stagger_interval);
-
         $self->_create_worker(
             name       => $worker_name,
             collection => $collection,
-            hosts      => $worker_hosts{$worker_id}
+            hosts      => $worker_hosts{$worker_id},
+	    offset     => $offset++
         );
     }
+
+    return $offset;
 }
 
 # Creates an individual worker
@@ -405,7 +403,16 @@ sub _create_worker
     my $self   = shift;
     my %params = @_;
 
-    my $collection = $params{'collection'};
+    my $collection     = $params{'collection'};
+    my $stagger_offset = $params{'offset'};
+
+    my $interval = $collection->{'interval'};
+    my $stagger  = $self->stagger_interval();
+
+    # Make sure stagger is between 0 and interval, doesn't make sense to
+    # stagger 65s on a 60s collection, it's the same as 5s except much
+    # slower to start up
+    my $actual_offset = ($stagger_offset * $stagger) % $interval;
 
     my $init_proc = AnyEvent::Subprocess->new(
         on_completion => sub {
@@ -447,6 +454,7 @@ sub _create_worker
                 composite        => $collection->{'composite'},
                 measurement_type => $collection->{'measurement_type'},
                 interval         => $collection->{'interval'},
+		stagger_offset   => $actual_offset,
                 filter_name      => $collection->{'filter_name'},
                 filter_value     => $collection->{'filter_value'},
                 required_values  => [split(',', $required_vals)],

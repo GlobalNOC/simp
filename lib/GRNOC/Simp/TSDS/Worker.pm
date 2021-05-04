@@ -86,6 +86,11 @@ has required_values => (
     default => sub { [] }
 );
 
+has stagger_offset => (
+    is      => 'rwp',
+    default => 0
+);
+
 =head2 private attributes
 =over 12
 
@@ -116,7 +121,6 @@ has stop_me => (
     default => 0
 );
 
-
 =head2 start()
     This method is called by the Simp.TSDS master to start up the worker
     We loop on _run() where the event loop is entered and exited.
@@ -133,6 +137,32 @@ sub start {
 
     # Create and set the logger
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
+
+
+    # I'm not sure if this is a good idea or not. The intent here is to make it so that
+    # if the stagger time would bring us to within 10% of the next interval, we truncate it
+    # down to 80%. We don't want the timer firing on -exactly- the interval since we will
+    # then be bordering on whether we're within T-now or T-now+1 based on any drift
+    my $now        = time();
+    my $start_time = $now + $self->stagger_offset;
+
+    $self->logger->debug($self->worker_name ." now = " . time() . " -- next start = $start_time  -- stagger = " . $self->stagger_offset . " -- interval = " . $self->interval);
+
+    # e.g 60s interval, starting at T=57s, move backward to starting at T=51s
+    if ($start_time % $self->interval > $self->interval * 0.9){
+	$start_time -= $self->interval * 0.1;
+    }
+
+    # e.g. 60s interval, starting at T=3s, move forward to starting at T=9s
+    elsif ($start_time % $self->interval < $self->interval * 0.1){
+	$start_time += $self->interval * 0.1;
+    }
+
+    my $sleep_stagger = $start_time - $now;
+    $sleep_stagger = 0 if $sleep_stagger < 0;
+
+    $self->logger->debug($self->worker_name . " sleeping for " . $sleep_stagger . " seconds to stagger");
+    sleep($sleep_stagger);
 
     # This startup loop will catch when a worker exits the event loop without termination
     # In turn, we can handle connection errors here and/or restart the worker's main processes
@@ -251,12 +281,8 @@ sub _setup_worker {
     # Create polling timer for event loop
     $self->_set_poll_w(
         AnyEvent->timer(
-            after    => 5,
             interval => $self->interval,
             cb       => sub {
-
-                # Get the current time
-                my $tm = time;
 
                 # Exit the event loop but don't exit the process when RMQ disconnects
                 unless ($self->simp_client && $self->simp_client->connected) {
@@ -277,7 +303,7 @@ sub _setup_worker {
                             my $res = shift;
 
                             # Process results and push when idle
-                            $self->_process_data($res, $tm);
+                            $self->_process_data($res);
                             $self->_set_push_w(AnyEvent->idle(cb => sub { $self->_push_data; }));
                         }
                     );
@@ -304,6 +330,8 @@ sub _setup_worker {
 
                 # Push data when idle
                 $self->_set_push_w(AnyEvent->idle(cb => sub { $self->_push_data; }));
+
+		AnyEvent->now_update;
             }
         )
     );
@@ -318,7 +346,7 @@ sub _setup_worker {
     Metadata and Value fields are separated here.
 =cut
 sub _process_data {
-    my ($self, $res, $tm) = @_;
+    my ($self, $res) = @_;
 
     # Drop out if we get an error from Comp
     if (!defined($res) || $res->{'error'}) {
@@ -339,7 +367,7 @@ sub _process_data {
 
             my %vals;
             my %meta;
-            my $datum_tm = $tm;
+            my $datum_tm;
 
             # When required_values are empty, skip the data
             next if (any { !defined($datum->{$_}) && !defined($datum->{"*$_"}) } @{$self->required_values});
