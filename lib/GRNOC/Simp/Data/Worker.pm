@@ -127,38 +127,14 @@ sub _start {
         $self->stop();
     };
 
-    # Get Redis configuration variables
-    my $redis_host            = $self->config->get('/config/redis/@ip');
-    my $redis_port            = $self->config->get('/config/redis/@port');
-    my $redis_reconnect       = $self->config->get('/config/redis/@reconnect');
-    my $redis_reconnect_every = $self->config->get('/config/redis/@reconnect_every');
-    my $redis_read_timeout    = $self->config->get('/config/redis/@read_timeout');
-    my $redis_write_timeout   = $self->config->get('/config/redis/@write_timeout');
-
     # Get RabbitMQ configuration variables
     my $rabbit_host = $self->config->get('/config/rabbitmq/@ip');
     my $rabbit_port = $self->config->get('/config/rabbitmq/@port');
     my $rabbit_user = $self->config->get('/config/rabbitmq/@user');
     my $rabbit_pass = $self->config->get('/config/rabbitmq/@password');
 
-    # Connect the worker to Redis and store the session
-    $self->logger->debug(sprintf(
-        "Connecting to Redis %s:%s => {reconnect: %s, every: %s, read_timeout: %s, write_timeout: %s}",
-        $redis_host,
-        $redis_port,
-        $redis_reconnect,
-        $redis_reconnect_every,
-        $redis_read_timeout,
-        $redis_write_timeout
-    ));
+    my $redis = $self->_connect_to_redis();
 
-    my $redis = Redis::Fast->new(
-        server        => sprintf("%s:%s", $redis_host, $redis_port),
-        reconnect     => $redis_reconnect,
-        every         => $redis_reconnect_every,
-        read_timeout  => $redis_read_timeout,
-        write_timeout => $redis_write_timeout
-    );
     $self->_set_redis($redis);
 
     # Connect the RabbitMQ Dispatcher and add Simp.Data methods to it
@@ -432,6 +408,46 @@ sub _find_groups {
     return $groups;
 }
 
+sub _connect_to_redis {
+    my ($self) = @_;
+
+    # Get Redis configuration variables
+    my $redis_host            = $self->config->get('/config/redis/@ip');
+    my $redis_port            = $self->config->get('/config/redis/@port');
+    my $redis_reconnect       = $self->config->get('/config/redis/@reconnect');
+    my $redis_reconnect_every = $self->config->get('/config/redis/@reconnect_every');
+    my $redis_read_timeout    = $self->config->get('/config/redis/@read_timeout');
+    my $redis_write_timeout   = $self->config->get('/config/redis/@write_timeout');
+
+    my $redis;
+
+    try {
+        # Connect the worker to Redis and store the session
+        $self->logger->debug(sprintf(
+            "Connecting to Redis %s:%s => {reconnect: %s, every: %s, read_timeout: %s, write_timeout: %s}",
+            $redis_host,
+            $redis_port,
+            $redis_reconnect,
+            $redis_reconnect_every,
+            $redis_read_timeout,
+            $redis_write_timeout
+        ));
+
+        $redis = Redis::Fast->new(
+            server        => sprintf("%s:%s", $redis_host, $redis_port),
+            reconnect     => $redis_reconnect,
+            every         => $redis_reconnect_every,
+            read_timeout  => $redis_read_timeout,
+            write_timeout => $redis_write_timeout
+        );
+    }
+    catch($e) {
+        $self->logger->error(sprintf("Error connecting to Redis: %s. Trying Again...", $e));
+        $redis = $self->_connect_to_redis();
+    }
+
+    return $redis;
+}
 
 =head2 _find_keys()
     Retrieves all of the relevant keys to SNMP Polling data.
