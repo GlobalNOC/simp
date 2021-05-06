@@ -408,6 +408,10 @@ sub _find_groups {
     return $groups;
 }
 
+=head2 _connect_to_redis()
+     Helper function that helps connecting to the redis server 
+     and returns the redis object reference
+=cut
 sub _connect_to_redis {
     my ($self) = @_;
 
@@ -433,6 +437,7 @@ sub _connect_to_redis {
     my $redis;
     my $redis_connected = 0;
 
+    # Try reconnecting to redis. Only continue when redis is connected. 
     while (!$redis_connected) {
         try {
             $redis = Redis::Fast->new(
