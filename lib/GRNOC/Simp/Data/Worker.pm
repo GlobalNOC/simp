@@ -419,31 +419,34 @@ sub _connect_to_redis {
     my $redis_read_timeout    = $self->config->get('/config/redis/@read_timeout');
     my $redis_write_timeout   = $self->config->get('/config/redis/@write_timeout');
 
+    # Connect the worker to Redis and store the session
+    $self->logger->debug(sprintf(
+        "Connecting to Redis %s:%s => {reconnect: %s, every: %s, read_timeout: %s, write_timeout: %s}",
+        $redis_host,
+        $redis_port,
+        $redis_reconnect,
+        $redis_reconnect_every,
+        $redis_read_timeout,
+        $redis_write_timeout
+    ));
+
     my $redis;
+    my $redis_connected = 0;
 
-    try {
-        # Connect the worker to Redis and store the session
-        $self->logger->debug(sprintf(
-            "Connecting to Redis %s:%s => {reconnect: %s, every: %s, read_timeout: %s, write_timeout: %s}",
-            $redis_host,
-            $redis_port,
-            $redis_reconnect,
-            $redis_reconnect_every,
-            $redis_read_timeout,
-            $redis_write_timeout
-        ));
-
-        $redis = Redis::Fast->new(
-            server        => sprintf("%s:%s", $redis_host, $redis_port),
-            reconnect     => $redis_reconnect,
-            every         => $redis_reconnect_every,
-            read_timeout  => $redis_read_timeout,
-            write_timeout => $redis_write_timeout
-        );
-    }
-    catch($e) {
-        $self->logger->error(sprintf("Error connecting to Redis: %s. Trying Again...", $e));
-        $redis = $self->_connect_to_redis();
+    while (!$redis_connected) {
+        try {
+            $redis = Redis::Fast->new(
+                server        => sprintf("%s:%s", $redis_host, $redis_port),
+                reconnect     => $redis_reconnect,
+                every         => $redis_reconnect_every,
+                read_timeout  => $redis_read_timeout,
+                write_timeout => $redis_write_timeout
+            );
+            $redis_connected = 1;
+        }
+        catch($e) {
+            $self->logger->error(sprintf("Error connecting to Redis: %s. Trying Again...", $e));
+        }
     }
 
     return $redis;
@@ -461,7 +464,7 @@ sub _find_keys {
     my $host      = $params{'host'};
     my $oid       = $params{'oid'};
     my $requested = $params{'requested'};
-    my $redis     = $self->redis;
+    my $redis     = $self->_connect_to_redis();
 
     # Get the host's collection groups and their keys from Redis
     my $host_groups = $self->_find_groups(

@@ -222,22 +222,27 @@ sub _connect_to_redis {
     $self->logger->debug(sprintf("%s - Redis timeouts [Read: %ss, Write: %ss]", $worker, $read_timeout, $write_timeout));
 
     my $redis;
-    try {
-        # Try to connect twice per second for 30 seconds,
-        # 60 attempts every 500ms.
-        $redis = Redis::Fast->new(
-            server        => "$redis_host:$redis_port",
-            reconnect     => $reconnect,
-            every         => $reconnect_every,
-            read_timeout  => $read_timeout,
-            write_timeout => $write_timeout
-        );
+    my $redis_connected = 0;
+
+    while(!$redis_connected) {
+        try {
+            # Try to connect twice per second for 30 seconds,
+            # 60 attempts every 500ms.
+            $redis = Redis::Fast->new(
+                server        => "$redis_host:$redis_port",
+                reconnect     => $reconnect,
+                every         => $reconnect_every,
+                read_timeout  => $read_timeout,
+                write_timeout => $write_timeout
+            );
+            $redis_connected = 1;
+        }
+        catch ($e) {
+            $self->logger->error(sprintf("%s - Error connecting to Redis: %s. Trying Again...", $worker, $e));
+        };
     }
-    catch ($e) {
-        $self->logger->error(sprintf("%s - Error connecting to Redis: %s", $worker, $e));
-        $self->logger->error(sprintf("Trying Again..."));
-        $redis = $self->_connect_to_redis($worker);
-    };
+
+    
 
     return $redis;
 }
