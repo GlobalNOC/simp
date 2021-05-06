@@ -415,6 +415,12 @@ sub _find_groups {
 sub _connect_to_redis {
     my ($self) = @_;
 
+    # If redis server is still up, use the
+    # already instantiated redis object
+    if ($self->redis && $self->redis->ping()) { 
+        return $self->redis; 
+    }
+
     # Get Redis configuration variables
     my $redis_host            = $self->config->get('/config/redis/@ip');
     my $redis_port            = $self->config->get('/config/redis/@port');
