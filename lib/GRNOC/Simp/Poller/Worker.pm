@@ -213,15 +213,31 @@ sub _connect_to_redis {
     my ($self, $worker) = @_;
 
     # Connect to redis
-    my $redis_host      = $self->config->get('/config/redis/@ip')->[0];
-    my $redis_port      = $self->config->get('/config/redis/@port')->[0];
     my $reconnect       = $self->config->get('/config/redis/@reconnect')->[0];
     my $reconnect_every = $self->config->get('/config/redis/@reconnect_every')->[0];
     my $read_timeout    = $self->config->get('/config/redis/@read_timeout')->[0];
     my $write_timeout   = $self->config->get('/config/redis/@write_timeout')->[0];
 
+ 
+    my %redis_conf = (
+                reconnect     => $reconnect,
+                every         => $reconnect_every,
+                read_timeout  => $read_timeout,
+                write_timeout => $write_timeout );
+    
     $self->logger->debug(sprintf("%s - Connecting to Redis", $worker));
-    $self->logger->debug(sprintf("%s - Redis Host %s:%s", $worker, $redis_host, $redis_port));
+
+    # unix socket
+    my $use_unix_socket = $self->config->get('/config/redis/@use_unix_socket')->[0];
+    if ( $use_unix_socket == 1 ) { 
+      $redis_conf{sock} = $self->config->get('/config/redis/@unix_socket')->[0];
+      $self->logger->debug(sprintf("%s - Redis Host unix socket:%s", $worker, $redis_conf{sock}));
+    }else{
+      my $redis_host      = $self->config->get('/config/redis/@ip')->[0];
+      my $redis_port      = $self->config->get('/config/redis/@port')->[0];
+      $redis_conf{server} = "$redis_host:$redis_port";
+      $self->logger->debug(sprintf("%s - Redis Host %s:%s", $worker, $redis_host, $redis_port));
+    }
     $self->logger->debug(sprintf("%s - Redis reconnect after %ss every %ss", $worker, $reconnect, $reconnect_every));
     $self->logger->debug(sprintf("%s - Redis timeouts [Read: %ss, Write: %ss]", $worker, $read_timeout, $write_timeout));
 
@@ -233,21 +249,13 @@ sub _connect_to_redis {
         try {
             # Try to connect twice per second for 30 seconds,
             # 60 attempts every 500ms.
-            $redis = Redis::Fast->new(
-                server        => "$redis_host:$redis_port",
-                reconnect     => $reconnect,
-                every         => $reconnect_every,
-                read_timeout  => $read_timeout,
-                write_timeout => $write_timeout
-            );
+            $redis = Redis::Fast->new( %redis_conf );
             $redis_connected = 1;
         }
         catch ($e) {
             $self->logger->error(sprintf("%s - Error connecting to Redis: %s. Trying Again...", $worker, $e));
         };
     }
-
-    
 
     return $redis;
 }
@@ -349,7 +357,8 @@ sub _poll_cb {
 
         # Select DB[0] of Redis so we can insert value data
         # Specifying the callback causes Redis piplining to reduce RTTs
-        $redis->select(0, sub{});
+        $redis->wait_all_responses();
+        $redis->select(0);
 
         # Assign our value data from SNMP polling
         $redis->sadd($host_keys{db0}, @values, sub{}) if (@values);
@@ -364,14 +373,16 @@ sub _poll_cb {
             my $time_key = sprintf("%s,%s", $poll_id, $time);
 
             # Set the Poll ID => Timestamp lookup table data and its expiration
-            $redis->select(1, sub{});
+            $redis->wait_all_responses();
+            $redis->select(1);
             $redis->set(     $host_keys{db1}, $host_keys{db0}, sub{});
             $redis->set(       $ip_keys{db1}, $ip_keys{db0},   sub{});
             $redis->expireat($host_keys{db1}, $expire,         sub{});
             $redis->expireat(  $ip_keys{db1}, $expire,         sub{});
 
             # Set the Host/IP => Timestamp lookup table data
-            $redis->select(2, sub{});
+            $redis->wait_all_responses();
+            $redis->select(2);
             $redis->set(     $host_keys{db2}, $time_key, sub{});
             $redis->set(       $ip_keys{db2}, $time_key, sub{});
             $redis->expireat($host_keys{db2}, $expire,   sub{});
@@ -383,7 +394,8 @@ sub _poll_cb {
                 $self->logger->debug("Adding host variables for $name");
 
                 # Set Redis back to DB[0] to insert the var data with values
-                $redis->select(0, sub{});
+                $redis->wait_all_responses();
+                $redis->select(0);
 
                 # Add each host variable and its value (remove commas from var name)
                 while(my ($var, $value) = each(%$vars)) {
@@ -392,7 +404,8 @@ sub _poll_cb {
                 }
 
                 # Set the host variable's interval lookup 
-                $redis->select(3, sub{});
+                $redis->wait_all_responses();
+                $redis->select(3);
                 $redis->hset($name_id, "vars", $group_interval, sub{});
                 $redis->hset($ip_id,   "vars", $group_interval, sub{});
             }
@@ -402,7 +415,8 @@ sub _poll_cb {
         }
 
         # Set an OID lookup using vars and interval for the OIDs
-        $redis->select(3, sub{});
+        $redis->wait_all_responses();
+        $redis->select(3);
         $redis->hset($name_id, $oid, $group_interval, sub{});
         $redis->hset($ip_id,   $oid, $group_interval, sub{});
     }
@@ -489,11 +503,13 @@ sub _connect_to_snmp {
         # Initializes/Defaults to 0
         my $poll_id;
         try {
+            $self->redis->wait_all_responses();
             $self->redis->select(2);
             $poll_id = $self->redis->get($host_name . ",main_oid");
         }
         catch ($e) {
             $self->logger->error("Error fetching the current poll cycle ID from Redis for $host_name: $e");
+            $self->redis->wait_all_responses();
             $self->redis->select(0);
         };
 
