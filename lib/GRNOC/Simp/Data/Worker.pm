@@ -413,7 +413,13 @@ sub _find_groups {
      and returns the redis object reference
 =cut
 sub _connect_to_redis {
-    my ($self, $worker) = @_;
+    my ($self) = @_;
+
+    # If redis server is still up, use the
+    # already instantiated redis object
+    if ($self->redis && $self->redis->ping()) { 
+        return $self->redis; 
+    }
 
     # Connect to redis
     my $reconnect       = $self->config->get('/config/redis/@reconnect');
@@ -421,28 +427,32 @@ sub _connect_to_redis {
     my $read_timeout    = $self->config->get('/config/redis/@read_timeout');
     my $write_timeout   = $self->config->get('/config/redis/@write_timeout');
 
-
     my %redis_conf = (
                 reconnect     => $reconnect,
                 every         => $reconnect_every,
                 read_timeout  => $read_timeout,
                 write_timeout => $write_timeout );
 
-    $self->logger->debug(sprintf("%s - Connecting to Redis", $worker));
-
+    my $debug_msg="Connecting to Redis: ";
     # unix socket
     my $use_unix_socket = $self->config->get('/config/redis/@use_unix_socket');
     if ( $use_unix_socket == 1 ) {
       $redis_conf{sock} = $self->config->get('/config/redis/@unix_socket');
-      $self->logger->debug(sprintf("%s - Redis Host unix socket:%s", $worker, $redis_conf{sock}));
+      $debug_msg .= "unix_socket:" . $redis_conf{sock};
+      
     }else{
       my $redis_host      = $self->config->get('/config/redis/@ip');
       my $redis_port      = $self->config->get('/config/redis/@port');
       $redis_conf{server} = "$redis_host:$redis_port";
-      $self->logger->debug(sprintf("%s - Redis Host %s:%s", $worker, $redis_host, $redis_port));
+      $debug_msg .= $redis_conf{server};
     }
-    $self->logger->debug(sprintf("%s - Redis reconnect after %ss every %ss", $worker, $reconnect, $reconnect_every));
-    $self->logger->debug(sprintf("%s - Redis timeouts [Read: %ss, Write: %ss]", $worker, $read_timeout, $write_timeout));
+    $debug_msg .= sprintf(" => {reconnect: %s, every: %s, read_timeout: %s, write_timeout: %s}",
+        $redis_reconnect,
+        $redis_reconnect_every,
+        $redis_read_timeout,
+        $redis_write_timeout);
+
+    $self->logger->debug( $debug_msg );
 
     my $redis;
     my $redis_connected = 0;
