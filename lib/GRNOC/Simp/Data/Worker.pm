@@ -466,7 +466,7 @@ sub _connect_to_redis {
             $redis_connected = 1;
         }
         catch ($e) {
-            $self->logger->error(sprintf("%s - Error connecting to Redis: %s. Trying Again...", $worker, $e));
+            $self->logger->error(sprintf("Error connecting to Redis: %s. Trying Again...", $e));
         };
     }
 
