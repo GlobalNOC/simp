@@ -465,9 +465,9 @@ sub _connect_to_redis {
             $redis = Redis::Fast->new( %redis_conf );
             $redis_connected = 1;
         }
-        catch ($e) {
+        catch($e) {
             $self->logger->error(sprintf("Error connecting to Redis: %s. Trying Again...", $e));
-        };
+        }
     }
 
     return $redis;
