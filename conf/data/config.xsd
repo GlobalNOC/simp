@@ -21,12 +21,14 @@
     </xsd:element>
 
     <xsd:complexType name="REDIS_CONFIG">
-        <xsd:attribute name="ip"       type="IP_ADDR"     use="required" />
-        <xsd:attribute name="port"     type="xsd:integer" use="required" />
+        <xsd:attribute name="ip"        type="IP_ADDR"     use="optional" />
+        <xsd:attribute name="port"      type="xsd:integer" use="optional" />
         <xsd:attribute name="reconnect" type="xsd:integer" use="required" />
-	<xsd:attribute name="reconnect_every" type="xsd:integer" use="required" />
-	<xsd:attribute name="read_timeout"    type="xsd:integer" use="required" />
-	<xsd:attribute name="write_timeout"   type="xsd:integer" use="required" />
+        <xsd:attribute name="reconnect_every" type="xsd:integer" use="required" />
+        <xsd:attribute name="read_timeout"    type="xsd:integer" use="required" />
+        <xsd:attribute name="write_timeout"   type="xsd:integer" use="required" />
+        <xsd:attribute name="use_unix_socket"   type="xsd:integer" use="required" />
+        <xsd:attribute name="unix_socket"   type="xsd:string" use="optional" />
     </xsd:complexType>
 
     <xsd:complexType name="RABBITMQ_CONFIG">
