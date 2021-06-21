@@ -90,13 +90,8 @@ sub push {
         return;
     };
 
-    # Split messages to TSDS into block sizes of MAX_TSDS_MESSAGES
-    my @msgs = splice(@$msg_list, 0, MAX_TSDS_MESSAGES);
-
-    $self->logger->info(sprintf("[%s] Pushing %s messages to TSDS", $self->worker_name, scalar(@msgs)));
-
     # Add the block of messages to TSDS using push.cgi
-    my $res = $self->tsds_svc->add_data(data => encode_json(\@msgs));
+    my $res = $self->tsds_svc->add_data(data => encode_json($msg_list));
 
     # Check the response from TSDS
     if (!defined($res) || $res->{'error'}) {
@@ -110,7 +105,7 @@ sub push {
             my @bad;
 
             # Try sending each message individually in-case only one had character issues
-            for my $msg (@msgs) {
+            for my $msg (@$msg_list) {
                 $res = $self->tsds_svc->add_data(data => encode_json([$msg]));
                 if (!defined($res) || $res->{error}) {
                     push(@bad, $msg);
@@ -119,7 +114,7 @@ sub push {
 
             # Update the error message
             $error .= " - %s out of %s total messages contained invalid characters: %s";
-            $error = sprintf($error, scalar(@bad), scalar(@msgs), Dumper(\@bad));
+            $error = sprintf($error, scalar(@bad), scalar(@$msg_list), Dumper(\@bad));
         }
         $self->logger->error($error);
     }

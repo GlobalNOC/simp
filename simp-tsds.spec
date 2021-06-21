@@ -28,7 +28,7 @@ Requires: perl(Proc::Daemon)
 Requires: perl(Types::Standard)
 Requires: perl(GRNOC::Config)
 Requires: perl(GRNOC::WebService::Client)
-Requires: perl(GRNOC::RabbitMQ::Client)
+Requires: perl(GRNOC::RabbitMQ::Client) >= 1.2.2
 Requires: perl(GRNOC::Log)
 
 %define execdir /usr/bin

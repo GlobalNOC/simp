@@ -223,7 +223,15 @@ sub _setup_rabbitmq {
 
         $method->add_input_parameter(
             name        => 'period',
-            description => "Period of time to request for the data",
+            description => "Period of time to request for the data for rates",
+            required    => 0,
+            multiple    => 0,
+            pattern     => $GRNOC::WebService::Regex::ANY_NUMBER
+        );
+
+        $method->add_input_parameter(
+            name        => 'time',
+            description => "Timestamp of the data to retrieve, defaults to now if not given",
             required    => 0,
             multiple    => 0,
             pattern     => $GRNOC::WebService::Regex::ANY_NUMBER
@@ -391,6 +399,7 @@ sub _init_request {
         composite => $composite,
         hosts     => $args->{node}{value},
         interval  => $args->{period}{value} || 60,
+	time      => $args->{time}{value} || time(),
         constants => {},
         raw       => {scan => {}, data => {}},
         data      => {},
@@ -479,6 +488,7 @@ sub _request_data {
         $self->rmq_client->get_rate(
             node           => $request->{hosts},
             period         => $request->{interval},
+	    time           => $request->{time},
             oidmatch       => [$oid],
             async_callback => sub {
                 my $data = shift;
@@ -492,6 +502,7 @@ sub _request_data {
         $self->rmq_client->get(
             node           => $request->{hosts},
             oidmatch       => [$oid],
+	    time           => $request->{time},
             async_callback => sub {
                 my $data = shift;
                 $self->_cache_data($request, $name, $attr, $data->{results});

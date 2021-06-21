@@ -197,6 +197,10 @@ sub _start {
         description => "Pulls SNMP data from Redis and calculates values as rates using an interval",
         callback    => sub {
             my ($method_ref, $params) = @_;
+
+            # Use the current time unless time was given as a parameter
+            my $time = defined($params->{time}{value}) ? $params->{time}{value} : time();
+
             # Return the result of calling the Worker's _get_rate() method using request parameters
             return $self->_get_rate($params);
         }
@@ -226,6 +230,13 @@ sub _start {
             'items' => ['type' => 'string',]
         }
     );
+    $method->add_input_parameter(
+        name        => "time",
+        description => "Unix timestamp for the data wanted from Redis",
+        required    => 0,
+        schema      => {'type' => 'integer'}
+    );
+
     # Register the "get_rate" method for the Dispatcher
     $dispatcher->register_method($method);
 
@@ -422,16 +433,16 @@ sub _connect_to_redis {
     }
 
     # Connect to redis
-    my $reconnect       = $self->config->get('/config/redis/@reconnect');
-    my $reconnect_every = $self->config->get('/config/redis/@reconnect_every');
-    my $read_timeout    = $self->config->get('/config/redis/@read_timeout');
-    my $write_timeout   = $self->config->get('/config/redis/@write_timeout');
+    my $redis_reconnect       = $self->config->get('/config/redis/@reconnect');
+    my $redis_reconnect_every = $self->config->get('/config/redis/@reconnect_every');
+    my $redis_read_timeout    = $self->config->get('/config/redis/@read_timeout');
+    my $redis_write_timeout   = $self->config->get('/config/redis/@write_timeout');
 
     my %redis_conf = (
-                reconnect     => $reconnect,
-                every         => $reconnect_every,
-                read_timeout  => $read_timeout,
-                write_timeout => $write_timeout );
+                reconnect     => $redis_reconnect,
+                every         => $redis_reconnect_every,
+                read_timeout  => $redis_read_timeout,
+                write_timeout => $redis_write_timeout );
 
     my $debug_msg="Connecting to Redis: ";
     # unix socket
@@ -763,8 +774,8 @@ sub _get_rate {
         $self->logger->error("Rate value was requested, but no interval was given! Using default interval of 60s");
     }
 
-    # Get data for the current and previous poll cycle
-    my $current = $self->_get(time(), $params, 1);
+    # Get data for the last and last - 1 poll cycle
+    my $current = $self->_get($params->{'time'}{'value'}, $params, 1);
     my $last    = $current->[1];
     my $c_data  = $current->[0];
     my $p_data  = $self->_get($last, $params);
