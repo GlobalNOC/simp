@@ -409,6 +409,16 @@ sub _map_oid {
         $self->logger->error("ERROR: Invalid value for \"type\" given to _map_oid");
     }
 
+
+    # If the OID has a leading dot, strip it for the sake
+    # of parsing the OID but we'll add it back later to make
+    # sure it lines up with poller
+    my $leading_dot = 0;
+    if ($elem->{'base_oid'} =~ /^\./){
+	$leading_dot = 1;
+	$elem->{'base_oid'} =~ s/^\.//;
+    }
+
     # Split the oid into its nodes
     my @split_oid = split(/\./, $elem->{'base_oid'});
 
@@ -467,7 +477,7 @@ sub _map_oid {
     }
 
     # Set the regex pattern for the OID
-    my $regex = '^' . join('\.', @re_elems);
+    my $regex = '^' . ($leading_dot ? "." : "") . join('\.', @re_elems);
     $elem->{'regex'} = qr/$regex/;
 
     # Set the ordered oid_vars array
@@ -478,7 +488,7 @@ sub _map_oid {
     if ($first_index) {
 
         # The .* is appended for simp-data's request to Redis
-        $elem->{'base_oid'} = (join '.', @split_oid[0 .. ($first_index - 1)]) . '.*';
+        $elem->{'base_oid'} = ($leading_dot ? "." : "") . (join '.', @split_oid[0 .. ($first_index - 1)]) . '.*';
     }
 }
 
