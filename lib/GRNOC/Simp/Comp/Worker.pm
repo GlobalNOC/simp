@@ -606,14 +606,13 @@ sub _digest_data {
 
     $self->logger->debug("[".$request->{composite}{name}."] Digesting raw data");
 
+    # Determine the unique ports used as the superset of ports returned for scans and data
+    my %ports;
+    @ports{keys(%{$request->{raw}{data}})} = ();
+    @ports{keys(%{$request->{raw}{scan}})} = ();
+
     # Parse the data for each host and port
     for my $host (@{$request->{hosts}}) {
-
-        # Determine the unique ports used as the superset of ports returned for scans and data
-        my %ports;
-        @ports{keys(%{$request->{raw}{data}})} = ();
-        @ports{keys(%{$request->{raw}{scan}})} = ();
-        
         for my $port (keys(%ports)) {
 
             # Skip the host if it has no data from sessions using the port
@@ -624,7 +623,6 @@ sub _digest_data {
 
             # Accumulate parsed data objects for the host+port to an array
             my @host_data;
-
             $self->_parse_data($request, $port, $host, \@host_data);
 
             # Add the accumulation to the data for the host
@@ -702,22 +700,25 @@ sub _parse_data {
             my $var = $scan->{oid_vars}[$index];
             my $val = $oid_vars[$index];
 
-            # Validate the var->val combination by checking this:
-            #   The current var exists in $env... 
-            #   and isn't for the current scan...
-            #   and the var's value in $env matches the current OID's value for it
+            # Skip vars that aren't the current scan's suffix
+            next if ($var ne $suffix_name);            
+
+            # Invalidate var->val combinations by checking this:
+            #   The current var already exists in $env... 
+            #   and the var isn't for the current scan...
+            #   and the var's value in $env matches the current OID's value for the var
             $valid = 0 if (
                 exists($env->{$var}) 
                 && ($var ne $value_name && $var ne $suffix_name) 
                 && ($env->{$var} ne $val)
             );    
 
-            # Skip vars that aren't the current scan's suffix
-            next if ($var ne $suffix_name);
-
             # Set the suffix and value for the scan data to recurse on
             if ($valid) {
 
+                # Build a copy of env to pass to a recursive call.
+                # The copy has all the KVP entries currently in env.
+                # We add the current scan's oid_suffix and poll_value KVPs before recursing.
                 my %new_env = %$env;
                 $new_env{$suffix_name} = $val;
                 $new_env{$value_name}  = $datum->{value};
