@@ -659,9 +659,9 @@ sub _parse_data {
     # The data for the scan
     my $data = $request->{raw}{scan}{$port}{$host}[$i];
 
-    # The name of this scan's poll_value and oid_suffix
+    # The value name and match configs for the scan
     my $value_name  = $scan->{value};
-    my $suffix_name = $scan->{suffix};
+    my $matches     = $scan->{matches};
 
     # Iterate over each data hash in the scan's array
     for (my $j = 0; $j <= $#$data; $j++) {
@@ -680,55 +680,46 @@ sub _parse_data {
             $env->{TIME} = $datum->{time};
         }
 
-        # Short circuit for elements without vars
-        if (!scalar(@{$scan->{oid_vars}})) {
-            $env->{$suffix_name} = undef;
-            $env->{$value_name}  = $datum->{value};
-
-            $self->_parse_data($request, $port, $host, $acc, ($i+1), $env);
-
-            next;
-        }
-
         # Flag whether the OID has the right vars for what's in $env
         my $valid = 1;
 
-        # Find the value for this scan data's OID suffix
+        # Find all the scan matches for the OID
         for (my $index = 0; $index <= $#oid_vars; $index++) {
-            
+
             # Grab the var name and value from the map and data OID
             my $var = $scan->{oid_vars}[$index];
             my $val = $oid_vars[$index];
-
-            # Skip vars that aren't the current scan's suffix
-            next if ($var ne $suffix_name);            
 
             # Invalidate var->val combinations by checking this:
             #   The current var already exists in $env... 
             #   and the var isn't for the current scan...
             #   and the var's value in $env matches the current OID's value for the var
-            $valid = 0 if (
+            next if (
                 exists($env->{$var}) 
-                && ($var ne $value_name && $var ne $suffix_name) 
+                && ($var ne $value_name && !(exists($matches->{names}{$var}))) 
                 && ($env->{$var} ne $val)
-            );    
+            );
 
-            # Set the suffix and value for the scan data to recurse on
-            if ($valid) {
-
-                # Build a copy of env to pass to a recursive call.
-                # The copy has all the KVP entries currently in env.
-                # We add the current scan's oid_suffix and poll_value KVPs before recursing.
-                my %new_env = %$env;
-                $new_env{$suffix_name} = $val;
-                $new_env{$value_name}  = $datum->{value};
-
-                # Once we have the suffix, we're done with the vars
-                $self->_parse_data($request, $port, $host, $acc, ($i+1), \%new_env);
-
-                # Stop iterating over the OID variables for this particular OID
-                last;
+            # Short circuit for oid vars belonging to the scan as matches
+            # Set the var in $env and skip to the next var
+            # Do not perform this step if it is the last oid_var left
+            if (exists($matches->{names}{$var}) && ($index + 1 <= $#oid_vars)) {
+                $env->{$var} = $val;
+                next;
             }
+
+            # Build a copy of env to pass to a recursive call.
+            # The copy has all the KVP entries currently in env.
+            # We add the current scan's oid_suffix and poll_value KVPs before recursing.
+            my %new_env = %$env;
+            $new_env{$var}        = $val;
+            $new_env{$value_name} = $datum->{value};
+
+            # Once we have the suffix, we're done with the vars
+            $self->_parse_data($request, $port, $host, $acc, ($i+1), \%new_env);
+
+            # Stop iterating over the OID variables for this particular OID
+            last;
         }
     }
     return;
@@ -743,6 +734,8 @@ sub _build_data {
 
     # The data hash to return
     my %output = (node => $host);
+
+    #$self->logger->debug('Building data using $env: '.Dumper($env));
 
     # Get raw data for the host
     my $data = $request->{raw}{data}{$port}{$host};
@@ -1101,7 +1094,8 @@ sub _convert_data {
     }
 
     $self->logger->debug("[$composite_name] Finished applying conversions to the data");
-    $self->debug_dump($request->{data});
+    # TODO: Uncomment
+    #$self->debug_dump($request->{data});
 }
 
 
