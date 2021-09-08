@@ -2,7 +2,9 @@
 
 <composite>
     <variables>
-        <scan poll_value="ifName" oid_suffix="ifIdx" oid="1.3.6.1.2.1.2.2.1.2.**" />
+        <scan value="ifName" oid="1.3.6.1.2.1.2.2.1.2.**">
+            <match name="ifIdx"/>
+        </scan>
     </variables>
 
     <data>

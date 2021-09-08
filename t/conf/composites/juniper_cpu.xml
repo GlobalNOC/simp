@@ -2,7 +2,9 @@
 
 <composite>
     <variables>
-        <scan poll_value="hw_name" oid_suffix="hw_id" oid="1.3.6.1.4.1.2636.3.1.13.1.5.**" />
+        <scan value="hw_name" oid="1.3.6.1.4.1.2636.3.1.13.1.5.**">
+            <match name="hw_id"/>
+        </scan>
     </variables>
 
     <data>
@@ -11,7 +13,7 @@
     </data>
 
     <conversions>
-        <match pattern='^(FPC:.*|Routing Engine.*)$' >
+        <match pattern='^((.*FPC:.*)|(.*Routing Engine.*))$' >
             <data name="name" />
         </match>
     </conversions>

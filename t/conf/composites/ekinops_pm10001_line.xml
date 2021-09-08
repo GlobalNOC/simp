@@ -2,7 +2,9 @@
 
 <composite>
     <variables>
-        <scan poll_value="ifNameLine" oid_suffix="lineIdx" oid="1.3.6.1.4.1.20044.60.7.1.2.1.2.*" />
+        <scan value="ifNameLine" oid="1.3.6.1.4.1.20044.60.7.1.2.1.2.*">
+            <match name="lineIdx"/>
+        </scan>
     </variables>
 
     <data>

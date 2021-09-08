@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <data>
+        <value name="rx" source="1.3.6.1.4.1.41112.1.6.2.1.1.6.1" type="rate" />
+        <value name="tx" source="1.3.6.1.4.1.41112.1.6.2.1.1.12.1" type="rate" />
+        <value name="uptime" source="1.3.6.1.4.1.41112.1.6.3.5" />
+        <value name="users_five_g" source="1.3.6.1.4.1.41112.1.6.1.2.1.8.2" />
+        <value name="users_two_g" source="1.3.6.1.4.1.41112.1.6.1.2.1.8.3" />
+        <value name="util_five_g" source="1.3.6.1.4.1.41112.1.6.1.1.1.6.2" />
+        <value name="util_two_g" source="1.3.6.1.4.1.41112.1.6.1.1.1.6.1" />
+    </data>
+
+    <conversions>
+        <function definition='${} 8 *'>
+            <data name="rx" />
+            <data name="tx" />
+        </function>
+    </conversions>
+</composite>
