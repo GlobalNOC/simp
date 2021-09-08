@@ -2,8 +2,20 @@
 
 <composite>
     <variables>
-        <scan poll_value="vdom" oid_suffix="vdom_id" oid="1.3.6.1.4.1.12356.101.3.2.1.1.1.*" />
-        <scan poll_value="policer" oid_suffix="policer_id" oid="1.3.6.1.4.1.12356.101.5.1.2.1.1.1.vdom_id.*" />
+        <!-- OLD FORMAT (Nested Scans) --> 
+        <scan value="vdom" oid="1.3.6.1.4.1.12356.101.3.2.1.1.1.*">
+            <match name="vdom_id"/>
+        </scan>
+        <scan value="policer" oid="1.3.6.1.4.1.12356.101.5.1.2.1.1.1.vdom_id.*">
+            <match name="policer_id"/>
+        </scan> 
+        
+
+        <!-- NEW FORMAT (Multi-Variable Scans)>
+        <scan value="policer" oid="1.3.6.1.4.1.12356.101.5.1.2.1.1.1.*.*">
+            <match name="vdom_id"/>
+            <match name="policer_id"/>
+        </scan-->
     </variables>
 
     <data>

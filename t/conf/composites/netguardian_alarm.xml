@@ -2,7 +2,9 @@
 
 <composite>
     <variables>
-        <scan poll_value="sensor_name" oid_suffix="sensor_id" oid="1.3.6.1.4.1.2682.1.2.5.1.5.99.1.1.**" />
+        <scan value="sensor_name" oid="1.3.6.1.4.1.2682.1.2.5.1.5.99.1.1.**">
+            <match name="sensor_id"/>
+        </scan>
     </variables>
 
     <data>

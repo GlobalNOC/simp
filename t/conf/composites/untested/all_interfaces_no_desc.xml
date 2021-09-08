@@ -8,8 +8,9 @@
     </variables>
 
     <data>
-        <meta name="intf" source="ifName" />
-        <meta name="ifAlias" source="1.3.6.1.2.1.31.1.1.1.18.ifIdx" require_match="^.*\[ns-exp\].+$" />
+        <meta name="intf" source="ifName" require_match="^cbp\d|demux\d|esi|gr-.*|gre|ip-.*|ipip|jsrv\.?\d*|lt-.*|mt-.*|mtun|pe-.*|pfe-.*|pfh-.*|pimd|pime|pip\d|pp\d|rbeb|tap|ut-.*|vme\.?\d?|vt-.*|vtep$" invert_match="1" />
+        <meta name="description" source="1.3.6.1.2.1.31.1.1.1.18.ifIdx" require_match="^.+$" />
+        <meta name="adminStatus" source="1.3.6.1.2.1.2.2.1.7.ifIdx" require_match="^1$" />
         <value name="input" source="1.3.6.1.2.1.31.1.1.1.6.ifIdx" type="rate" />
         <value name="output" source="1.3.6.1.2.1.31.1.1.1.10.ifIdx" type="rate" />
         <value name="inerror" source="1.3.6.1.2.1.2.2.1.14.ifIdx" type="rate" />
@@ -28,7 +29,8 @@
         </function>
 
         <drop>
-            <data name="ifAlias" />
+            <data name="adminStatus" />
+            <data name="description" />
         </drop>
     </conversions>
 </composite>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+
+    <variables>
+        <!--scan poll_value="w" oid_suffix="shelf"   oid="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.**"/-->
+        <!--scan poll_value="w" oid_suffix="shelf"   oid="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.*"/>
+        <scan poll_value="x" oid_suffix="slot"    oid="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.*" />
+        <scan poll_value="y" oid_suffix="sub"     oid="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.*" />
+        <scan poll_value="z" oid_suffix="port"    oid="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.sub.1.*" /-->
+
+	<!--
+	     Multi-Variable Scan:
+             Requires 1 <var/> element to be declared for each */** used in its O
+             The var names are mapped to the */** positions in their order of occurrence
+             Validation steps will be required to ensure the */** count match the number of given var elements.
+             Since the value is the same for all the vars, it is specified in the "scan" element
+
+             For this stuff to make sense, the use of "poll_value" and "oid_suffix" will need to be removed.
+             There are challenges there with backward compatibility, esp as it relates to puppet/automation.
+        -->
+        <scan value="scan_value" oid="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.*.1.*.1.*.1.*">
+            <match name="shelf"/>
+            <match name="slot"/>
+            <match name="subslot"/>
+            <match name="port"/>
+        </scan>
+
+    </variables>
+
+    <data>
+        <meta name="intf" source="shelf" />
+        <meta name="Shelf" source="shelf"/>
+        <meta name="Slot" source="slot"/>
+        <meta name="Subslot" source="subslot"/>
+        <meta name="PortNum" source="port"/>
+        <value name="rxpower" source ="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.6.0.1.1.0"/>
+        <!--value name="rxpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf"/-->
+        <!--value name="rxpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.datatype.0.1.1.0"/-->
+        <!--value name="rxpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.opticalPowerReceive.nearEnd.receive.fifteenMinute.periodIdx"/-->
+        <!--value name="txpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf"/-->
+        <value name="txpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.13.0.0.1.0"/>
+        <!--value name="txpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.opticalPowerTransmit.nearEnd.transmit.fifteenMinute.periodIdx"/-->
+
+    </data>
+
+    <conversions>
+        <replace this="${}" with="Shelf ${Shelf} - Slot ${Slot}.${Subslot} - Port ${PortNum}">
+            <data name="intf"/>
+        </replace>
+        <drop>
+            <data name="Shelf"/>
+            <data name="Slot"/>
+            <data name="Subslot"/>
+            <data name="PortNum"/>
+        </drop>
+    </conversions>
+
+</composite>
