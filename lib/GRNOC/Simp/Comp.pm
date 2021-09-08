@@ -326,15 +326,7 @@ sub _make_composites {
                         'index'   => $i # Index used to preserve ordering for async responses 
                     };
 
-                    if ($composite{name} eq 'fujitsu_optical') {
-                        $self->logger->debug(Dumper($scan_params));
-                    }
-
                     $self->_map_oid($scan_params, 'scan');
-
-                    if ($composite{name} eq 'fujitsu_optical') {
-                        $self->logger->debug(Dumper($scan_params));
-                    }
 
                     push(@{$composite{'scans'}}, $scan_params);
                 }
@@ -418,10 +410,6 @@ sub _make_composites {
             $conversion->{'type'} = 'drop' if (!$conversion->{'type'});
 
             push($composite{'conversions'}, $conversion);
-        }
-
-        if ($composite_name eq 'fujitsu_optical') {
-            $self->logger->debug(Dumper(\%composite));
         }
 
         # We want to get the config hash here so it isn't reparsed by the worker
