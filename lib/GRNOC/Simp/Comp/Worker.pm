@@ -629,6 +629,7 @@ sub _digest_data {
             push(@{$request->{data}{$host}}, @host_data);
         }
     }
+    #$self->logger->debug(Dumper($request->{data}));
 }
 
 =head2 _parse_data()
@@ -640,6 +641,8 @@ sub _digest_data {
 sub _parse_data {
 
     my ($self, $request, $port, $host, $acc, $i, $env) = @_;
+
+    #$self->logger->debug('PARSE DATA CALL');
 
     # Initialize $i and $env for the first iterations
     $i   = 0 if (!defined($i));
@@ -669,19 +672,63 @@ sub _parse_data {
         my $datum = $data->[$j];
         my $oid   = $datum->{oid};
 
+        # Create a copy of $env each time an OID changes
+        my %env_copy = %$env;
+
+        # Set the value name in $env to the value assigned to the OID
+        $env_copy{$value_name} = $datum->{value};
+
+        #$self->logger->debug("Adding vars to ENV for $oid");
+        #$self->logger->debug('Current $env: '.Dumper(\%env_copy));
+
         # Check if the OID matches the scan's regex and store any matching variables
         my @oid_vars = ($oid =~ $scan->{regex});
+
+        #$self->logger->debug("Got OID vars:\n".Dumper(\@oid_vars).Dumper($scan->{oid_vars}));
 
         # Skip non-matching OIDs
         next unless (@oid_vars);
 
         # Set time for $env from scan data in case we're only polling for scans
-        if (!exists($env->{TIME}) || !defined($env->{TIME})) {
-            $env->{TIME} = $datum->{time};
+        if (!exists($env_copy{TIME}) || !defined($env_copy{TIME})) {
+            $env_copy{TIME} = $datum->{time};
         }
 
-        # Flag whether the OID has the right vars for what's in $env
+        # Used for checking the validity of $env for the OID throughout parsing
         my $valid = 1;
+
+        # Get EVERY variable node within the current OID
+        for (my $var_index = 0; $var_index <= $#oid_vars; $var_index++) {
+
+            my $var_name = $scan->{oid_vars}[$var_index];
+
+                # Get the corresponding node value from the OID
+                my $oid_node = $oid_vars[$var_index];
+
+                # Confirm the node is right for $env
+                if (exists($env_copy{$var_name}) && $env_copy{$var_name} != $oid_node) {
+                    $valid = 0;
+                    last;
+                }
+                
+                # Set the OID node for the var in $env
+                $env_copy{$var_name} = $oid_node;
+        }
+
+        # Skip any OID that was marked invalid while gathering matches for the scan
+        if ($valid) {
+            #$self->logger->debug("Validated \$env after adding OID's vars: ".Dumper(\%env_copy));
+            $self->_parse_data($request, $port, $host, $acc, ($i+1), \%env_copy)
+        }
+        else {
+            #$self->logger->debug("Skipping \$env that was invalidated for this scan");
+            next;
+        }
+
+=head2
+        #my %new_env = %$env;
+        #$self->_parse_data($request, $port, $host, $acc, ($i+1), \%new_env);
+        next;
 
         # Find all the scan matches for the OID
         for (my $index = 0; $index <= $#oid_vars; $index++) {
@@ -690,38 +737,65 @@ sub _parse_data {
             my $var = $scan->{oid_vars}[$index];
             my $val = $oid_vars[$index];
 
+            $self->logger->debug("OID VAR = $var = $val");
+
             # Invalidate var->val combinations by checking this:
             #   The current var already exists in $env... 
             #   and the var isn't for the current scan...
             #   and the var's value in $env matches the current OID's value for the var
-            next if (
-                exists($env->{$var}) 
-                && ($var ne $value_name && !(exists($matches->{names}{$var}))) 
-                && ($env->{$var} ne $val)
-            );
+            if (exists($env->{$var}) 
+                && ($env->{$var} ne $val) 
+                && ($var ne $value_name)) {
 
+                $self->logger->debug("SKIP: Value of $var not valid in current \$env");
+                last;
+            }
+
+            unless (exists($matches->{$var})) {
+                $self->logger->debug("SKIP: $var from a previous scan");
+                $valid = 0;
+            }
+            else {
+                $env->{$var} = $val;
+
+                if ($index+1 <= $#oid_vars && exists($matches->{$oid_vars[$index+1]})) {
+                    $self->logger->debug("Next var is for the same scan");  
+                    $valid = 0;
+                }
+            }
+            
             # Short circuit for oid vars belonging to the scan as matches
             # Set the var in $env and skip to the next var
             # Do not perform this step if it is the last oid_var left
-            if (exists($matches->{names}{$var}) && ($index + 1 <= $#oid_vars)) {
-                $env->{$var} = $val;
-                next;
+            #if (exists($matches->{names}{$var}) && ($index + 1 <= $#oid_vars)) {
+            #if (exists($matches->{names}{$var})) {
+            #    $env->{$var} = $val;
+            #    $env->{$value_name} = $datum->{value};
+            #    next unless ($index == $#oid_vars);
+            #}
+
+            
+            if ($valid == 1) {
+
+                # Build a copy of env to pass to a recursive call.
+                # The copy has all the KVP entries currently in env.
+                # We add the current scan's oid_suffix and poll_value KVPs before recursing.
+                my %new_env = %$env;
+                $new_env{$var}        = $val;
+                #$new_env{$value_name} = $datum->{value};
+
+                #next if (exists($matches->{names}{$var}) && ($index != $#oid_vars));
+
+                # Once we have the suffix, we're done with the vars
+                $self->_parse_data($request, $port, $host, $acc, ($i+1), \%new_env);
+
+                # Stop iterating over the OID variables for this particular OID
+                last;
             }
-
-            # Build a copy of env to pass to a recursive call.
-            # The copy has all the KVP entries currently in env.
-            # We add the current scan's oid_suffix and poll_value KVPs before recursing.
-            my %new_env = %$env;
-            $new_env{$var}        = $val;
-            $new_env{$value_name} = $datum->{value};
-
-            # Once we have the suffix, we're done with the vars
-            $self->_parse_data($request, $port, $host, $acc, ($i+1), \%new_env);
-
-            # Stop iterating over the OID variables for this particular OID
-            last;
         }
+=cut
     }
+    #$self->logger->debug("EXIT PARSE DATA CALL");
     return;
 }
 
@@ -746,11 +820,15 @@ sub _build_data {
     # Handle each wanted data element for metadata and values
     while (my ($name, $attr) = each(%{$request->{composite}{data}})) {
 
+        #$self->logger->debug("Building $name");
+
         # Skip the node value for backward compatibility
         next if ($name eq 'node');
 
         # Get the source for the data element
         my $source = $attr->{source};
+
+        #$self->logger->debug("Source is $source");
 
         # Values derived from OID data
         if ($attr->{source_type} eq 'oid') {
@@ -759,6 +837,7 @@ sub _build_data {
             # This is a non-destructive replacement
             if (keys %$env) {
                 $source = $source =~ s/(@{[join("|", keys %$env)]})/$env->{$1}/gr;
+                #$self->logger->debug("Rebuilt source as $source");
             }
 
             # Does our generated OID have a key in the raw data?
@@ -771,7 +850,12 @@ sub _build_data {
                 unless (exists($output{time}) || !exists($data->{$source}{time})) {
                     $output{time} = $data->{$source}{time};
                 }
+                #$self->logger->debug("Found Data");
             }
+            else {
+                #$self->logger->debug("Data not found");
+            }
+            #$self->logger->debug("Output for ENV is now: ".Dumper(\%output));
         }
         # Values derived from scans
         elsif ($attr->{source_type} eq 'scan') {
@@ -799,6 +883,8 @@ sub _build_data {
             $self->logger->error("[".$request->{composite}{name}."] Produced data without a time value!");
         }
     }
+
+    #$self->logger->debug("Final output hash built: ".Dumper(\%output));
 
     # Returns the output hash if valid, otherwise returns nothing
     return ($valid) ? \%output : undef;
@@ -1094,8 +1180,7 @@ sub _convert_data {
     }
 
     $self->logger->debug("[$composite_name] Finished applying conversions to the data");
-    # TODO: Uncomment
-    #$self->debug_dump($request->{data});
+    $self->debug_dump($request->{data});
 }
 
 
