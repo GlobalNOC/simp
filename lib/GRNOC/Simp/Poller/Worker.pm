@@ -359,6 +359,7 @@ sub _poll_cb {
         # Select DB[0] of Redis so we can insert value data
         # Specifying the callback causes Redis piplining to reduce RTTs
 
+        $redis->select(0, sub{});
 	$redis->sadd($host_keys{db0}, @values, sub{}) if (@values);
 
         # Check that the session has no pending replies left
