@@ -312,7 +312,7 @@ sub _poll_cb {
     }
 
     # Calculate when this key should expire based on NOW when the response
-    # is received offset against when it was sent, to keep all responses aligned
+    # is received offset against when it was sent, to keep all redis entry timeouts aligned
     my $expire = ($time + $self->retention) - time();
 
     # Special key for the interval of the group (used by DB[3] to declare host variables)
@@ -359,32 +359,26 @@ sub _poll_cb {
         # Select DB[0] of Redis so we can insert value data
         # Specifying the callback causes Redis piplining to reduce RTTs
 
-        # Start transaction
-        $redis->multi();
-
-        $redis->select(0);
-
-        # Assign our value data from SNMP polling
-        $redis->sadd($host_keys{db0}, @values) if (@values);
+	$redis->sadd($host_keys{db0}, @values, sub{}) if (@values);
 
         # Check that the session has no pending replies left
         if (scalar(keys(%{$session->{'pending_replies'}})) == 0) {
 
             # Set the expiration time for the master key once all replies are received
-            $redis->expire($host_keys{db0}, $expire);
+            $redis->expire($host_keys{db0}, $expire, sub{});
 
             # Create keys for the Host, IP and Time
             my $time_key = sprintf("%s,%s", $poll_id, $time);
 
             # Set the Poll ID => Timestamp lookup table data and its expiration
-            $redis->select(1);
-            $redis->setex($host_keys{db1}, $expire, $host_keys{db0});
-            $redis->setex($ip_keys{db1}, $expire, $ip_keys{db0});
+            $redis->select(1, sub{});
+            $redis->setex($host_keys{db1}, $expire, $host_keys{db0}, sub{});
+            $redis->setex($ip_keys{db1}, $expire, $ip_keys{db0}, sub{});
 
             # Set the Host/IP => Timestamp lookup table data
-            $redis->select(2);
-            $redis->setex($host_keys{db2}, $expire, $time_key);
-            $redis->setex($ip_keys{db2}, $expire, $time_key);
+            $redis->select(2, sub{});
+            $redis->setex($host_keys{db2}, $expire, $time_key, sub{});
+            $redis->setex($ip_keys{db2}, $expire, $time_key, sub{});
 
             # Add any host-defined variables to the SNMP data in Redis as "vars.$var,$value"
             if (defined($vars)) {
@@ -392,18 +386,18 @@ sub _poll_cb {
                 $self->logger->debug("Adding host variables for $name");
 
                 # Set Redis back to DB[0] to insert the var data with values
-                $redis->select(0);
+                $redis->select(0, sub{});
 
                 # Add each host variable and its value (remove commas from var name)
                 while(my ($var, $value) = each(%$vars)) {
                     $var = ($var =~ s/,//gr);
-                    $redis->sadd($host_keys{db0}, sprintf("vars.%s,%s", $var, $value->{value}));
+                    $redis->sadd($host_keys{db0}, sprintf("vars.%s,%s", $var, $value->{value}), sub{});
                 }
 
                 # Set the host variable's interval lookup 
-                $redis->select(3);
-                $redis->hset($name_id, "vars", $group_interval);
-                $redis->hset($ip_id,   "vars", $group_interval);
+                $redis->select(3, sub{});
+                $redis->hset($name_id, "vars", $group_interval, sub{});
+                $redis->hset($ip_id,   "vars", $group_interval, sub{});
             }
 
             # Increment the session's poll_id
@@ -411,16 +405,16 @@ sub _poll_cb {
         }
 
         # Set an OID lookup using vars and interval for the OIDs
-        $redis->select(3);
-        $redis->hset($name_id, $oid, $group_interval);
-        $redis->hset($ip_id,   $oid, $group_interval);
+        $redis->select(3, sub{});
+        $redis->hset($name_id, $oid, $group_interval, sub{});
+        $redis->hset($ip_id,   $oid, $group_interval, sub{});
     }
     catch ($e) {
         $self->logger->error(sprintf('%s - ERROR: could not hset Redis data: %s', $worker, $e));
     };
 
-    # Execute our transaction
-    my $redis_response = $redis->exec();
+    # Ensure we're done with the pipeline
+    $redis->wait_all_responses();
 
     # Update the AnyEvent pipeline
     AnyEvent->now_update;
