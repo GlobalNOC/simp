@@ -311,8 +311,9 @@ sub _poll_cb {
         $self->logger->error(sprintf($error, $worker, $name, $reqstr, $snmp->error()));
     }
 
-    # Determine the expiration date of the data being stored in Redis
-    my $expire = $time + $self->retention;
+    # Calculate when this key should expire based on NOW when the response
+    # is received offset against when it was sent, to keep all responses aligned
+    my $expire = ($time + $self->retention) - time();
 
     # Special key for the interval of the group (used by DB[3] to declare host variables)
     my $group_interval = sprintf("%s,%s", $group, $self->interval);
@@ -358,8 +359,8 @@ sub _poll_cb {
         # Select DB[0] of Redis so we can insert value data
         # Specifying the callback causes Redis piplining to reduce RTTs
 
-	# Start transaction
-	$redis->multi();
+        # Start transaction
+        $redis->multi();
 
         $redis->select(0);
 
@@ -370,24 +371,20 @@ sub _poll_cb {
         if (scalar(keys(%{$session->{'pending_replies'}})) == 0) {
 
             # Set the expiration time for the master key once all replies are received
-            $redis->expireat($host_keys{db0}, $expire);
+            $redis->expire($host_keys{db0}, $expire);
 
             # Create keys for the Host, IP and Time
             my $time_key = sprintf("%s,%s", $poll_id, $time);
 
             # Set the Poll ID => Timestamp lookup table data and its expiration
             $redis->select(1);
-            $redis->set(     $host_keys{db1}, $host_keys{db0});
-            $redis->set(       $ip_keys{db1}, $ip_keys{db0});
-            $redis->expireat($host_keys{db1}, $expire);
-            $redis->expireat(  $ip_keys{db1}, $expire);
+            $redis->setex($host_keys{db1}, $expire, $host_keys{db0});
+            $redis->setex($ip_keys{db1}, $expire, $ip_keys{db0});
 
             # Set the Host/IP => Timestamp lookup table data
             $redis->select(2);
-            $redis->set(     $host_keys{db2}, $time_key);
-            $redis->set(       $ip_keys{db2}, $time_key);
-            $redis->expireat($host_keys{db2}, $expire);
-            $redis->expireat(  $ip_keys{db2}, $expire);
+            $redis->setex($host_keys{db2}, $expire, $time_key);
+            $redis->setex($ip_keys{db2}, $expire, $time_key);
 
             # Add any host-defined variables to the SNMP data in Redis as "vars.$var,$value"
             if (defined($vars)) {
