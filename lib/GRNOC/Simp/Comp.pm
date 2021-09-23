@@ -15,7 +15,7 @@ use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Comp::Worker;
 
-our $VERSION = '1.7.1';
+our $VERSION = '1.8.0';
 
 ### REQUIRED ATTRIBUTES ###
 
@@ -281,13 +281,59 @@ sub _make_composites {
 
                 my $scan = $variables->{'scan'}[$i];
 
+                # We must get matches by indexing the scan using XPath.
+                # XPath indexing starts at 1, not 0
+                # This allows us to preserve ordering of both the scan and matches it has
+                my $match_conf = $config->get(sprintf("/composite/variables/scan[%s]/match", $i+1));
+                    
+                my %match_index;
+                my %match_names = map {$_->{name} => 1} @$match_conf;
+                my @match_order = map {$_->{name}}      @$match_conf;
+                my $match_count = scalar(@match_order);
+
+                # TODO: Not all of these metadata pieces are necessary.
+                #       They've been left in the case they're useful later.
+                #       If not, we might remove some of the extra metadata.
+                my %matches = (
+                    index => \%match_index,
+                    names => \%match_names,
+                    order => \@match_order,
+                    count =>  $match_count,
+                );
+
+                # For validation, get a count of matches and an array of the corresponding asterisks
+                my @asterisks   = $scan->{oid} =~ /(\*|\*\*)+/g;
+
+                # Verify:
+                #   At least one <match> element exists
+                #   At least one variable OID node exists (* and/or **)
+                #   The number of match elements is the same as variable OID nodes
+                my $match_err;
+
+                if ($matches{count} == 0) {
+                    $match_err = '[%s] ERROR: Scan configuration has no defined match elements!';
+                }
+                elsif (scalar(@asterisks) == 0) {
+                    $match_err = '[%s] ERROR: Scan configuration missing * or ** corresponding to matches!';
+                }
+                elsif (scalar(@asterisks) != $matches{count}) {
+                    $match_err = '[%s] ERROR: Wrong number of match elements defined for scan in configuration!';
+                }
+
+                # Log our validation error and exit if one was found
+                if ($match_err) {
+                    $self->_log_and_exit(sprintf($match_err, $composite_name))
+                }
+
+                # Create a hash of the scan parameters for the Workers to use.
                 my $scan_params = {
-                    'oid'    => $scan->{'oid'},
-                    'suffix' => $scan->{oid_suffix},
-                    'value'  => $scan->{poll_value},
-                    'index'  => $i # Index used to preserve ordering for async responses
+                    'oid'     => $scan->{oid},
+                    'value'   => $scan->{value},
+                    'matches' => \%matches,
+                    'index'   => $i # Index used to preserve ordering for async responses 
                 };
 
+                # Create helpful metadata about the scan's OID, adding it to the scan's parameters
                 $self->_map_oid($scan_params, 'scan');
 
                 push(@{$composite{'scans'}}, $scan_params);
@@ -387,14 +433,13 @@ sub _make_composites {
     Parses an OID and maps out variables specific to the OID:
     - base_oid (The OID made from the max elems we can poll w/o having vars in it)
     - oid_vars (Array of OID variables in order of appearance)
-    - reqex    (Regex that matches an OID capturing OID variables in matching order of oid_vars)
+    - regex    (Regex that matches an OID capturing OID variables in matching order of oid_vars)
 =cut
 sub _map_oid {
 
     my $self = shift;
     my $elem = shift;
     my $type = shift;
-
 
     # Init the base OID to be requested from Redis by Data
     # The attribute containing it differs by element type
@@ -432,6 +477,9 @@ sub _map_oid {
     # Create an array of the OID variables as they occur preserving ordering
     my @oid_vars;
 
+    # Track the sequence we see asterisks in as they are mapped to match element names
+    my $match_index = 0;
+
     # Loop over the OID nodes
     for (my $i = 0; $i <= $#split_oid; $i++) {
 
@@ -441,15 +489,25 @@ sub _map_oid {
         # Determine what we should add to our regex
         my $re_elem = '';
 
-        # Change * to the name of the OID suffix for backward compatibility
+        # Check for asterisks which indicate an OID node match mapping
         if ($type eq 'scan' && ($oid_node eq '**' || $oid_node eq '*')) {
+
+            # Get the match element that maps to the current asterisk
+            my $match = $elem->{matches}{order}[$match_index];
+
+            # Set the index of the node in the OID where the match occurs
+            $elem->{matches}{index}{$i} = $match;
+
+            # Increase the match index for the next occurrence of a match position
+            $match_index++;
 
             # *  Captures the number in the OID exactly at position $i
             # ** Captures everything in the OID from position $i to the right
             $re_elem = ($oid_node eq '**') ? '([\d\.]+)' : '(\d+)';
 
-            $oid_node      = $elem->{suffix};
-            $split_oid[$i] = $elem->{suffix};
+            # Change the asterisk(s) to the match element's name
+            $oid_node      = $match;
+            $split_oid[$i] = $match;
 
             push(@oid_vars, $oid_node);
 

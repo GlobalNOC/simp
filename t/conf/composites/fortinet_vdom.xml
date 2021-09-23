@@ -2,7 +2,9 @@
 
 <composite>
     <variables>
-        <scan poll_value="vdom_name" oid_suffix="vdom_id" oid="1.3.6.1.4.1.12356.101.3.2.1.1.2.*" />
+        <scan value="vdom_name" oid="1.3.6.1.4.1.12356.101.3.2.1.1.2.*">
+            <match name="vdom_id"/>
+        </scan>
     </variables>
 
     <data>

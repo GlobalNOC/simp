@@ -21,9 +21,13 @@
     </xsd:complexType>
 
     <xsd:complexType name="SCAN">
+        <xsd:sequence minOccurs="0" maxOccurs="unbounded">
+            <xsd:element name="match" type="SCAN_MATCH" maxOccurs="unbounded"/>
+        </xsd:sequence>
         <xsd:attribute name="oid"        type="VAR_OID" use="required" />
-        <xsd:attribute name="oid_suffix" type="VAR_NAME" use="required" />
-        <xsd:attribute name="poll_value" type="VAR_NAME" use="required" />
+        <xsd:attribute name="oid_suffix" type="VAR_NAME"/>
+        <xsd:attribute name="poll_value" type="VAR_NAME"/>
+        <xsd:attribute name="value"      type="VAR_NAME"/>
     </xsd:complexType>
 
     <xsd:complexType name="INPUT">
@@ -36,6 +40,12 @@
         <xsd:attribute name="name"  type="VAR_NAME"   use="required" />
         <xsd:attribute name="value" type="xsd:string" use="required" />
     </xsd:complexType>
+
+
+    <xsd:complexType name="SCAN_MATCH">
+        <xsd:attribute name="name" type="VAR_NAME" use="required" />
+    </xsd:complexType>
+
 
     <!-- Data element definitions -->
     <xsd:complexType name="DATA">
@@ -121,16 +131,71 @@
     </xsd:simpleType>
 
     <!-- Validates Variable OIDs -->
+    <!--    
+        Sometimes starts with a period
+        \.?
+
+        At least one or more from the following:
+        (
+            Any integer, followed by a period
+            \d+\.
+    
+            | OR
+
+            Any valid var name that includes an underscore or hyphen
+            Must start with alpha chars and end with an alphanumeric
+            At least 2 char long
+            Followed by a period
+            \w[\w\d_-]*[\w\d]\.
+    
+            | OR
+
+            Any valid combo of alphanum chars starting with an alpha
+            Followed by a period
+            \w[\w\d]*\.
+
+            | OR
+
+            An asterisk
+            Followed by a period
+            \*\.
+        )+
+
+        Ending with exactly one of the following:
+        (
+            Either one or two asterisks
+            \*{1,2}
+
+            | OR
+
+            Any integer
+            \d+
+
+            | OR
+
+            Any valid var name that includes an underscore or hyphen
+            Must start with alpha chars and end with an alphanumeric
+            At least 2 char long
+            Followed by a period
+            \w[\w\d_-]*[\w\d]\.
+
+            | OR
+
+            Any valid combo of alphanum chars starting with an alpha
+            Followed by a period
+            \w[\w\d]*\.
+        )
+    -->
     <xsd:simpleType name="VAR_OID">
         <xsd:restriction base="xsd:string">
-            <xsd:pattern value="\.?([0-9]+\.|[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]\.|[a-zA-Z][a-zA-Z0-9]*\.)+([0-9]+|[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]|[a-zA-Z][a-zA-Z0-9]*)(\.\*{1,2})?" />
+            <xsd:pattern value="\.?(\d+\.|\w[\w\d_-]*[\w\d]\.|\w[\w\d]*\.|\*\.)+(\*{1,2}|\d+|\w[\w\d_-]*[\w\d]|\w[\w\d]*)" />
         </xsd:restriction>
     </xsd:simpleType>
 
     <!-- Validates Variable OIDs -->
     <xsd:simpleType name="VAR_SOURCE">
         <xsd:restriction base="xsd:string">
-            <xsd:pattern value="\.?([0-9]+\.|[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]\.|[a-zA-Z][a-zA-Z0-9]*\.)+([0-9]+|[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]|[a-zA-Z][a-zA-Z0-9]*)(\.\*)?|[a-zA-Z]+[a-zA-Z0-9_-]*[a-zA-Z0-9]+|[a-zA-Z]+[a-zA-Z0-9]*" />
+            <xsd:pattern value="\.?(\d+\.|\w[\w\d_-]*[\w\d]\.|\w[\w\d]*\.)+(\d+|\w[\w\d_-]*[\w\d]|\w[\w\d]*)(\.\*)?|\w+[\w\d_-]*[\w\d]+|\w+[\w\d]*" />
         </xsd:restriction>
     </xsd:simpleType>
 

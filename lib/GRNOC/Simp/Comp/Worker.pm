@@ -367,7 +367,7 @@ sub _get {
         $self->_convert_data($request);
         
         # Log the time to process the request 
-        $self->logger->info("REQTIME COMP " . tv_interval($start, [gettimeofday]));
+        $self->logger->info("[$composite->{name}] REQTIME COMP " . tv_interval($start, [gettimeofday]));
 
         # Send results back to RabbitMQ for TSDS
         &$success_callback($request->{data});
@@ -606,14 +606,13 @@ sub _digest_data {
 
     $self->logger->debug("[".$request->{composite}{name}."] Digesting raw data");
 
+    # Determine the unique ports used as the superset of ports returned for scans and data
+    my %ports;
+    @ports{keys(%{$request->{raw}{data}})} = ();
+    @ports{keys(%{$request->{raw}{scan}})} = ();
+
     # Parse the data for each host and port
     for my $host (@{$request->{hosts}}) {
-
-        # Determine the unique ports used as the superset of ports returned for scans and data
-        my %ports;
-        @ports{keys(%{$request->{raw}{data}})} = ();
-        @ports{keys(%{$request->{raw}{scan}})} = ();
-        
         for my $port (keys(%ports)) {
 
             # Skip the host if it has no data from sessions using the port
@@ -624,7 +623,6 @@ sub _digest_data {
 
             # Accumulate parsed data objects for the host+port to an array
             my @host_data;
-
             $self->_parse_data($request, $port, $host, \@host_data);
 
             # Add the accumulation to the data for the host
@@ -661,15 +659,21 @@ sub _parse_data {
     # The data for the scan
     my $data = $request->{raw}{scan}{$port}{$host}[$i];
 
-    # The name of this scan's poll_value and oid_suffix
+    # The value name and match configs for the scan
     my $value_name  = $scan->{value};
-    my $suffix_name = $scan->{suffix};
+    my $matches     = $scan->{matches};
 
     # Iterate over each data hash in the scan's array
     for (my $j = 0; $j <= $#$data; $j++) {
 
         my $datum = $data->[$j];
         my $oid   = $datum->{oid};
+
+        # Create a copy of $env each time an OID changes
+        my %env_copy = %$env;
+
+        # Set the value name in $env to the value assigned to the OID
+        $env_copy{$value_name} = $datum->{value};
 
         # Check if the OID matches the scan's regex and store any matching variables
         my @oid_vars = ($oid =~ $scan->{regex});
@@ -678,56 +682,34 @@ sub _parse_data {
         next unless (@oid_vars);
 
         # Set time for $env from scan data in case we're only polling for scans
-        if (!exists($env->{TIME}) || !defined($env->{TIME})) {
-            $env->{TIME} = $datum->{time};
+        if (!exists($env_copy{TIME}) || !defined($env_copy{TIME})) {
+            $env_copy{TIME} = $datum->{time};
         }
 
-        # Short circuit for elements without vars
-        if (!scalar(@{$scan->{oid_vars}})) {
-            $env->{$suffix_name} = undef;
-            $env->{$value_name}  = $datum->{value};
-
-            $self->_parse_data($request, $port, $host, $acc, ($i+1), $env);
-
-            next;
-        }
-
-        # Flag whether the OID has the right vars for what's in $env
+        # Used for checking the validity of $env for the OID throughout parsing
         my $valid = 1;
 
-        # Find the value for this scan data's OID suffix
-        for (my $index = 0; $index <= $#oid_vars; $index++) {
-            
-            # Grab the var name and value from the map and data OID
-            my $var = $scan->{oid_vars}[$index];
-            my $val = $oid_vars[$index];
+        # Get EVERY variable node within the current OID
+        for (my $var_index = 0; $var_index <= $#oid_vars; $var_index++) {
 
-            # Validate the var->val combination by checking this:
-            #   The current var exists in $env... 
-            #   and isn't for the current scan...
-            #   and the var's value in $env matches the current OID's value for it
-            $valid = 0 if (
-                exists($env->{$var}) 
-                && ($var ne $value_name && $var ne $suffix_name) 
-                && ($env->{$var} ne $val)
-            );    
+            my $var_name = $scan->{oid_vars}[$var_index];
 
-            # Skip vars that aren't the current scan's suffix
-            next if ($var ne $suffix_name);
+                # Get the corresponding node value from the OID
+                my $oid_node = $oid_vars[$var_index];
 
-            # Set the suffix and value for the scan data to recurse on
-            if ($valid) {
+                # Confirm the node is right for $env
+                if (exists($env_copy{$var_name}) && $env_copy{$var_name} != $oid_node) {
+                    $valid = 0;
+                    last;
+                }
+                
+                # Set the OID node for the var in $env
+                $env_copy{$var_name} = $oid_node;
+        }
 
-                my %new_env = %$env;
-                $new_env{$suffix_name} = $val;
-                $new_env{$value_name}  = $datum->{value};
-
-                # Once we have the suffix, we're done with the vars
-                $self->_parse_data($request, $port, $host, $acc, ($i+1), \%new_env);
-
-                # Stop iterating over the OID variables for this particular OID
-                last;
-            }
+        # Skip any OID that was marked invalid while gathering matches for the scan
+        if ($valid) {
+            $self->_parse_data($request, $port, $host, $acc, ($i+1), \%env_copy)
         }
     }
     return;
