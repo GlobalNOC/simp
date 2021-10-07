@@ -304,7 +304,7 @@ sub _setup_worker {
 	    my $res         = $self->simp_client->$composite(%args);
 	    my $end_query   = gettimeofday();
 
-	    $self->logger->debug($self->worker_name . " simp-comp request for $host took " . tv_interval([$start_query, $end_query]) . " seconds");
+	    $self->logger->debug($self->worker_name . " simp-comp request for $host took " . tv_interval([$start_query], [$end_query]) . " seconds");
 
 	    $self->_process_data($res, $host);
 	}	
