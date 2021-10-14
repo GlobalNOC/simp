@@ -683,7 +683,7 @@ sub _create_workers {
 
             # Determine least-loaded worker if the current worker already has a load
             # Init the minimum load as the first worker's load
-            my $min_load = max(values %worker_loads);
+            my $min_load = ~0 ;
 
             # Check each worker's current load
             while (my ($id, $load) = each(%worker_loads)) {
