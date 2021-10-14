@@ -13,7 +13,7 @@ use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Data::Worker;
 
-our $VERSION = '1.8.0';
+our $VERSION = '1.8.1';
 
 =head2 public attributes
 =over 12
