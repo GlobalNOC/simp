@@ -19,7 +19,7 @@ my $benchmarking = 0;
 # Useful when a test fails and you want to view debug logging for it
 my $debug = {
     enable    => 0,
-    composite => ''
+    composite => 'fujitsu_optical'
 };
 
 

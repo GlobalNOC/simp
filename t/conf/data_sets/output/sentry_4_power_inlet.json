@@ -1,0 +1,22 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "AA",
+            "actpower": "2",
+            "apppower": "10",
+            "amps": "1.11111111111111",
+            "voltage": "9", 
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "AB",
+            "actpower": "5",
+            "apppower": "34",
+            "amps": "13.6",
+            "voltage": "2.5",
+            "time": 689644800
+        }
+    ]
+}

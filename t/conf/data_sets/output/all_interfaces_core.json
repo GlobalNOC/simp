@@ -1,0 +1,34 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "input": 8,
+            "outerror": "0",
+            "*intf": "intf-1",
+            "status": "1",
+            "time": "1591890675",
+            "output": 8,
+            "inerror": "0",
+            "*node": "acme.grnoc.iu.edu"
+        },
+        {
+            "input": 16,
+            "outerror": "1",
+            "*intf": "intf-2",
+            "status": "1",
+            "time": "1591890675",
+            "output": 16,
+            "inerror": "0",
+            "*node": "acme.grnoc.iu.edu"
+        },
+        {
+            "input": 24,
+            "outerror": "0",
+            "*intf": "intf-3",
+            "status": "1",
+            "time": "1591890675",
+            "output": 24,
+            "inerror": "1",
+            "*node": "acme.grnoc.iu.edu"
+        }
+    ]
+}

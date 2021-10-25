@@ -1,0 +1,25 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "PTP-5/2",
+            "rxpower": "-3",
+            "txpower": "-1", 
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "PTP-3/11",
+            "rxpower": "-33",
+            "txpower": "-22",
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "PTP-5/1",
+            "rxpower": "-44",
+            "txpower": "-94",
+            "time": 689644800
+        }
+    ]
+}

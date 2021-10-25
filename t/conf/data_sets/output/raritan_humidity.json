@@ -1,0 +1,28 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+
+            "*name": "sensor_2",
+            "hum": "24", 
+            "time": 689644800
+        },
+        {
+
+            "*name": "sensor_4",
+            "hum": "92",
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*name": "sensor_1",
+            "hum": "50",
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*name": "sensor_3",
+            "hum": "31",
+            "time": 689644800
+        }
+    ]
+}

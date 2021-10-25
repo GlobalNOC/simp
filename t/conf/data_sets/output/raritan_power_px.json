@@ -2,7 +2,7 @@
     "acme.grnoc.iu.edu": [
         {
             "apppower": "1000",
-            "*intf": "Outlet 1",
+            "*intf": "1",
             "status": "1",
             "time": "689660469",
             "pf": "10",
@@ -13,7 +13,7 @@
         },
         {
             "apppower": "2000",
-            "*intf": "Outlet 2",
+            "*intf": "2",
             "status": "0",
             "time": "689660469",
             "pf": "20",

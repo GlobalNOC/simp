@@ -1,0 +1,27 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*name": "BOT",
+            "temp": "9.2",
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*name": "TOP",
+            "temp": "5",
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*name": "BTM",
+            "temp": "3.1",
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*name": null,
+            "temp": "2.4",
+            "time": 689644800
+        }
+    ]
+}

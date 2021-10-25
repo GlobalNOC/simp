@@ -1,0 +1,18 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*node": "acme.grnoc.iu.edu", 
+            "*name": "0",
+            "cpu": "22",
+            "time": 689644800
+        }
+    ],
+    "acme2.grnoc.iu.edu": [
+        {
+            "*node": "acme2.grnoc.iu.edu", 
+            "*name": "0",
+            "cpu": "69",
+            "time": 689644800
+        }
+    ]
+}

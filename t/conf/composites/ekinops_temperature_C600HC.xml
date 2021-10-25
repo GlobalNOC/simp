@@ -2,17 +2,17 @@
 
 <composite>
     <variables>
-        <constant name="hardware_name" value="0" />
+        <constant name="hardware_name" value="Chassis" />
     </variables>
 
     <data>
         <meta name="name" source="hardware_name" />
-        <value name="cpu" source="1.3.6.1.4.1.2021.11.11.0" />
+        <value name="temp" source="1.3.6.1.4.1.20044.45.3.1.64.0" />
     </data>
 
     <conversions>
-        <function definition='100 ${} -'>
-            <data name="cpu" />
+        <function definition='${} 256 /'>
+            <data name="temp" />
         </function>
     </conversions>
 </composite>
