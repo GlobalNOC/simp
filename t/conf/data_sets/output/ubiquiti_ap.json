@@ -1,0 +1,15 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*node": "acme.grnoc.iu.edu", 
+            "time": 689644800,
+            "rx": "160",
+            "tx": "320",
+            "uptime": "1232205",
+            "users_five_g": "9",
+            "users_two_g": "0",
+            "util_five_g": "0",
+            "util_two_g": "80"
+        }
+    ]
+}

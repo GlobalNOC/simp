@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="module_id" oid="1.3.6.1.4.1.12356.101.4.4.2.1.5.*">
+            <match name="cpu_id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="core" source="cpu_id" />
+        <meta name="name" source="1.3.6.1.4.1.12356.101.4.5.3.1.4.module_id" />
+        <value name="cpu" source="1.3.6.1.4.1.12356.101.4.4.2.1.2.cpu_id" />
+    </data>
+
+    <conversions>
+        <match pattern='\(.*(?:NPUs|CPUs).*(Slot \d+).*\)' >
+            <data name="name" />
+        </match>
+
+        <replace this='${}' with='${} - Core ${core}'>
+            <data name="name" />
+        </replace>
+
+        <drop>
+            <data name="core" />
+        </drop>
+    </conversions>
+</composite>

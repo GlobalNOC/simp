@@ -1,0 +1,32 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "time": 689644800,
+            "*name": "Te1/0/37 Module Temperature Sensor - TenGigabitEthernet1/0/37 Module Temperature Sensor",
+            "temp": 28,
+            "*node": "acme.grnoc.iu.edu"
+        },
+        {
+            "time": 689644800,
+            "*name": "Switch 1 - Outlet Temp Sensor - Switch 1 - C9500-40X - Temp Outlet Sensor 1",
+            "temp": 42,
+            "*node": "acme.grnoc.iu.edu"
+        },
+        {
+            "time": 689644800,
+            "*name": "Te1/0/37 Bias Current Sensor - TenGigabitEthernet1/0/37 Bias Current Sensor",
+            "temp": "0.0057"
+        },
+        {
+            "time": 689644800,
+            "*name": "Te1/0/37 Transmit Power Sensor - TenGigabitEthernet1/0/37 Transmit Power Sensor",
+            "temp": "-1.7"
+        },
+        {
+            "time": 689644800,
+            "*name": "Switch 1 - Inlet Temp Sensor - Switch 1 - C9500-40X - Temp Inlet Sensor 0",
+            "temp": null,
+            "*node": "acme.grnoc.iu.edu"
+        }
+    ]
+}

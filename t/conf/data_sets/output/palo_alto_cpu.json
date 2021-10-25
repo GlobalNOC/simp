@@ -1,0 +1,16 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "cpu": 42,
+            "*name": "Slot-1 Management Processor",
+            "*node": "acme.grnoc.iu.edu",
+            "time": 689644800
+        },
+        {
+            "cpu": 2,
+            "*name": "Slot-1 Data Processor",
+            "*node": "acme.grnoc.iu.edu",
+            "time": 689644800
+        }
+    ]
+}

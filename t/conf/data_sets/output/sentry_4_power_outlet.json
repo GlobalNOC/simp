@@ -1,0 +1,28 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "AA1",
+            "amps" : "3.41",
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "AA2",
+            "amps": "3.26",
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "AB1",
+            "amps": "0",
+            "time": 689644800
+        },
+        {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "AB2",
+            "amps": "0.09",
+            "time": 689644800
+        }
+    ]
+}

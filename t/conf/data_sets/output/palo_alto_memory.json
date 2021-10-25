@@ -1,0 +1,38 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*name": "Slot-1 Management Memory",
+            "*node": "acme.grnoc.iu.edu",
+            "memory": "92",
+            "time": 689644800
+        },
+        {
+
+            "*name": "Slot-1 Management Swap",
+            "*node": "acme.grnoc.iu.edu",
+            "memory": "51.2",
+            "time": 689644800
+        },
+        {
+
+            "*name": null,
+            "*node": "acme.grnoc.iu.edu",
+            "memory": "2",
+            "time": 689644800
+        },
+        {
+
+            "*name": null,
+            "*node": "acme.grnoc.iu.edu",
+            "memory": "45",
+            "time": 689644800
+        },
+        {
+
+            "*name": null,
+            "*node": "acme.grnoc.iu.edu",
+            "memory": "90",
+            "time": 689644800
+        }
+    ]
+}
