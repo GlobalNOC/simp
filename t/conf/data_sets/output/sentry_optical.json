@@ -1,0 +1,18 @@
+{
+    "acme.grnoc.iu.edu": [
+            {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "AB",
+            "time": 689644800,
+            "rxpower": "5",
+            "txpower": "72"
+            },
+            {
+            "*node": "acme.grnoc.iu.edu",
+            "*intf": "AA",
+            "time": 689644800,
+            "rxpower": "2",
+            "txpower": "734"
+            }
+    ]
+}

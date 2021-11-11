@@ -1,0 +1,36 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "cpu": "9999",
+            "*node": "acme.grnoc.iu.edu",
+            "time": 689644800,
+            "*name": "Slot 0 - Core 3"
+        },
+        {
+            "cpu": "10",
+            "*node": "acme.grnoc.iu.edu",
+            "time": 689644800,
+            "*name": "Slot 0 - Core 2"
+        },
+        {
+            "cpu": "12",
+            "*node": "acme.grnoc.iu.edu",
+            "time": 689644800,
+            "*name": "Slot 1 - Core 55"
+        },
+        {
+            "cpu": "11",
+            "*node": "acme.grnoc.iu.edu",
+            "time": 689644800,
+            "*name": "Slot 4 - Core 36"
+        },
+        {
+            "cpu": "13",
+            "*node": "acme.grnoc.iu.edu",
+            "time": 689644800,
+            "*name": "Slot 3 - Core 95"
+        }
+    ]
+}
+
+        

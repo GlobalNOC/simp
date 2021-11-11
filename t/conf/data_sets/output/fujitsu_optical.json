@@ -1,0 +1,32 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*intf": "Shelf 53 - Slot 49.48 - Port 53",
+            "time": 689644800,
+            "txpower": "75",
+            "*node": "acme.grnoc.iu.edu",
+            "rxpower": "53"
+          },
+          {
+            "*intf": "Shelf 49 - Slot 48.48 - Port 56",
+            "time": 689644800,
+            "txpower": "11",
+            "*node": "acme.grnoc.iu.edu",
+            "rxpower": "23"
+          },
+          {
+            "*intf": "Shelf 49 - Slot 48.48 - Port 57",
+            "time": 689644800,
+            "txpower": "65",
+            "*node": "acme.grnoc.iu.edu",
+            "rxpower": "98"
+          },
+          {
+            "*intf": "Shelf 53 - Slot 49.48 - Port 49",
+            "time": 689644800,
+            "txpower": "32",
+            "*node": "acme.grnoc.iu.edu",
+            "rxpower": "56"
+          }
+    ]
+}

@@ -1,7 +1,7 @@
 {
     "acme.grnoc.iu.edu": [
         {
-            "cpu": 10,
+            "cpu": 90,
             "*node": "acme.grnoc.iu.edu",
             "time": "689660469",
             "*name": "0"

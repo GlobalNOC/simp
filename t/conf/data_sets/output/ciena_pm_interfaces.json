@@ -1,0 +1,52 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "input": 32,
+            "outerror": "5",
+            "*intf": "10/1-Default",
+            "time": 689644800,
+            "output": 72,
+            "inerror": "1",
+            "*node": "acme.grnoc.iu.edu",
+            "indiscard": "9",
+            "inUcast": "13",
+            "outUcast": "17"
+        },
+        {
+            "input": 80,
+            "outerror": "6",
+            "*intf": "1_6_4_ILN-MP-MP-EVPL-24877_1",
+            "time": 689644800,
+            "output": 96,
+            "inerror": "2",
+            "*node": "acme.grnoc.iu.edu",
+            "indiscard": "10",
+            "inUcast": "14",
+            "outUcast": "18"
+        },
+        {
+            "input": 96,
+            "outerror": "7",
+            "*intf": "6/4-Default",
+            "time": 689644800,
+            "output": 3456,
+            "inerror": "3",
+            "*node": "acme.grnoc.iu.edu",
+            "indiscard": "11",
+            "inUcast": "15",
+            "outUcast": "19"
+        },
+        {
+            "input": 128,
+            "outerror": "8",
+            "*intf": "9/1-Default",
+            "time": 689644800,
+            "output": 5808,
+            "inerror": "4",
+            "*node": "acme.grnoc.iu.edu",
+            "indiscard": "12",
+            "inUcast": "16",
+            "outUcast": "20"
+        }
+    ]
+}

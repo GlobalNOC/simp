@@ -15,7 +15,7 @@ use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Poller::Worker;
 
-our $VERSION = '1.8.0';
+our $VERSION = '1.8.1';
 
 ### Required Attributes ###
 =head2 public attributes
@@ -683,7 +683,7 @@ sub _create_workers {
 
             # Determine least-loaded worker if the current worker already has a load
             # Init the minimum load as the first worker's load
-            my $min_load = $worker_loads{0};
+            my $min_load = ~0 ;
 
             # Check each worker's current load
             while (my ($id, $load) = each(%worker_loads)) {

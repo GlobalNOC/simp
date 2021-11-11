@@ -1,0 +1,22 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*name": "Management Slot - 1", 
+            "*node": "acme.grnoc.iu.edu",
+            "cpu": "23",
+            "time": 689644800
+        },
+        {
+            "*name": "Management Slot - 2",
+            "*node": "acme.grnoc.iu.edu",
+            "cpu": "48",
+            "time": 689644800
+        },
+        {
+            "*name": "Data Slot - 1",
+            "*node": "acme.grnoc.iu.edu",
+            "cpu": "2",
+            "time": 689644800
+        }
+    ]
+}

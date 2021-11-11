@@ -1,0 +1,10 @@
+{
+    "acme.grnoc.iu.edu": [
+        {
+            "*name": "CPU",
+            "*node": "acme.grnoc.iu.edu",
+            "cpu": "23",
+            "time": 689644800
+        }
+    ]
+}
