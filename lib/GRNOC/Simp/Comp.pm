@@ -416,6 +416,18 @@ sub _make_composites {
             $conversion->{'type'} = 'match' if (exists $c->{'pattern'});
             $conversion->{'type'} = 'drop' if (!$conversion->{'type'});
 
+	    # If the conversation if a replacement AND we have a subroutine
+	    # as the 'with' parameter, make it eval'd in a safe way so that
+	    # it actually gets evaluated properly later.
+	    if ($conversion->{'type'} eq 'replace' &&
+		$conversion->{'with'} =~ /^\s*sub\s*{/) {
+		my $new_with = Safe->new()->reval($conversion->{'with'});
+		if (! $new_with || ! ref $new_with eq 'CODE') {
+		    $self->_log_and_exit("ERROR: Cannot parse conversion \"with\" attribute as subroutine code ->" . $@);
+		}
+		$conversion->{'with'} = $new_with;
+	    }
+
             push($composite{'conversions'}, $conversion);
         }
 
@@ -523,8 +535,9 @@ sub _map_oid {
             # Initialize the first variable OID node index
             $first_index = $i if (!defined $first_index);
 
-            # Match this OID node only
-            $re_elem = '(\d+)';
+	    # Since it's a variable we need to potentially
+	    # match multiple sections for a ** match
+            $re_elem = '([\d\.]+)';
         }
         else {
             # Add the constant to our regex

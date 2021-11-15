@@ -9,6 +9,7 @@ use AnyEvent;
 use Data::Dumper;
 use Data::Munge;
 use Time::HiRes qw(gettimeofday tv_interval);
+use Safe;
 
 use GRNOC::Log;
 use GRNOC::RabbitMQ::Client;
@@ -182,7 +183,7 @@ sub _connect_rmq_dispatcher {
         pass           => $self->rmq_config->{'password'},
         exchange       => 'Simp',
         topic          => 'Simp.Comp',
-        queue_name     => 'Simp.Comp',
+        queue_name     => 'Simp.Comp'
     );
     $self->_set_rmq_dispatcher($rmq_dispatcher);
 }
@@ -1028,7 +1029,8 @@ sub _convert_data {
                             $new_value = Data::Munge::replace(
                                 $data->{$target}, 
                                 $temp_this,
-                                $temp_with
+                                $temp_with,
+				$conversion->{'global'} ? 'g' : undef
                             );
                         }
                     }

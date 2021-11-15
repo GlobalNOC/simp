@@ -103,7 +103,8 @@
             <xsd:element name="data" type="CONVERSION_DATA" maxOccurs="unbounded" />
         </xsd:sequence>
         <xsd:attribute name="this" type="xsd:string" use="required" />
-      	<xsd:attribute name="with" type="xsd:string" use="required" />
+        <xsd:attribute name="with" type="xsd:string" use="required" />
+        <xsd:attribute name="global" type="INT_BOOL" use="optional" />
     </xsd:complexType>
 
     <xsd:complexType name="MATCH">
@@ -156,9 +157,9 @@
 
             | OR
 
-            An asterisk
+            An asterisk (or 2)
             Followed by a period
-            \*\.
+            \*{1,2}\.
         )+
 
         Ending with exactly one of the following:
@@ -188,14 +189,14 @@
     -->
     <xsd:simpleType name="VAR_OID">
         <xsd:restriction base="xsd:string">
-            <xsd:pattern value="\.?(\d+\.|\w[\w\d_-]*[\w\d]\.|\w[\w\d]*\.|\*\.)+(\*{1,2}|\d+|\w[\w\d_-]*[\w\d]|\w[\w\d]*)" />
+            <xsd:pattern value="\.?(\d+\.|\w[\w\d_-]*[\w\d]\.|\w[\w\d]*\.|\*{1,2}\.)+(\*{1,2}|\d+|\w[\w\d_-]*[\w\d]|\w[\w\d]*)" />
         </xsd:restriction>
     </xsd:simpleType>
 
     <!-- Validates Variable OIDs -->
     <xsd:simpleType name="VAR_SOURCE">
         <xsd:restriction base="xsd:string">
-            <xsd:pattern value="\.?(\d+\.|\w[\w\d_-]*[\w\d]\.|\w[\w\d]*\.)+(\d+|\w[\w\d_-]*[\w\d]|\w[\w\d]*)(\.\*)?|\w+[\w\d_-]*[\w\d]+|\w+[\w\d]*" />
+            <xsd:pattern value="\.?(\d+\.|\w[\w\d_-]*[\w\d]\.|\w[\w\d]*\.)+(\d+|\w[\w\d_-]*[\w\d]|\w[\w\d]*)(\.\*{1,2})?|\w+[\w\d_-]*[\w\d]+|\w+[\w\d]*" />
         </xsd:restriction>
     </xsd:simpleType>
 
