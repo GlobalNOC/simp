@@ -609,7 +609,6 @@ sub _write_mon_data {
 
     # Aggregation of all the error data for each session's failed OIDs
     my $failed_oids = {};
-
     # Aggregation of each session's SNMP errors
     # Note: The community and version subsections are deprecated by config validation
     # They are left in here for backward compatibility with poller-monitoring.
@@ -621,7 +620,14 @@ sub _write_mon_data {
     my $session_errors = $snmp_errors->{session};
 
     for my $session (@{$host->{sessions}}) {
+        for my $oid (keys($session->{pending_replies})) {
+            $failed_oids->{"$oid:161"} = {
+                timestamp => time() - $self->interval / 2,
+                error     => 'OID_DATA_ERROR',
+            };
+        }
         for my $oid (keys($session->{failed_oids})) {
+            $self->logger->error($session->{'failed_oids'}{$oid}{'error'});
             $failed_oids->{$oid} = $session->{failed_oids}{$oid};
         }
         push(@{$session_errors}, $session->{errors}{session}) if ($session->{errors}{session});
@@ -707,11 +713,6 @@ sub _collect_data {
 
                 my $oid     = $oid_attr->{oid};
                 my $is_leaf = $oid_attr->{single} || 0;
-
-                # Log an error if the OID is failing
-                if (exists $session->{'failed_oids'}{$oid}) {
-                    $self->logger->error($session->{'failed_oids'}{$oid}{'error'});
-                }
 
                 my $reqstr = " $oid -> $host->{ip}:$session->{port} ($host_name)";
 
