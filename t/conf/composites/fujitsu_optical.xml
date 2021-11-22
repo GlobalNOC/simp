@@ -11,18 +11,25 @@
     </variables>
 
     <data>
-        <meta name="intf" source="shelf" />
+        <meta name="intf"  source="shelf" />
         <meta name="shelf" source="shelf" />
-        <meta name="slot" source="slot" />
-        <meta name="sub" source="sub" />
-        <meta name="port" source="port" />
+        <meta name="slot"  source="slot" />
+        <meta name="sub"   source="sub" />
+        <meta name="port"  source="port" />
         <value name="rxpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.sub.1.port.6.0.1.1.0" />
         <value name="txpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.sub.1.port.13.0.0.1.0" />
     </data>
 
     <conversions>
-        <replace this='${}' with='Shelf ${shelf} - Slot ${slot}.${sub} - Port ${port}'>
-            <data name="intf" />
+        <replace this='(\d+)' with='sub {return chr($_[1]);}'>
+            <data name="shelf" />
+            <data name="slot" />
+            <data name="sub" />
+            <data name="port" />
+        </replace>
+
+        <replace this="${}" with="Shelf ${shelf} - Slot ${slot}.${sub} - Port ${port}">
+            <data name="intf"/>
         </replace>
 
         <drop>
