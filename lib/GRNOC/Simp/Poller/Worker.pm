@@ -627,7 +627,6 @@ sub _write_mon_data {
             };
         }
         for my $oid (keys($session->{failed_oids})) {
-            $self->logger->error($session->{'failed_oids'}{$oid}{'error'});
             $failed_oids->{$oid} = $session->{failed_oids}{$oid};
         }
         push(@{$session_errors}, $session->{errors}{session}) if ($session->{errors}{session});
