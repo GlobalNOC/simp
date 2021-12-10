@@ -925,7 +925,10 @@ sub _convert_data {
                     my $temp_pattern = $target_pattern;
 
                     # Skip if the target data element doesn't exist in the object
-                    next unless (exists $data->{$target});
+                    unless (exists $data->{$target}) {
+                        $self->logger->debug("[$composite_name] Data element missing $target for conversion!");
+                        next;
+                    };
 
                     my $conversion_err = 0;
 
@@ -1014,6 +1017,12 @@ sub _convert_data {
                             $request, 
                             $host
                         );
+                        if (defined($new_value)) {
+                            $self->logger->debug("[$composite_name] Resulting data for $target: $new_value");
+                        }
+                        else {
+                            $self->logger->debug("[$composite_name] Resulting data for $target: undef");
+                        }
                     }
                     # Replacement application
                     elsif ($conversion->{'type'} eq 'replace') {
@@ -1030,7 +1039,7 @@ sub _convert_data {
                                 $data->{$target}, 
                                 $temp_this,
                                 $temp_with,
-				$conversion->{'global'} ? 'g' : undef
+                                $conversion->{'global'} ? 'g' : undef
                             );
                         }
                     }
@@ -1084,7 +1093,7 @@ sub _convert_data {
     }
 
     $self->logger->debug("[$composite_name] Finished applying conversions to the data");
-    $self->debug_dump($request->{data});
+    #$self->debug_dump($request->{data});
 }
 
 
@@ -1368,12 +1377,17 @@ sub _bool_to_int {
         my $stack = shift;
         my $b     = pop @$stack;
         my $a     = pop @$stack;
+        #my $a_str = defined $a ? $a : 'undef';
+        #my $b_str = defined $b ? $b : 'undef';
+        #warn("RPN OPERATION: $a_str || $b_str");
         push @$stack, _bool_to_int($a || $b);
     },
     # a => (NOT a)
     'not' => sub {
         my $stack = shift;
         my $a     = pop @$stack;
+        #my $a_str = defined($a) ? $a : 'undef';
+        #warn("RPN OPERATION: !$a");
         push @$stack, _bool_to_int(!$a);
     },
     # pred a b => (a if pred is true, b if pred is false)
@@ -1382,6 +1396,10 @@ sub _bool_to_int {
         my $b     = pop @$stack;
         my $a     = pop @$stack;
         my $pred  = pop @$stack;
+        #my $a_str = defined $a ? $a : 'undef';
+        #my $b_str = defined $b ? $b : 'undef';
+        #my $p_str = defined $pred ? $pred : 'undef';
+        #warn("RPN OPERATION: ($p_str) ? $a_str : $b_str");
         push @$stack, (($pred) ? $a : $b);
     },
     # string pattern => match_group_1
