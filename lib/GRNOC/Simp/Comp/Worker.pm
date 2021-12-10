@@ -973,7 +973,7 @@ sub _convert_data {
                             $var_value = '' if (!defined($var_value));
 
                             # Replace the var indicators with their value
-                            $temp_def =~ s/\$\{$var\}/$var_value/;
+                            $temp_def =~ s/\$\{$var\}/$var_value/g;
                             $self->logger->debug("[$composite_name] Applying function: $temp_def");
                         }
                         # Replacements
