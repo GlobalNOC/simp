@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="ifName" oid="1.3.6.1.2.1.31.1.1.1.1.*">
+            <match name="ifIdx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf" source="ifName" require_match="^cbp\d|demux\d|esi|gr-.*|gre|ip-.*|ipip|jsrv\.?\d*|lt-.*|mt-.*|mtun|pe-.*|pfe-.*|pfh-.*|pimd|pime|pip\d|pp\d|rbeb|tap|ut-.*|vme\.?\d?|vt-.*|vtep$" invert_match="1" />
+        <meta name="adminStatus" source="1.3.6.1.2.1.2.2.1.7.ifIdx" require_match="^1$" />
+        <value name="input"      source="1.3.6.1.2.1.31.1.1.1.6.ifIdx" type="rate" />
+        <value name="output"     source="1.3.6.1.2.1.31.1.1.1.10.ifIdx" type="rate" />
+        <value name="limit"      source="1.3.6.1.2.1.31.1.1.1.15.ifIdx" />
+        <value name="inerror"    source="1.3.6.1.2.1.2.2.1.14.ifIdx" type="rate" />
+        <value name="outerror"   source="1.3.6.1.2.1.2.2.1.20.ifIdx" type="rate" />
+        <value name="inUcast"    source="1.3.6.1.2.1.2.2.1.11.ifIdx" type="rate" />
+        <value name="outUcast"   source="1.3.6.1.2.1.2.2.1.17.ifIdx" type="rate" />
+        <value name="indiscard"  source="1.3.6.1.2.1.2.2.1.13.ifIdx" type="rate" />
+        <value name="outdiscard" source="1.3.6.1.2.1.2.2.1.19.ifIdx" type="rate" />
+        <value name="status"     source="1.3.6.1.2.1.2.2.1.8.ifIdx" />
+    </data>
+
+    <conversions>
+        <!-- Convert Octets to Bits -->
+        <function definition='${} 8 *'>
+            <data name="input" />
+            <data name="output" />
+        </function>
+
+        <!-- Undef or zero limits are set to 1000Mbps (1Tbps) -->
+        <!-- (Use "not" to check for both to save operation time) -->
+        <function definition="not 1000000 ${} ifelse">
+            <data name="limit"/>
+        </function>
+
+        <!-- Convert limit Mbps to bps, adding 10% for throughput tests -->
+        <!-- (Doing this in one step saves operation time -->
+        <function definition='${} 1100000 *'>
+            <data name="limit"/>
+        </function>
+
+        <!-- Set input/output bits to undef if their $value > $limit -->
+        <function definition='${limit} &lt; ${} _ ifelse'>
+            <data name="input"/>
+            <data name="output"/>
+        </function>
+
+        <drop>
+            <data name="adminStatus" />
+            <data name="limit" />
+        </drop>
+    </conversions>
+</composite>
