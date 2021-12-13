@@ -29,7 +29,7 @@
             <data name="output" />
         </function>
 
-        <!-- Undef or zero limits are set to 1000Mbps (1Tbps) -->
+        <!-- Undef or zero limits are set to 1000000Mbps (1Tbps) -->
         <!-- (Use "not" to check for both to save operation time) -->
         <function definition="not 1000000 ${} ifelse">
             <data name="limit"/>
