@@ -20,6 +20,25 @@ $ make test TEST_FILES=t/31-composites.t
 ```
 
 ---
+## Benchmarking & Profiling
+### Some tests, like `31-composites.t`, have a secondary function that allows them to be used to perform software profiling and benchmarking
+To run a benchmark or software profile using a test file, we can run the test script from the command line with [Devel::NYTProf software profiler for perl](https://metacpan.org/pod/Devel::NYTProf) from CPAN. You will need to install `perl-Devel-NYTProf` before you can do this. In the following example, we benchmark the performance of the SIMP Comp processor package which is common to do prior to a new release.
+
+1. In your local repository, determine the test you want to use for profiling. We'll use `31-composites.t`.
+2. Adjust any flags or determine command-line arguments needed to run the test in benchmarking/profiling mode. For `31-composites.t`, we will set a variable called `benchmarking` to `true`/`1` before running it with the profiler.
+3. Once the test script is ready to run for benchmarking, run it like so from the root of your local repository:
+`/usr/bin/perl -d:NYTProf -I ./lib t/31-composites.t`
+4. You should have a new file from the output in the root of your repository called `nytprof.out`.
+`ls -l | grep "nytprof.out"`
+5. The Devel::NYTProf package includes a nice utility for quickly building web assets for viewing your profile results in a browser. To do this, run `nytprofhtml ./nytprof.out` from the directory where `nytprof.out` is located.
+6. You should now have a directory called `nytprof/` in that same directory.
+7. To view the profile's website, move the `nytprof/` dir to an appropriate location for a webserver running on your machine. In our case, this is usually `/var/www/html/`. When moving the directory, it is helpful to also rename it based upon the current version and profiling attempt to distinguish it from other profiles. 
+`mv ./nytprof/ /var/www/html/comp_profile_X.Y.Z_1`
+8. Open your browser and enter the appropriate URL for your hostname and the location/alias of your profile directory. In our case, this might be `https://test.node.com/comp_profile_X.Y.Z_1/`.
+9. You should see a website showing the profile of the software, including a flame graph of execution times as well as a table of different files/subroutines/code lines and their execution times. Simple inefficiencies are usually found quickly where a subroutine or line of code that is trivial or otherwise non-essential is consuming more execution time than the main processing functionalities (e.g. a debug logging line might take more time than an input parser).
+10. Happy profiling!
+
+---
 ## File Locations
 #### All tests and testing-related files should be located in the ```simp/t/``` directory
 - `t/conf` - Holds configuration files used in testing
