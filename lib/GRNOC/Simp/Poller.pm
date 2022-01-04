@@ -15,7 +15,7 @@ use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Poller::Worker;
 
-our $VERSION = '1.8.2';
+our $VERSION = '1.8.3';
 
 ### Required Attributes ###
 =head2 public attributes
