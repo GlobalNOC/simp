@@ -229,7 +229,7 @@ sub _get_config_objects {
     for my $file (@files) {
 
         # Only process valid XML files
-        next unless $file =~ /\.xml$/;
+        next unless $file =~ /^[^.#][^#]*\.xml$/;
 
         # Make an XPath object from the file
         my $config = GRNOC::Config->new(

@@ -282,7 +282,7 @@ sub _load_config
     # Read all collections XML files from the collections.d directory
     opendir my $dir, $self->collections_dir
       or $self->logger->error("Could not open $self->collections_dir");
-    my @collections_files = grep { $_ =~ /\.xml$/ } readdir $dir;
+    my @collections_files = grep { $_ =~ /^[^.#][^#]*\.xml$/ } readdir $dir;
     closedir $dir;
 
     # Set collections to an array of collection XPath

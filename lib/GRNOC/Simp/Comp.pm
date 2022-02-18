@@ -223,7 +223,7 @@ sub _make_composites {
     # Read XML files from the composites dir
     my @files;
     opendir(my $dir, $self->composites_dir) or $self->_log_and_exit("Could not open " . $self->composites_dir . ": $!");
-    @files = grep { $_ =~ /\.xml$/ } readdir($dir);
+    @files = grep { $_ =~ /^[^.#][^#]*\.xml$/ } readdir($dir);
     close($dir);
 
     # Create a hash where composite names are mapped to a hash of their parameters
