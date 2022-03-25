@@ -53,6 +53,7 @@ has tsds_config => (
 
 has tsds_svc => (is => 'rwp');
 
+
 =head2 BUILD
 
 =cut
@@ -117,10 +118,17 @@ sub push {
             $error = sprintf($error, scalar(@bad), scalar(@$msg_list), Dumper(\@bad));
         }
         $self->logger->error($error);
+        # Return any error that have occurred so that Worker may log them in a status file
+        return $res;
     }
-
-    # Return 1 when any messages were actually pushed
-    return 1;
+    # Return 0 when messages were sent without error
+    return 0;
+    # For testing only
+    # if (int rand(10) > 3) {
+    #     return {'error' => "Simulated random error at time: ".time()};
+    # } else {
+    #     return 0;
+    # }
 }
 
 1;

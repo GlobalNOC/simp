@@ -30,6 +30,7 @@ Requires: perl(GRNOC::Config)
 Requires: perl(GRNOC::WebService::Client)
 Requires: perl(GRNOC::RabbitMQ) >= 1.2.2
 Requires: perl(GRNOC::Log)
+Requires: perl(GRNOC::Monitoring::Service::Status)
 
 %define execdir /usr/bin
 %define configdir /etc/simp/tsds

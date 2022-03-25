@@ -11,6 +11,7 @@ use Moo;
 use GRNOC::RabbitMQ::Client;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::RabbitMQ::Method;
+use GRNOC::Monitoring::Service::Status;
 use GRNOC::Simp::TSDS;
 use GRNOC::Simp::TSDS::Pusher;
 
@@ -30,6 +31,7 @@ use GRNOC::Simp::TSDS::Pusher;
 =item exclude_patterns
 =item required_values
 
+=item status_filepath
 =back
 =cut
 
@@ -86,6 +88,10 @@ has required_values => (
     default => sub { [] }
 );
 
+has status_filepath => (
+    is          => 'rwp',
+);
+
 has stagger_offset => (
     is      => 'rwp',
     default => 0
@@ -125,6 +131,16 @@ sub start {
     # Create and set the logger
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
 
+
+    $self->_set_status_filepath("/tmp/".$$);
+    my $res = write_service_status(
+        path => $self->status_filepath,
+        service_name => "simp_tsds_worker",
+        error => 0
+    );
+    if ( $res ) {
+        $self->logger->debug("Wrote status file in ".$self->status_filepath);
+    }
 
     # I'm not sure if this is a good idea or not. The intent here is to make it so that
     # if the stagger time would bring us to within 10% of the next interval, we truncate it
@@ -406,9 +422,26 @@ sub _push_data {
     my $iterator = natatime(100, @{$self->messages});
 
     while (my @block = $iterator->()){
-	$self->tsds_pusher->push(\@block);
+	    my $res = $self->tsds_pusher->push(\@block);
+        $self->logger->debug("Push return val: " . $res);
+        $self->_write_status($res);
     }
 
+}
+
+# TODO: comments/docs
+sub _write_status {
+    my $self  = shift; 
+    my $error = shift;
+    my $path = $self->status_filepath;
+
+    write_service_status(
+        path => $path,
+        # Process name is stored in $0, see start()
+        service_name => $0,
+        error        => (defined($error) && $error ne 0),
+        error_txt    => $error->{'error'}
+    );
 }
 
 1;
