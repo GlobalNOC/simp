@@ -7,10 +7,12 @@ use AnyEvent::Subprocess;
 use Data::Dumper;
 use Log::Log4perl;
 use Moo;
+use JSON::XS qw(decode_json);
 use POSIX qw(setuid setgid);
 use Proc::Daemon;
 use Types::Standard qw(Str Bool Int);
 
+use GRNOC::Monitoring::Service::Status;
 use GRNOC::Config;
 use GRNOC::RabbitMQ::Client;
 use GRNOC::Simp::TSDS::Worker;
@@ -30,6 +32,12 @@ use GRNOC::Simp::TSDS::Worker;
 =item run_user
 
 =item run_group
+
+=item worker_status_dir
+
+=item health_checker
+
+=item status_filepath
 
 =back
 
@@ -74,6 +82,20 @@ has run_user => (
 
 has run_group => (
     is       => 'ro',
+    required => 0
+);
+
+has worker_status_dir => (
+    is       => 'rwp',
+    required => 0
+);
+
+has health_checker => (
+    is       => 'rwp'
+);
+
+has status_filepath => (
+    is       => 'rwp',
     required => 0
 );
 
@@ -315,6 +337,22 @@ sub _create_workers
     my $self = shift;
 
     my $global_offset = 0;
+
+    # Create a directory for our workers to write status files in
+    # $self->_set_worker_status_dir("/tmp/".$$);
+    $self->_set_worker_status_dir("/tmp/test_master_pid");
+    my $res = mkdir($self->worker_status_dir);
+    if (!$res ) {
+        $self->logger->error("Error creating worker_status dir. err: ".$!);
+    }
+    # Schedule callback to check status files written by workers
+    # TODO: set interval equal to shortest interval in $self->collections (?)
+    $self->_set_health_checker(AnyEvent->timer(
+        after       => 0,
+        interval    => 30,
+        cb          => sub { $self->_check_worker_health(); }
+    ));
+
     # Create separate groups of workers for each collection
     for my $collection (@{$self->collections})
     {
@@ -390,7 +428,7 @@ sub _create_collection_workers
             name       => $worker_name,
             collection => $collection,
             hosts      => $worker_hosts{$worker_id},
-	    offset     => $offset++
+	        offset     => $offset++
         );
     }
 
@@ -454,11 +492,12 @@ sub _create_worker
                 composite        => $collection->{'composite'},
                 measurement_type => $collection->{'measurement_type'},
                 interval         => $collection->{'interval'},
-		stagger_offset   => $actual_offset,
+		        stagger_offset   => $actual_offset,
                 filter_name      => $collection->{'filter_name'},
                 filter_value     => $collection->{'filter_value'},
                 required_values  => [split(',', $required_vals)],
                 exclude_patterns => \@excludes,
+                status_filepath  => $self->worker_status_dir,
             );
             $worker->start();
         }
@@ -466,6 +505,37 @@ sub _create_worker
 
     my $proc = $init_proc->run();
     push(@{$self->children}, $proc);
+}
+
+# TODO: Comments and docs
+sub _check_worker_health() {
+    my $self = shift;
+    # Should we only be checking the health of workers that are currently alive?
+    # If they write to this directory, they should be ours, but could there be artifacts
+    # of workers that had errors before dying, that would give false positives?
+    my $dir = $self->worker_status_dir."/*status.txt";
+    my @files = glob($dir); 
+    
+    my $found_error = 0;
+    # TODO: log which workers indicated errors and with what error_txt?
+    foreach my $status_file (@files) {
+        open(my $fh, "<$status_file");
+        my $worker_status = readline($fh);
+        $worker_status = decode_json($worker_status);
+        if ( $worker_status->{'error'} == 1) {
+            $self->logger->error("$worker_status->{'error_text'}");
+            $found_error = 1;
+        }
+    }
+    # Should this service_name be set and accessed as a class variable, s/a $0?
+    my $res = write_service_status(
+        service_name    => 'simp-tsds-master',
+        error           => $found_error,
+        error_txt       => ($found_error ? "simp-tsds-master found an error in worker status in ".$self->worker_status_dir : "")
+    );
+    if (!$res) {
+        warn "Problem writing master status file!";
+    }
 }
 
 1;

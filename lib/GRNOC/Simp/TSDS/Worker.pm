@@ -30,7 +30,6 @@ use GRNOC::Simp::TSDS::Pusher;
 =item filter_value
 =item exclude_patterns
 =item required_values
-
 =item status_filepath
 =back
 =cut
@@ -90,6 +89,7 @@ has required_values => (
 
 has status_filepath => (
     is          => 'rwp',
+    required    => 1
 );
 
 has stagger_offset => (
@@ -131,15 +131,18 @@ sub start {
     # Create and set the logger
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
 
-
-    $self->_set_status_filepath("/tmp/".$$);
+    # Add worker PID to the path passed in by master
+    $self->_set_status_filepath($self->status_filepath."/$$");
+    # Initialize status file
     my $res = write_service_status(
         path => $self->status_filepath,
-        service_name => "simp_tsds_worker",
-        error => 0
+        service_name => $0,
+        error => 0,
     );
     if ( $res ) {
-        $self->logger->debug("Wrote status file in ".$self->status_filepath);
+        $self->logger->debug("Created status file in ".$self->status_filepath);
+    } else {
+        warn("ERROR: Worker $$ was unable to create a status file\n");
     }
 
     # I'm not sure if this is a good idea or not. The intent here is to make it so that
@@ -423,25 +426,31 @@ sub _push_data {
 
     while (my @block = $iterator->()){
 	    my $res = $self->tsds_pusher->push(\@block);
-        $self->logger->debug("Push return val: " . $res);
-        $self->_write_status($res);
+        $self->_write_push_status($res);
     }
 
 }
 
 # TODO: comments/docs
-sub _write_status {
+sub _write_push_status {
     my $self  = shift; 
-    my $error = shift;
-    my $path = $self->status_filepath;
+    my $res = shift;
 
-    write_service_status(
-        path => $path,
-        # Process name is stored in $0, see start()
-        service_name => $0,
-        error        => (defined($error) && $error ne 0),
-        error_txt    => $error->{'error'}
+    my $path = $self->status_filepath;
+    # BELOW: Why is $error being stored as a string instead of an int when written to the file. Status files for other services store an int...
+    my $error = (defined($res) && $res->{'error'}) ? 1 : 0;
+    my $error_txt = ($error eq 1) ? $res->{'error'} : "";
+
+    my $write_res = write_service_status(
+            path => $path,
+            service_name => $0,
+            error        => $error,
+            error_txt    => $error_txt,
     );
+    if (!$write_res) {
+        warn("ERROR: Worker $$ was unable to write a status file after push to tsds\n");
+    }
+
 }
 
 1;
