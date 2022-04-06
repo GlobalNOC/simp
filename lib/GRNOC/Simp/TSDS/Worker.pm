@@ -132,7 +132,7 @@ sub start {
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
 
     # Add worker PID to the path passed in by master
-    $self->_set_status_filepath($self->status_filepath."/$$");
+    $self->_set_status_filepath($self->status_filepath."/".$self->worker_name);
     # Initialize status file
     my $res = write_service_status(
         path => $self->status_filepath,
@@ -431,7 +431,7 @@ sub _push_data {
 
 }
 
-# TODO: comments/docs
+# Writes the results of a push action, $res, to a status file, /tmp/(master_pid)/(worker_pid)status.txt
 sub _write_push_status {
     my $self  = shift; 
     my $res = shift;
@@ -440,13 +440,25 @@ sub _write_push_status {
     # BELOW: Why is $error being stored as a string instead of an int when written to the file. Status files for other services store an int...
     my $error = (defined($res) && $res->{'error'}) ? 1 : 0;
     my $error_txt = ($error eq 1) ? $res->{'error'} : "";
-
-    my $write_res = write_service_status(
+ 
+    # Simulate a stale status 
+    my $write_res;
+    if ( int(rand(10)) < 2) {
+        $write_res = write_service_status(
+            timestamp => time() - $self->interval * 2,
             path => $path,
             service_name => $0,
             error        => $error,
             error_txt    => $error_txt,
-    );
+        );
+    } else {
+        $write_res = write_service_status(
+            path => $path,
+            service_name => $0,
+            error        => $error,
+            error_txt    => $error_txt,
+        );
+    }
     if (!$write_res) {
         warn("ERROR: Worker $$ was unable to write a status file after push to tsds\n");
     }

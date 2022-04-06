@@ -5,6 +5,7 @@ use warnings;
 
 use AnyEvent::Subprocess;
 use Data::Dumper;
+use File::Basename;
 use Log::Log4perl;
 use Moo;
 use JSON::XS qw(decode_json);
@@ -96,7 +97,6 @@ has health_checker => (
 
 has status_filepath => (
     is       => 'rwp',
-    required => 0
 );
 
 =head2 private attributes
@@ -137,6 +137,11 @@ has collections => (
 has worker_client => (is => 'rwp');
 
 has children => (
+    is      => 'rwp',
+    default => sub { [] }
+);
+
+has workers => (
     is      => 'rwp',
     default => sub { [] }
 );
@@ -339,17 +344,18 @@ sub _create_workers
     my $global_offset = 0;
 
     # Create a directory for our workers to write status files in
-    # $self->_set_worker_status_dir("/tmp/".$$);
+    # $self->_set_worker_status_dir("/var/lib/grnoc/simp-tsds/workers");
     $self->_set_worker_status_dir("/tmp/test_master_pid");
     my $res = mkdir($self->worker_status_dir);
     if (!$res ) {
         $self->logger->error("Error creating worker_status dir. err: ".$!);
     }
     # Schedule callback to check status files written by workers
-    # TODO: set interval equal to shortest interval in $self->collections (?)
+    # NOTE: freshness of status file is checked per each worker's interval in _check_worker_health. 
+    # The static interval below (15s) is meant to be the shortest interval reasonably expected of any collection.
     $self->_set_health_checker(AnyEvent->timer(
         after       => 0,
-        interval    => 30,
+        interval    => 15,
         cb          => sub { $self->_check_worker_health(); }
     ));
 
@@ -499,6 +505,7 @@ sub _create_worker
                 exclude_patterns => \@excludes,
                 status_filepath  => $self->worker_status_dir,
             );
+            push(@{$self->workers}, $worker);
             $worker->start();
         }
     );
@@ -507,31 +514,53 @@ sub _create_worker
     push(@{$self->children}, $proc);
 }
 
-# TODO: Comments and docs
+# Checks status files of workers spawned by this master process. Writes an aggregate 
+# (okay | not okay) status file at /var/lib/grnoc/simp-tsds-master, including how
+# many worker status files had indicated errors. This master status file is monitored
+# by nrpe.d
 sub _check_worker_health() {
     my $self = shift;
-    # Should we only be checking the health of workers that are currently alive?
-    # If they write to this directory, they should be ours, but could there be artifacts
-    # of workers that had errors before dying, that would give false positives?
     my $dir = $self->worker_status_dir."/*status.txt";
-    my @files = glob($dir); 
-    
-    my $found_error = 0;
-    # TODO: log which workers indicated errors and with what error_txt?
-    foreach my $status_file (@files) {
-        open(my $fh, "<$status_file");
-        my $worker_status = readline($fh);
-        $worker_status = decode_json($worker_status);
-        if ( $worker_status->{'error'} == 1) {
-            $self->logger->error("$worker_status->{'error_text'}");
-            $found_error = 1;
+    my %files = map { basename($_) => $_} glob($dir); 
+
+    my $errors_found = 0;
+    # Loop through all worker names we expect to find status files for
+    foreach my $worker (@{$self->workers}) {
+        my $filename = $worker->worker_name . "status.txt"; 
+        if ( exists $files{$filename} ) {
+            my $res = open(my $fh, "<$files{$filename}");
+            if ( $res ) {
+                my $worker_status = readline($fh);
+                $worker_status = decode_json($worker_status);
+                # Check status file has a clear error flag 
+                if ( $worker_status->{'error'} != 0 ) {
+                    $self->logger->error("$worker_status->{'error_text'}");
+                    $errors_found += 1; 
+                } 
+                # Check that timestamp is fresh (timestamp within 2 * interval of current epoch time)
+                if ( $worker_status->{'timestamp'} < (time() - $worker->interval * 2) ) {
+                    $self->logger->error("Stale status file for $worker->worker_name - \n" .
+                        "current epoch: ".time()."\n" .
+                        "interval: $worker->interval \n" .
+                        "latest timestamp: $worker_status->{'timestamp'}"
+                    );
+                    $errors_found += 1; 
+                }
+                $self->logger->debug("$filename status: $worker_status");
+            } else {
+                $self->logger->error("Could not open status file for worker $worker.");
+                $errors_found += 1;
+            }
+        } else {
+            $self->logger->error("Could not find a status file for worker $worker");
+            $errors_found += 1;
         }
     }
-    # Should this service_name be set and accessed as a class variable, s/a $0?
+
     my $res = write_service_status(
         service_name    => 'simp-tsds-master',
-        error           => $found_error,
-        error_txt       => ($found_error ? "simp-tsds-master found an error in worker status in ".$self->worker_status_dir : "")
+        error           => ($errors_found > 0),
+        error_txt       => ($errors_found > 0 ? "simp-tsds-master found $errors_found errors or stale/missing status files in ".$self->worker_status_dir : "")
     );
     if (!$res) {
         warn "Problem writing master status file!";

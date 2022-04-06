@@ -123,7 +123,7 @@ sub push {
     # return $res;
 
     # For testing only
-    if (int rand(10) < 2) {
+    if (int(rand(10)) < 2) {
         return {'error' => "Simulated random error at time: ".time()};
     } else {
         return $res;
