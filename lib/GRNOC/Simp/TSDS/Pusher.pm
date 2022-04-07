@@ -117,19 +117,13 @@ sub push {
             $error .= " - %s out of %s total messages contained invalid characters: %s";
             $error = sprintf($error, scalar(@bad), scalar(@$msg_list), Dumper(\@bad));
         } else {
+            # Missing response should be reported as error i.e. connection refused by RabbitMQ
             $res = {'error' => $error};
         }
         $self->logger->error($error);
     }
     # Return hash ref for worker's status log
-    # return $res;
-
-    # For testing only
-    if (int(rand(10)) < 5) {
-        return {'error' => "Simulated random error at time: ".time()};
-    } else {
-        return $res;
-    }
+    return $res;
 }
 
 1;

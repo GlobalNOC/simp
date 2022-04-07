@@ -360,10 +360,10 @@ sub _create_workers
 
     # Schedule callback to check status files written by workers
     # NOTE: freshness of status file is checked per each worker's interval in _check_worker_health. 
-    # The static interval below (15s) is meant to be the shortest interval reasonably expected of any collection.
+    # The static interval below (15s) is meant to be the shortest interval reasonably expected of any collection for SIMP.
     $self->_set_health_checker(AnyEvent->timer(
-        after       => 0,
-        interval    => 10,
+        after       => 15,
+        interval    => 15,
         cb          => sub { $self->_check_worker_health(); }
     ));
 
@@ -466,60 +466,53 @@ sub _create_worker
     # slower to start up
     my $actual_offset = ($stagger_offset * $stagger) % $interval;
 
+    my $required_vals =
+        defined $collection->{required_values}
+        ? $collection->{'required_values'}
+        : '';
+
+    my $excludes =
+        defined $collection->{'exclude'} ? $collection->{exclude} : [];
+    my @excludes = grep {
+                defined($_->{'var'})
+            && defined($_->{'pattern'})
+            && (length($_->{'var'}) > 0)
+    } @$excludes;
+    @excludes = map { "$_->{'var'}=$_->{'pattern'}" } @excludes;
+
+    $self->logger->info("Creating Collector for " . $params{'name'});
+    my $worker = GRNOC::Simp::TSDS::Worker->new(
+        worker_name      => $params{name},
+        hosts            => $params{hosts},
+        logger           => $self->logger,
+        rabbitmq         => $self->rabbitmq,
+        tsds_config      => $self->tsds_instance,
+        composite        => $collection->{'composite'},
+        measurement_type => $collection->{'measurement_type'},
+        interval         => $collection->{'interval'},
+        stagger_offset   => $actual_offset,
+        filter_name      => $collection->{'filter_name'},
+        filter_value     => $collection->{'filter_value'},
+        required_values  => [split(',', $required_vals)],
+        exclude_patterns => \@excludes,
+        status_filepath  => $self->worker_status_dir,
+    );
+    push(@{$self->workers}, $worker);
+
+    # TODO: The code below, for creating the AnyEvent sub, could be split out into another class subroutine i.e. _start_worker
+    # This could then be called with a worker ref as an argument, allowing for a base to reimplement worker resusitation.
+    # However, at the present moment, we see no reason for a worker to restart on an unexpected death.
+
+    # Create a subroutine to fork the start of each new worker.
     my $init_proc = AnyEvent::Subprocess->new(
         on_completion => sub {
             $self->logger->error("Child " . $params{'name'} . " has died");
-
-            # This auto restarts a worker in the event of a problem
-            # except if we're in a HUP situation where we don't since
-            # we're going to call create workers again
-            if (!$self->hup())
-            {
-                $self->_create_worker(%params);
-            }
         },
         code => sub {
-            use GRNOC::Log;
-            use GRNOC::Simp::TSDS::Worker;
-
-            my $required_vals =
-              defined $collection->{required_values}
-              ? $collection->{'required_values'}
-              : '';
-
-            my $excludes =
-              defined $collection->{'exclude'} ? $collection->{exclude} : [];
-            my @excludes = grep {
-                     defined($_->{'var'})
-                  && defined($_->{'pattern'})
-                  && (length($_->{'var'}) > 0)
-            } @$excludes;
-            @excludes = map { "$_->{'var'}=$_->{'pattern'}" } @excludes;
-
-            $self->logger->info("Creating Collector for " . $params{'name'});
-            my $worker = GRNOC::Simp::TSDS::Worker->new(
-                worker_name      => $params{name},
-                hosts            => $params{hosts},
-                logger           => $self->logger,
-                rabbitmq         => $self->rabbitmq,
-                tsds_config      => $self->tsds_instance,
-                composite        => $collection->{'composite'},
-                measurement_type => $collection->{'measurement_type'},
-                interval         => $collection->{'interval'},
-		        stagger_offset   => $actual_offset,
-                filter_name      => $collection->{'filter_name'},
-                filter_value     => $collection->{'filter_value'},
-                required_values  => [split(',', $required_vals)],
-                exclude_patterns => \@excludes,
-                status_filepath  => $self->worker_status_dir,
-            );
-            push(@{$self->workers}, $worker);
-            $self->logger->debug("!-----------------ADDING WORKER $worker->worker_name -----------------!");
-            $self->logger->debug(Dumper($self->workers));
             $worker->start();
         }
     );
-
+    # Start worker, 
     my $proc = $init_proc->run();
     push(@{$self->children}, $proc);
 }
@@ -535,31 +528,32 @@ sub _check_worker_health() {
 
     my $errors_found = 0;
     # Loop through all worker names we expect to find status files for
-    $self->logger->debug("Num workers: ". scalar @{$self->workers});
     foreach my $worker (@{$self->workers}) {
-        $self->logger->debug("Checking on $worker->worker_name");
         my $filename = $worker->worker_name . "status.txt"; 
         if ( exists $files{$filename} ) {
             my $res = open(my $fh, "<$files{$filename}");
             if ( $res ) {
-                $self->logger->debug("Successfully opened file for $worker->worker_name");
                 my $worker_status = readline($fh);
-                $self->logger->debug("Status: $worker_status");
                 $worker_status = decode_json($worker_status);
-                # Check status file has a clear error flag 
+                # Check that status file has a clear error flag i.e. 0
                 if ( $worker_status->{'error'} ne 0 ) {
-                    $self->logger->error("Non-zero error flag from $worker->worker_name. Error: $worker_status->{'error_text'}");
+                    $self->logger->error(sprintf("Non-zero error flag from %s. Error: %s",
+                        $worker->worker_name,
+                        $worker_status->{'error_text'})
+                    );
                     $errors_found += 1; 
                 } 
-                # Check that timestamp is fresh (timestamp within 2 * interval of current epoch time)
+                # Check that timestamp is fresh (timestamp within 2 * interval of current time)
                 if ( $worker_status->{'timestamp'} < (time() - $worker->interval * 2) ) {
-                    $self->logger->error("Stale status file for $worker->worker_name - \n" .
-                        "current epoch: ".time()."\n" .
-                        "interval: $worker->interval \n" .
-                        "latest timestamp: $worker_status->{'timestamp'}"
+                    $self->logger->error(sprintf("\n Stale status file from %s - \n current time: %s \n interval: %s \n latest timestamp: %s",
+                        $worker->worker_name,
+                        time(),
+                        $worker->interval,
+                        $worker_status->{'timestamp'})
                     );
                     $errors_found += 1; 
                 }
+            # Any missing file or unreadable file needs to be investigated as an error
             } else {
                 $self->logger->error("Could not open status file for worker $worker.");
                 $errors_found += 1;
@@ -569,7 +563,6 @@ sub _check_worker_health() {
             $errors_found += 1;
         }
     }
-    $self->logger->debug("Errors found this cycle: $errors_found");
 
     my $res = write_service_status(
         service_name    => 'simp-tsds',
@@ -577,7 +570,8 @@ sub _check_worker_health() {
         error_txt       => ($errors_found > 0 ? "simp-tsds found $errors_found errors or stale/missing status files in ".$self->worker_status_dir : "")
     );
     if (!$res) {
-        warn "Problem writing master status file!";
+        # Should this cause an exit(), since monitoring will be broken?
+        $self->logger->error("Problem writing master status file!");
     }
 }
 

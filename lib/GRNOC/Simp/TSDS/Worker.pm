@@ -441,26 +441,14 @@ sub _write_push_status {
     my $error = (defined($res) && $res->{'error'}) ? 1 : 0;
     my $error_txt = ($error eq 1) ? $res->{'error'} : "";
  
-    # Simulate a stale status 
-    my $write_res;
-    if ( int(rand(10)) < 5) {
-        $write_res = write_service_status(
-            timestamp => 633633,
-            path => $path,
-            service_name => $0,
-            error        => $error + 0,
-            error_txt    => "simulated timeout: master should catch as , eve, even though error flag is set 0."
-        );
-    } else {
-        $write_res = write_service_status(
-            path => $path,
-            service_name => $0,
-            error        => $error + 0,
-            error_txt    => $error_txt,
-        );
-    }
+    my $write_res = write_service_status(
+        path => $path,
+        service_name => $0,
+        error        => $error + 0,
+        error_txt    => $error_txt,
+    );
     if (!$write_res) {
-        warn("ERROR: Worker $$ was unable to write a status file after push to tsds\n");
+        $self->logger->error("ERROR: Worker $$ was unable to write a status file after push to tsds\n");
     }
 
 }
