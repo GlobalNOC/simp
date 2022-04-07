@@ -343,19 +343,27 @@ sub _create_workers
 
     my $global_offset = 0;
 
-    # Create a directory for our workers to write status files in
-    # $self->_set_worker_status_dir("/var/lib/grnoc/simp-tsds/workers");
-    $self->_set_worker_status_dir("/tmp/test_master_pid");
-    my $res = mkdir($self->worker_status_dir);
-    if (!$res ) {
-        $self->logger->error("Error creating worker_status dir. err: ".$!);
+    # Set path for workers to write status files in
+    $self->_set_worker_status_dir("/var/lib/grnoc/simp-tsds/workers");
+
+    # Clear any old status files in the simp-tsds and worker directories
+    my @old_files = glob("'/var/lib/grnoc/simp-tsds/status.txt'");
+    push(@old_files, glob("'/var/lib/grnoc/simp-tsds/workers/*status.txt'"));
+    for my $file (@old_files) {
+        if ( -d $file ) {
+            $self->logger->error("Unexpected directory $file caught by glob while trying to unlink old status files.");
+            next;
+        }
+        unlink($file)
+            or $self->logger->error("Can't unlink $file (expected old status file for deletion)");
     }
+
     # Schedule callback to check status files written by workers
     # NOTE: freshness of status file is checked per each worker's interval in _check_worker_health. 
     # The static interval below (15s) is meant to be the shortest interval reasonably expected of any collection.
     $self->_set_health_checker(AnyEvent->timer(
         after       => 0,
-        interval    => 15,
+        interval    => 10,
         cb          => sub { $self->_check_worker_health(); }
     ));
 
@@ -506,6 +514,8 @@ sub _create_worker
                 status_filepath  => $self->worker_status_dir,
             );
             push(@{$self->workers}, $worker);
+            $self->logger->debug("!-----------------ADDING WORKER $worker->worker_name -----------------!");
+            $self->logger->debug(Dumper($self->workers));
             $worker->start();
         }
     );
@@ -525,16 +535,20 @@ sub _check_worker_health() {
 
     my $errors_found = 0;
     # Loop through all worker names we expect to find status files for
+    $self->logger->debug("Num workers: ". scalar @{$self->workers});
     foreach my $worker (@{$self->workers}) {
+        $self->logger->debug("Checking on $worker->worker_name");
         my $filename = $worker->worker_name . "status.txt"; 
         if ( exists $files{$filename} ) {
             my $res = open(my $fh, "<$files{$filename}");
             if ( $res ) {
+                $self->logger->debug("Successfully opened file for $worker->worker_name");
                 my $worker_status = readline($fh);
+                $self->logger->debug("Status: $worker_status");
                 $worker_status = decode_json($worker_status);
                 # Check status file has a clear error flag 
-                if ( $worker_status->{'error'} != 0 ) {
-                    $self->logger->error("$worker_status->{'error_text'}");
+                if ( $worker_status->{'error'} ne 0 ) {
+                    $self->logger->error("Non-zero error flag from $worker->worker_name. Error: $worker_status->{'error_text'}");
                     $errors_found += 1; 
                 } 
                 # Check that timestamp is fresh (timestamp within 2 * interval of current epoch time)
@@ -546,7 +560,6 @@ sub _check_worker_health() {
                     );
                     $errors_found += 1; 
                 }
-                $self->logger->debug("$filename status: $worker_status");
             } else {
                 $self->logger->error("Could not open status file for worker $worker.");
                 $errors_found += 1;
@@ -556,11 +569,12 @@ sub _check_worker_health() {
             $errors_found += 1;
         }
     }
+    $self->logger->debug("Errors found this cycle: $errors_found");
 
     my $res = write_service_status(
-        service_name    => 'simp-tsds-master',
-        error           => ($errors_found > 0),
-        error_txt       => ($errors_found > 0 ? "simp-tsds-master found $errors_found errors or stale/missing status files in ".$self->worker_status_dir : "")
+        service_name    => 'simp-tsds',
+        error           => ($errors_found > 0) + 0,
+        error_txt       => ($errors_found > 0 ? "simp-tsds found $errors_found errors or stale/missing status files in ".$self->worker_status_dir : "")
     );
     if (!$res) {
         warn "Problem writing master status file!";

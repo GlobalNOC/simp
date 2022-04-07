@@ -116,6 +116,8 @@ sub push {
             # Update the error message
             $error .= " - %s out of %s total messages contained invalid characters: %s";
             $error = sprintf($error, scalar(@bad), scalar(@$msg_list), Dumper(\@bad));
+        } else {
+            $res = {'error' => $error};
         }
         $self->logger->error($error);
     }
@@ -123,7 +125,7 @@ sub push {
     # return $res;
 
     # For testing only
-    if (int(rand(10)) < 2) {
+    if (int(rand(10)) < 5) {
         return {'error' => "Simulated random error at time: ".time()};
     } else {
         return $res;

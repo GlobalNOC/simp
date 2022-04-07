@@ -431,7 +431,7 @@ sub _push_data {
 
 }
 
-# Writes the results of a push action, $res, to a status file, /tmp/(master_pid)/(worker_pid)status.txt
+# Writes the results of a push action, $res, to a status file, /var/lib/grnoc/simp-tsds/($worker_name)status.txt
 sub _write_push_status {
     my $self  = shift; 
     my $res = shift;
@@ -443,19 +443,19 @@ sub _write_push_status {
  
     # Simulate a stale status 
     my $write_res;
-    if ( int(rand(10)) < 2) {
+    if ( int(rand(10)) < 5) {
         $write_res = write_service_status(
-            timestamp => time() - $self->interval * 2,
+            timestamp => 633633,
             path => $path,
             service_name => $0,
-            error        => $error,
-            error_txt    => $error_txt,
+            error        => $error + 0,
+            error_txt    => "simulated timeout: master should catch as , eve, even though error flag is set 0."
         );
     } else {
         $write_res = write_service_status(
             path => $path,
             service_name => $0,
-            error        => $error,
+            error        => $error + 0,
             error_txt    => $error_txt,
         );
     }
