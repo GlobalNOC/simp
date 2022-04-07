@@ -35,6 +35,7 @@ Requires: perl(GRNOC::Monitoring::Service::Status)
 %define execdir /usr/bin
 %define configdir /etc/simp/tsds
 %define sysconfdir /etc/sysconfig
+%define statusdir /var/lib/grnoc
 
 %description
 This program pulls SNMP-derived data from Simp and publishes it to TSDS.
@@ -58,6 +59,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{configdir}/validation.d
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{sysconfdir}
 %{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{perl_vendorlib}/GRNOC/Simp/TSDS
+%{__mkdir} -p -m 0775 $RPM_BUILD_ROOT%{statusdir}/simp-tsds/workers
 %{__install} bin/simp-tsds.pl $RPM_BUILD_ROOT/%{execdir}
 %{__install} conf/tsds/config.xml $RPM_BUILD_ROOT/%{configdir}/config.xml
 %{__install} conf/tsds/config.xsd $RPM_BUILD_ROOT/%{configdir}/validation.d/config.xsd
@@ -103,6 +105,9 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{configdir}/config.xml
 %config(noreplace) %{configdir}/logging.conf
 %config(noreplace) %{configdir}/collections.d/*
+
+%dir %attr(755,simp,simp) %{statusdir}/simp-tsds
+%dir %attr(755,simp,simp) %{statusdir}/simp-tsds/workers
 
 %defattr(644,root,root,644)
 /etc/simp/tsds/validation.d/config.xsd
