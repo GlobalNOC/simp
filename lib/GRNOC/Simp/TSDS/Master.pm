@@ -146,11 +146,6 @@ has workers => (
     default => sub { [] }
 );
 
-has hup => (
-    is      => 'rwp',
-    default => 0
-);
-
 has stagger_interval => (
     is       => 'rwp',
     isa      => Int,
@@ -158,7 +153,9 @@ has stagger_interval => (
     default  => 5,
 );
 
-my $running;
+has running => ( 
+    is      => 'rwp'
+);
 
 =head2 BUILD
 
@@ -232,11 +229,20 @@ sub start
     # Only run once unless HUP gets set, then reload and go again
     while (1)
     {
-        $self->_set_hup(0);
+        $self->_set_running(AnyEvent->condvar);
         $self->_load_config();
         $self->_create_workers();
 
-        last unless $self->hup;
+        # Schedule callback to check status files written by workers
+        # NOTE: freshness of status file is checked per each worker's interval in _check_worker_health. 
+        # The static interval below (15s) is meant to be the shortest interval reasonably expected of any collection for SIMP.
+        $self->_set_health_checker(AnyEvent->timer(
+            after       => 15,
+            interval    => 15,
+            cb          => sub { $self->_check_worker_health(); }
+        ));
+
+        $self->running->recv;
     }
 
     $self->logger->info("Master terminating");
@@ -358,22 +364,11 @@ sub _create_workers
             or $self->logger->error("Can't unlink $file (expected old status file for deletion)");
     }
 
-    # Schedule callback to check status files written by workers
-    # NOTE: freshness of status file is checked per each worker's interval in _check_worker_health. 
-    # The static interval below (15s) is meant to be the shortest interval reasonably expected of any collection for SIMP.
-    $self->_set_health_checker(AnyEvent->timer(
-        after       => 15,
-        interval    => 15,
-        cb          => sub { $self->_check_worker_health(); }
-    ));
-
     # Create separate groups of workers for each collection
     for my $collection (@{$self->collections})
     {
         $global_offset += $self->_create_collection_workers($collection, $global_offset);
     }
-
-    $running = AnyEvent->condvar;
 
     $SIG{'TERM'} = sub {
         $self->logger->info('Received SIGTERM.');
@@ -396,7 +391,6 @@ sub _create_workers
 
     $SIG{'HUP'} = sub {
         $self->logger->info('Received SIGHUP.');
-        $self->_set_hup(1);
 
         while (my $worker = pop @{$self->children})
         {
@@ -407,10 +401,9 @@ sub _create_workers
             $self->logger->info("Child $pid has exited.");
         }
 
-        $running->send;
+        $self->running->send;
     };
 
-    $running->recv;
 }
 
 # Creates workers for a single collection
@@ -563,15 +556,15 @@ sub _check_worker_health() {
             $errors_found += 1;
         }
     }
-
+    $self->logger->debug(sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in", $errors_found, scalar(@{$self->workers})));
     my $res = write_service_status(
         service_name    => 'simp-tsds',
         error           => ($errors_found > 0) + 0,
-        error_txt       => ($errors_found > 0 ? "simp-tsds found $errors_found errors or stale/missing status files in ".$self->worker_status_dir : "")
+        error_txt       => ($errors_found > 0 ? sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in", $errors_found, scalar(@{$self->workers}), $self->worker_status_dir) : ""),
     );
     if (!$res) {
         # Should this cause an exit(), since monitoring will be broken?
-        $self->logger->error("Problem writing master status file!");
+        $self->logger->error("Problem writing master status file! Result: $res");
     }
 }
 

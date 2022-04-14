@@ -142,7 +142,7 @@ sub start {
     if ( $res ) {
         $self->logger->debug("Created status file in ".$self->status_filepath);
     } else {
-        warn("ERROR: Worker $$ was unable to create a status file\n");
+        $self->logger->error(sprintf("ERROR: Worker %s was unable to create a status file", $self->worker_name));
     }
 
     # I'm not sure if this is a good idea or not. The intent here is to make it so that
@@ -423,11 +423,17 @@ sub _push_data {
     $self->logger->debug($self->worker_name . " Sending " . scalar(@{$self->messages}) . " messages");
 
     my $iterator = natatime(100, @{$self->messages});
-
-    while (my @block = $iterator->()){
-	    my $res = $self->tsds_pusher->push(\@block);
-        $self->_write_push_status($res);
+    my $last_failure;
+    my $res;
+    while (my @block = $iterator->()) {
+	    $res = $self->tsds_pusher->push(\@block);
+        if ( defined($res) && $res->{'error'} ) { 
+            $last_failure = $res;
+        }
     }
+    # Last failure will catch cases where an error occurs in a middle block of the iterator
+    # which would otherwise be overwritten by a subsequent 'okay' block
+    $self->_write_push_status(( defined($last_failure) ? $last_failure : $res ));
 
 }
 
@@ -437,7 +443,6 @@ sub _write_push_status {
     my $res = shift;
 
     my $path = $self->status_filepath;
-    # BELOW: Why is $error being stored as a string instead of an int when written to the file. Status files for other services store an int...
     my $error = (defined($res) && $res->{'error'}) ? 1 : 0;
     my $error_txt = ($error eq 1) ? $res->{'error'} : "";
  
@@ -448,7 +453,7 @@ sub _write_push_status {
         error_txt    => $error_txt,
     );
     if (!$write_res) {
-        $self->logger->error("ERROR: Worker $$ was unable to write a status file after push to tsds\n");
+        $self->logger->error(sprintf("ERROR: Worker %s was unable to write a status file after push to tsds", $self->worker_name));
     }
 
 }
