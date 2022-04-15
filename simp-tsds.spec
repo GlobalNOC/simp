@@ -1,6 +1,6 @@
 Summary: SIMP TSDS Collector
 Name: simp-tsds
-Version: 1.8.3
+Version: 1.9.0
 Release: 1%{dist}
 License: APL 2.0
 Group: Network
