@@ -115,6 +115,8 @@ has status_filepath => (
 
 =item children
 
+=item worker_patterns
+
 =item hup
 
 =item stagger_interval
@@ -141,9 +143,9 @@ has children => (
     default => sub { [] }
 );
 
-has workers => (
+has worker_patterns => (
     is      => 'rwp',
-    default => sub { [] }
+    default => sub { {} }
 );
 
 has stagger_interval => (
@@ -209,7 +211,7 @@ sub start
     if (defined($self->run_group))
     {
         my $run_group = $self->run_group;
-        my $gid       = getpwnam($self->run_group);
+        my $gid       = getgrnam($self->run_group);
         die "Unable to get GID for group '$run_group'\n" if !defined($gid);
         $! = 0;
         setgid($gid);
@@ -429,7 +431,7 @@ sub _create_collection_workers
     # Spawn workers
     for my $worker_id (keys %worker_hosts)
     {
-        my $worker_name = "$collection->{'composite'} [$worker_id]";
+        my $worker_name = "$collection->{'composite'}-[$worker_id]";
 
         $self->_create_worker(
             name       => $worker_name,
@@ -490,7 +492,11 @@ sub _create_worker
         exclude_patterns => \@excludes,
         status_filepath  => $self->worker_status_dir,
     );
-    push(@{$self->workers}, $worker);
+    # NOTE: because the worker is started in a forked process, our reference '$worker'
+    # captured above cannot be trusted to represent the state of the actual worker.
+    # The worker that 'lives' is in a seperate memory space in a forked process,
+    # this is just a snapshot of it's initialization state. Hence, we store it below
+    # in a global called $worker_patterns. The pattern is only the starting template of args.
 
     # TODO: The code below, for creating the AnyEvent sub, could be split out into another class subroutine i.e. _start_worker
     # This could then be called with a worker ref as an argument, allowing for a base to reimplement worker resusitation.
@@ -507,6 +513,7 @@ sub _create_worker
     );
     # Start worker, 
     my $proc = $init_proc->run();
+    $self->worker_patterns->{$proc->child_pid} = $worker;
     push(@{$self->children}, $proc);
 }
 
@@ -517,14 +524,14 @@ sub _create_worker
 sub _check_worker_health() {
     my $self = shift;
     my $dir = $self->worker_status_dir."/*status.txt";
-    my %files = map { basename($_) => $_} glob($dir); 
+    my %files = map { basename($_) => $_ } glob($dir); 
 
     my $errors_found = 0;
     # Loop through all worker names we expect to find status files for
-    foreach my $worker (@{$self->workers}) {
-        my $filename = $worker->worker_name . "status.txt"; 
+    while (my ($child_pid, $worker) = each(%{$self->worker_patterns})) {
+        my $filename = sprintf("%s-%s-status.txt", $child_pid, $worker->worker_name);
         if ( exists $files{$filename} ) {
-            my $res = open(my $fh, "<$files{$filename}");
+            my $res = open(my $fh, "<", "$files{$filename}");
             if ( $res ) {
                 my $worker_status = readline($fh);
                 $worker_status = decode_json($worker_status);
@@ -548,19 +555,23 @@ sub _check_worker_health() {
                 }
             # Any missing file or unreadable file needs to be investigated as an error
             } else {
-                $self->logger->error("Could not open status file for worker $worker.");
+                $self->logger->error(sprintf("Could not open status file for worker %s. Error: %s", $worker->worker_name, $!));
                 $errors_found += 1;
             }
         } else {
-            $self->logger->error("Could not find a status file for worker $worker");
+            $self->logger->error(sprintf("Could not find a status file for worker %s", $worker->worker_name));
             $errors_found += 1;
         }
     }
-    $self->logger->debug(sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in", $errors_found, scalar(@{$self->workers})));
+    $self->logger->debug(sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in", $errors_found, scalar(keys(%{$self->worker_patterns}))));
     my $res = write_service_status(
         service_name    => 'simp-tsds',
         error           => ($errors_found > 0) + 0,
-        error_txt       => ($errors_found > 0 ? sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in", $errors_found, scalar(@{$self->workers}), $self->worker_status_dir) : ""),
+        error_txt       => ($errors_found > 0 ? 
+            sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in",
+                $errors_found,
+                scalar(keys(%{$self->worker_patterns})),
+                $self->worker_status_dir) : ""),
     );
     if (!$res) {
         # Should this cause an exit(), since monitoring will be broken?

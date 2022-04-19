@@ -132,7 +132,7 @@ sub start {
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
 
     # Add worker PID to the path passed in by master
-    $self->_set_status_filepath($self->status_filepath."/".$self->worker_name);
+    $self->_set_status_filepath(sprintf("%s/%s-%s-", $self->status_filepath, $$, $self->worker_name));
     # Initialize status file
     my $res = write_service_status(
         path => $self->status_filepath,
@@ -448,7 +448,6 @@ sub _write_push_status {
  
     my $write_res = write_service_status(
         path => $path,
-        service_name => $0,
         error        => $error + 0,
         error_txt    => $error_txt,
     );
