@@ -53,7 +53,6 @@ has tsds_config => (
 
 has tsds_svc => (is => 'rwp');
 
-
 =head2 BUILD
 
 =cut

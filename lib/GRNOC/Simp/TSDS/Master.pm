@@ -117,8 +117,6 @@ has status_filepath => (
 
 =item worker_patterns
 
-=item hup
-
 =item stagger_interval
 
 =back
@@ -228,7 +226,9 @@ sub start
         die "Unable to set UID to '$run_user' ($uid): $!\n" if $! != 0;
     }
 
-    # Only run once unless HUP gets set, then reload and go again
+    # Only run once unless HUP signal is received.
+    # Global running variable will block (running->recv), until a send signal.
+    # Currently, HUP handler will kill children forked from this process, and send, unblocking the loop.
     while (1)
     {
         $self->_set_running(AnyEvent->condvar);
@@ -362,8 +362,7 @@ sub _create_workers
             $self->logger->error("Unexpected directory $file caught by glob while trying to unlink old status files.");
             next;
         }
-        unlink($file)
-            or $self->logger->error("Can't unlink $file (expected old status file for deletion)");
+        unlink($file) or $self->logger->error("Can't unlink $file (expected old status file for deletion)");
     }
 
     # Create separate groups of workers for each collection
@@ -402,7 +401,8 @@ sub _create_workers
             waitpid($pid, 0);
             $self->logger->info("Child $pid has exited.");
         }
-
+        # This sends a signal to the global $running condvar, which is blocking the main Master event loop in start();
+        # Will cause an effective 'restart' of master.
         $self->running->send;
     };
 
@@ -437,7 +437,7 @@ sub _create_collection_workers
             name       => $worker_name,
             collection => $collection,
             hosts      => $worker_hosts{$worker_id},
-	        offset     => $offset++
+            offset     => $offset++
         );
     }
 
@@ -461,13 +461,9 @@ sub _create_worker
     # slower to start up
     my $actual_offset = ($stagger_offset * $stagger) % $interval;
 
-    my $required_vals =
-        defined $collection->{required_values}
-        ? $collection->{'required_values'}
-        : '';
+    my $required_vals = defined $collection->{required_values} ? $collection->{'required_values'} : '';
 
-    my $excludes =
-        defined $collection->{'exclude'} ? $collection->{exclude} : [];
+    my $excludes = defined $collection->{'exclude'} ? $collection->{exclude} : [];
     my @excludes = grep {
                 defined($_->{'var'})
             && defined($_->{'pattern'})
@@ -527,6 +523,7 @@ sub _check_worker_health() {
     my %files = map { basename($_) => $_ } glob($dir); 
 
     my $errors_found = 0;
+    my $now = time();
     # Loop through all worker names we expect to find status files for
     while (my ($child_pid, $worker) = each(%{$self->worker_patterns})) {
         my $filename = sprintf("%s-%s-status.txt", $child_pid, $worker->worker_name);
@@ -544,10 +541,10 @@ sub _check_worker_health() {
                     $errors_found += 1; 
                 } 
                 # Check that timestamp is fresh (timestamp within 2 * interval of current time)
-                if ( $worker_status->{'timestamp'} < (time() - $worker->interval * 2) ) {
+                if ( $worker_status->{'timestamp'} < ($now - $worker->interval * 2) ) {
                     $self->logger->error(sprintf("\n Stale status file from %s - \n current time: %s \n interval: %s \n latest timestamp: %s",
                         $worker->worker_name,
-                        time(),
+                        $now,
                         $worker->interval,
                         $worker_status->{'timestamp'})
                     );
@@ -563,18 +560,14 @@ sub _check_worker_health() {
             $errors_found += 1;
         }
     }
-    $self->logger->debug(sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in", $errors_found, scalar(keys(%{$self->worker_patterns}))));
+    my $status_message = sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in", $errors_found, scalar(keys(%{$self->worker_patterns})));
+    $self->logger->debug($status_message);
     my $res = write_service_status(
         service_name    => 'simp-tsds',
         error           => ($errors_found > 0) + 0,
-        error_txt       => ($errors_found > 0 ? 
-            sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in",
-                $errors_found,
-                scalar(keys(%{$self->worker_patterns})),
-                $self->worker_status_dir) : ""),
+        error_txt       => ($errors_found > 0 ? $status_message : "")
     );
     if (!$res) {
-        # Should this cause an exit(), since monitoring will be broken?
         $self->logger->error("Problem writing master status file! Result: $res");
     }
 }
