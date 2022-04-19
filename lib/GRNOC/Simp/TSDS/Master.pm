@@ -431,7 +431,7 @@ sub _create_collection_workers
     # Spawn workers
     for my $worker_id (keys %worker_hosts)
     {
-        my $worker_name = "$collection->{'composite'}-[$worker_id]";
+        my $worker_name = sprintf("%s [%s]", $collection->{'composite'}, $worker_id);
 
         $self->_create_worker(
             name       => $worker_name,
