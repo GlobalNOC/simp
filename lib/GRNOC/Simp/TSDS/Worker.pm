@@ -11,6 +11,7 @@ use Moo;
 use GRNOC::RabbitMQ::Client;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::RabbitMQ::Method;
+use GRNOC::Monitoring::Service::Status;
 use GRNOC::Simp::TSDS;
 use GRNOC::Simp::TSDS::Pusher;
 
@@ -29,7 +30,7 @@ use GRNOC::Simp::TSDS::Pusher;
 =item filter_value
 =item exclude_patterns
 =item required_values
-
+=item status_filepath
 =back
 =cut
 
@@ -86,6 +87,11 @@ has required_values => (
     default => sub { [] }
 );
 
+has status_filepath => (
+    is          => 'rwp',
+    required    => 1
+);
+
 has stagger_offset => (
     is      => 'rwp',
     default => 0
@@ -125,6 +131,19 @@ sub start {
     # Create and set the logger
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
 
+    # Add worker PID to the path passed in by master
+    $self->_set_status_filepath(sprintf("%s/%s-%s-", $self->status_filepath, $$, $self->worker_name));
+    # Initialize status file
+    my $res = write_service_status(
+        path => $self->status_filepath,
+        service_name => $0,
+        error => 0,
+    );
+    if ( $res ) {
+        $self->logger->debug("Created status file in ".$self->status_filepath);
+    } else {
+        $self->logger->error(sprintf("ERROR: Worker %s was unable to create a status file", $self->worker_name));
+    }
 
     # I'm not sure if this is a good idea or not. The intent here is to make it so that
     # if the stagger time would bring us to within 10% of the next interval, we truncate it
@@ -137,12 +156,12 @@ sub start {
 
     # e.g 60s interval, starting at T=57s, move backward to starting at T=51s
     if ($start_time % $self->interval > $self->interval * 0.9){
-	$start_time -= $self->interval * 0.1;
+    $start_time -= $self->interval * 0.1;
     }
 
     # e.g. 60s interval, starting at T=3s, move forward to starting at T=9s
     elsif ($start_time % $self->interval < $self->interval * 0.1){
-	$start_time += $self->interval * 0.1;
+    $start_time += $self->interval * 0.1;
     }
 
     my $sleep_stagger = $start_time - $now;
@@ -255,76 +274,75 @@ sub _setup_worker {
     my $composite = $self->composite;
 
     # Create polling timer for event loop
-    while (1){	
+    while (1) {
 
-	# For timing
-	my $cycle_start = gettimeofday();
+        # For timing
+        my $cycle_start = gettimeofday();
 
-	# For query
-	my $now = time();
+        # For query
+        my $now = time();
 
-	# Exit the event loop but don't exit the process when RMQ disconnects
-	unless ($self->simp_client && $self->simp_client->connected) {
-	    $self->logger->error($self->worker_name." Disconnected from RabbitMQ, restarting");
-	    return;
-	}
-	
-	# Pull data for each host from Comp
-	for my $host (@{$self->hosts}) {
-	    
-	    $self->logger->info($self->worker_name." Processing $host");
+        # Exit the event loop but don't exit the process when RMQ disconnects
+        unless ($self->simp_client && $self->simp_client->connected) {
+            $self->logger->error($self->worker_name." Disconnected from RabbitMQ, restarting");
+            return;
+        }
+        
+        # Pull data for each host from Comp
+        for my $host (@{$self->hosts}) {
+            
+            $self->logger->info($self->worker_name." Processing $host");
 
-	    my %args = (
-		node           => $host,
-		period         => $self->interval,
+            my %args = (
+                node           => $host,
+                period         => $self->interval,
+                # always look 1 interval back to avoid a race condition
+                # with poller
+                time           => $now - $self->interval 
+            );
+            
+            # if we're trying to only get a subset of values out of
+            # simp, add those arguments now. This presumes that SIMP
+            # and SIMP-collector have been correctly configured to have
+            # the data available validity is checked for earlier
+            # in Master
+            if ($self->filter_name) {
+                $args{$self->filter_name} = $self->filter_value;
+            }
+            
+            # to provide some degree of backward compatibility,
+            # we only put this field on if we need to:
+            if (scalar(@{$self->exclude_patterns}) > 0) {
+                $args{'exclude_regexp'} = $self->exclude_patterns;
+            }
+            
+            # Add a request for the composite method from RabbitMQ
+            # We pass the args hash from above to the method
+            my $start_query = gettimeofday();
+            my $res         = $self->simp_client->$composite(%args);
+            my $end_query   = gettimeofday();
 
-		# always look 1 interval back to avoid a race condition
-		# with poller
-		time           => $now - $self->interval 
-		);
-	    
-	    # if we're trying to only get a subset of values out of
-	    # simp, add those arguments now. This presumes that SIMP
-	    # and SIMP-collector have been correctly configured to have
-	    # the data available validity is checked for earlier
-	    # in Master
-	    if ($self->filter_name) {
-		$args{$self->filter_name} = $self->filter_value;
-	    }
-	    
-	    # to provide some degree of backward compatibility,
-	    # we only put this field on if we need to:
-	    if (scalar(@{$self->exclude_patterns}) > 0) {
-		$args{'exclude_regexp'} = $self->exclude_patterns;
-	    }
-	    
-	    # Add a request for the composite method from RabbitMQ
-	    # We pass the args hash from above to the method
-	    my $start_query = gettimeofday();
-	    my $res         = $self->simp_client->$composite(%args);
-	    my $end_query   = gettimeofday();
+            $self->logger->debug($self->worker_name . " simp-comp request for $host took " . tv_interval([$start_query], [$end_query]) . " seconds");
 
-	    $self->logger->debug($self->worker_name . " simp-comp request for $host took " . tv_interval([$start_query], [$end_query]) . " seconds");
+            $self->_process_data($res, $host);
+        }	
 
-	    $self->_process_data($res, $host);
-	}	
+        $self->_push_data();
 
-	$self->_push_data();
+        my $cycle_end = gettimeofday;
+        my $elapsed   = tv_interval([$cycle_start], [$cycle_end]);
+        my $diff      = $self->interval - $elapsed;
 
-	my $cycle_end = gettimeofday;
-	my $elapsed   = tv_interval([$cycle_start], [$cycle_end]);
-	my $diff      = $self->interval - $elapsed;
+        # Clear internal buffer
+        $self->_set_messages([]);
 
-	# Clear internal buffer
-	$self->_set_messages([]);
-
-	if ($diff > 0){	    
-	    $self->logger->info($self->worker_name . " sleeping $diff seconds until next cycle...");
-	    usleep($diff * 1000 * 1000);
-	}
-	else {
-	    $self->logger->warn($self->worker_name . " !! Took too long on previous cycle, would have slept for $diff seconds");
-	}
+        if ($diff > 0){	    
+            $self->logger->info($self->worker_name . " sleeping $diff seconds until next cycle...");
+            usleep($diff * 1000 * 1000);
+        }
+        else {
+            $self->logger->warn($self->worker_name . " !! Took too long on previous cycle, would have slept for $diff seconds");
+        }
     }
 }
 
@@ -404,9 +422,36 @@ sub _push_data {
     $self->logger->debug($self->worker_name . " Sending " . scalar(@{$self->messages}) . " messages");
 
     my $iterator = natatime(100, @{$self->messages});
+    my $last_failure;
+    my $res;
+    while (my @block = $iterator->()) {
+        $res = $self->tsds_pusher->push(\@block);
+        if ( defined($res) && $res->{'error'} ) { 
+            $last_failure = $res;
+        }
+    }
+    # Last failure will catch cases where an error occurs in a middle block of the iterator
+    # which would otherwise be overwritten by a subsequent 'okay' block
+    $self->_write_push_status(( defined($last_failure) ? $last_failure : $res ));
 
-    while (my @block = $iterator->()){
-	$self->tsds_pusher->push(\@block);
+}
+
+# Writes the results of a push action, $res, to a status file, /var/lib/grnoc/simp-tsds/($worker_name)status.txt
+sub _write_push_status {
+    my $self  = shift; 
+    my $res = shift;
+
+    my $path = $self->status_filepath;
+    my $error = (defined($res) && $res->{'error'}) ? 1 : 0;
+    my $error_txt = ($error eq 1) ? $res->{'error'} : "";
+ 
+    my $write_res = write_service_status(
+        path => $path,
+        error        => $error + 0,
+        error_txt    => $error_txt,
+    );
+    if (!$write_res) {
+        $self->logger->error(sprintf("ERROR: Worker %s was unable to write a status file after push to tsds", $self->worker_name));
     }
 
 }

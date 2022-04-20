@@ -115,12 +115,14 @@ sub push {
             # Update the error message
             $error .= " - %s out of %s total messages contained invalid characters: %s";
             $error = sprintf($error, scalar(@bad), scalar(@$msg_list), Dumper(\@bad));
+        } else {
+            # Missing response should be reported as error i.e. connection refused by RabbitMQ
+            $res = {'error' => $error};
         }
         $self->logger->error($error);
     }
-
-    # Return 1 when any messages were actually pushed
-    return 1;
+    # Return hash ref for worker's status log
+    return $res;
 }
 
 1;

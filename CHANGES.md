@@ -1,5 +1,12 @@
 # Simp ChangeLog
 
+## 1.9.0 - Apr 15, 2022
+
+* added monitoring features to simp-tsds for push operations
+  * workers write status files, reporting any errors while pushing to TSDS
+  * master checks these for freshness & errors, writes an aggregate report
+* refactored some code in Master.pm, re: bugs caused by AnyEvent
+
 ## 1.4.1 - Mar 12, 2020
 
 * added new required config settings to control redis connection settings
@@ -7,9 +14,6 @@
 
 * added more complete SNMPv3 connection options
   * auth_password, auth_protocol, priv_key, priv_password, priv_protocol. See Net::SNMP docs for meanings
-
-
-# Simp ChangeLog
 
 ## 1.4.0 - Sept 18, 2019
 
