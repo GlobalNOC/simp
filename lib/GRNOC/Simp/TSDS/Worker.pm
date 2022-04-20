@@ -294,12 +294,11 @@ sub _setup_worker {
             $self->logger->info($self->worker_name." Processing $host");
 
             my %args = (
-            node           => $host,
-            period         => $self->interval,
-
-            # always look 1 interval back to avoid a race condition
-            # with poller
-            time           => $now - $self->interval 
+                node           => $host,
+                period         => $self->interval,
+                # always look 1 interval back to avoid a race condition
+                # with poller
+                time           => $now - $self->interval 
             );
             
             # if we're trying to only get a subset of values out of
@@ -308,13 +307,13 @@ sub _setup_worker {
             # the data available validity is checked for earlier
             # in Master
             if ($self->filter_name) {
-            $args{$self->filter_name} = $self->filter_value;
+                $args{$self->filter_name} = $self->filter_value;
             }
             
             # to provide some degree of backward compatibility,
             # we only put this field on if we need to:
             if (scalar(@{$self->exclude_patterns}) > 0) {
-            $args{'exclude_regexp'} = $self->exclude_patterns;
+                $args{'exclude_regexp'} = $self->exclude_patterns;
             }
             
             # Add a request for the composite method from RabbitMQ
