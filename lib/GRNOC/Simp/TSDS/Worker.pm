@@ -274,76 +274,76 @@ sub _setup_worker {
     my $composite = $self->composite;
 
     # Create polling timer for event loop
-    while (1){	
+    while (1) {
 
-    # For timing
-    my $cycle_start = gettimeofday();
+        # For timing
+        my $cycle_start = gettimeofday();
 
-    # For query
-    my $now = time();
+        # For query
+        my $now = time();
 
-    # Exit the event loop but don't exit the process when RMQ disconnects
-    unless ($self->simp_client && $self->simp_client->connected) {
-        $self->logger->error($self->worker_name." Disconnected from RabbitMQ, restarting");
-        return;
-    }
-    
-    # Pull data for each host from Comp
-    for my $host (@{$self->hosts}) {
-        
-        $self->logger->info($self->worker_name." Processing $host");
-
-        my %args = (
-        node           => $host,
-        period         => $self->interval,
-
-        # always look 1 interval back to avoid a race condition
-        # with poller
-        time           => $now - $self->interval 
-        );
-        
-        # if we're trying to only get a subset of values out of
-        # simp, add those arguments now. This presumes that SIMP
-        # and SIMP-collector have been correctly configured to have
-        # the data available validity is checked for earlier
-        # in Master
-        if ($self->filter_name) {
-        $args{$self->filter_name} = $self->filter_value;
+        # Exit the event loop but don't exit the process when RMQ disconnects
+        unless ($self->simp_client && $self->simp_client->connected) {
+            $self->logger->error($self->worker_name." Disconnected from RabbitMQ, restarting");
+            return;
         }
         
-        # to provide some degree of backward compatibility,
-        # we only put this field on if we need to:
-        if (scalar(@{$self->exclude_patterns}) > 0) {
-        $args{'exclude_regexp'} = $self->exclude_patterns;
+        # Pull data for each host from Comp
+        for my $host (@{$self->hosts}) {
+            
+            $self->logger->info($self->worker_name." Processing $host");
+
+            my %args = (
+            node           => $host,
+            period         => $self->interval,
+
+            # always look 1 interval back to avoid a race condition
+            # with poller
+            time           => $now - $self->interval 
+            );
+            
+            # if we're trying to only get a subset of values out of
+            # simp, add those arguments now. This presumes that SIMP
+            # and SIMP-collector have been correctly configured to have
+            # the data available validity is checked for earlier
+            # in Master
+            if ($self->filter_name) {
+            $args{$self->filter_name} = $self->filter_value;
+            }
+            
+            # to provide some degree of backward compatibility,
+            # we only put this field on if we need to:
+            if (scalar(@{$self->exclude_patterns}) > 0) {
+            $args{'exclude_regexp'} = $self->exclude_patterns;
+            }
+            
+            # Add a request for the composite method from RabbitMQ
+            # We pass the args hash from above to the method
+            my $start_query = gettimeofday();
+            my $res         = $self->simp_client->$composite(%args);
+            my $end_query   = gettimeofday();
+
+            $self->logger->debug($self->worker_name . " simp-comp request for $host took " . tv_interval([$start_query], [$end_query]) . " seconds");
+
+            $self->_process_data($res, $host);
+        }	
+
+        $self->_push_data();
+
+        my $cycle_end = gettimeofday;
+        my $elapsed   = tv_interval([$cycle_start], [$cycle_end]);
+        my $diff      = $self->interval - $elapsed;
+
+        # Clear internal buffer
+        $self->_set_messages([]);
+
+        if ($diff > 0){	    
+            $self->logger->info($self->worker_name . " sleeping $diff seconds until next cycle...");
+            usleep($diff * 1000 * 1000);
         }
-        
-        # Add a request for the composite method from RabbitMQ
-        # We pass the args hash from above to the method
-        my $start_query = gettimeofday();
-        my $res         = $self->simp_client->$composite(%args);
-        my $end_query   = gettimeofday();
-
-        $self->logger->debug($self->worker_name . " simp-comp request for $host took " . tv_interval([$start_query], [$end_query]) . " seconds");
-
-        $self->_process_data($res, $host);
-    }	
-
-    $self->_push_data();
-
-    my $cycle_end = gettimeofday;
-    my $elapsed   = tv_interval([$cycle_start], [$cycle_end]);
-    my $diff      = $self->interval - $elapsed;
-
-    # Clear internal buffer
-    $self->_set_messages([]);
-
-    if ($diff > 0){	    
-        $self->logger->info($self->worker_name . " sleeping $diff seconds until next cycle...");
-        usleep($diff * 1000 * 1000);
-    }
-    else {
-        $self->logger->warn($self->worker_name . " !! Took too long on previous cycle, would have slept for $diff seconds");
-    }
+        else {
+            $self->logger->warn($self->worker_name . " !! Took too long on previous cycle, would have slept for $diff seconds");
+        }
     }
 }
 

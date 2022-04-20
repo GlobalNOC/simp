@@ -560,7 +560,11 @@ sub _check_worker_health() {
             $errors_found += 1;
         }
     }
-    my $status_message = sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in", $errors_found, scalar(keys(%{$self->worker_patterns})));
+    my $status_message = sprintf("simp-tsds found %s of %s workers reporting errors or with stale/missing status files in %s",
+         $errors_found,
+         scalar(keys(%{$self->worker_patterns}),
+         $self->worker_status_dir
+    ));
     $self->logger->debug($status_message);
     my $res = write_service_status(
         service_name    => 'simp-tsds',
