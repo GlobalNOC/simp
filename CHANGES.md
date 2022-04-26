@@ -1,5 +1,8 @@
 # Simp ChangeLog
 
+## 1.9.1 - Apr 26, 2022
+* hotfix: hash for tracking workers now cleared when master is restarted with HUP
+
 ## 1.9.0 - Apr 15, 2022
 
 * added monitoring features to simp-tsds for push operations
