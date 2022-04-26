@@ -401,6 +401,7 @@ sub _create_workers
             waitpid($pid, 0);
             $self->logger->info("Child $pid has exited.");
         }
+        $self->worker_patterns = {};
         # This sends a signal to the global $running condvar, which is blocking the main Master event loop in start();
         # Will cause an effective 'restart' of master.
         $self->running->send;
