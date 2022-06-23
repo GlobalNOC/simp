@@ -248,7 +248,13 @@ sub _get_config_objects {
 
                 # Use the object name as the key to the object
                 if (exists $object->{name}) {
-                    $config_objects{$object->{name}} = $object;
+                    # Check for a group key and for pre-existing configs; for merging multiple host configs.
+                    if (exists $object->{group} && exists $config_objects{$object->{name}}) {
+                        $config_objects{$object->{name}}->{group} = {%{$config_objects{$object->{name}}->{group}}, %{$object->{group}}};
+                    }
+                    else {
+                        $config_objects{$object->{name}} = $object;
+                    }
                     delete $object->{name};
                 }
                 # Use the config file name as the key to the object
