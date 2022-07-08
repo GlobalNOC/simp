@@ -429,11 +429,12 @@ sub _get_session_args {
     my %session_args = (
         -hostname    => $host->{ip},
         -version     => $host->{snmp_version},
+        -domain      => $host->{transport_domain},
         -nonblocking => 1,
         -retries     => 5,
         -translate   => [-octetstring => 0],
         -maxmsgsize  => 65535,
-	-timeout     => $self->timeout
+        -timeout     => $self->timeout,
     );
 
     # Optional session argument mappings to their host attribute from config

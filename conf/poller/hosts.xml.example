@@ -5,7 +5,7 @@
 Host elements should be wrapped in a config element and may contain unlimited group elements
 Each host element has the following attributes:
     - "name"            (The host name)
-    - "ip"              (The IPv4 address of the host)
+    - "ip"              (The IPv4 or IPv6 address of the host)
     - "snmp_version"    (Which version of SNMP to use: [1,2c,3])
 
     For SNMP version 1 or 2c:
@@ -33,7 +33,7 @@ Example Hosts File Contents:
         <group id="juniper_temp"/>
     </host>
 
-    <host name="bar.grnoc.iu.edu" ip="127.0.0.2" snmp_version="2c" community="secret">
+    <host name="bar.grnoc.iu.edu" ip="2001:0db8:85a3:0000:0000:8a2e:0370:7334" snmp_version="2c" community="secret">
         <group id="juniper_optical"/>
     </host>
 

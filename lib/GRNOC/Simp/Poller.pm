@@ -297,6 +297,9 @@ sub _process_hosts_config {
 
         $self->logger->error("Could not determine SNMP version for $host_name") unless ($snmp_version);
 
+        # Infer transport domain from IP format; assume IPv4, otherwise IPv6. IP already regex validated by hosts.xsd in validation.d.
+        $host_attr->{transport_domain} = $host_attr->{ip} =~ m/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/ ? 'udp4' : 'udp6';
+
         # Parse and set the ports for each polling group the host belongs to
         # Group ports will override host-wide ports
         # If no ports are specified, Net::SNMP will default to port 161
