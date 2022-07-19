@@ -77,6 +77,7 @@ has interval => (
 =item timeout
 =item main_cv
 =item first_run
+=item ensured_failout
 
 =back
 =cut
@@ -112,6 +113,7 @@ has first_run => (
     is      => 'rwp',
     default => 1
 );
+has ensured_failout => (is => 'rwp', default => 3);
 
 ### Public Methods ###
 
@@ -270,6 +272,7 @@ sub _poll_cb {
     my $name    = $params{name};
     my $ip      = $params{ip};
     my $oid     = $params{oid};
+    my $ensure  = $params{ensure};
     my $reqstr  = $params{reqstr};
     my $vars    = $params{vars};
 
@@ -333,8 +336,126 @@ sub _poll_cb {
     # Parse the values from the data for Redis as an array of "oid,value" strings
     my @values = map {sprintf("%s,%s", $_, $data->{$_})} keys(%$data) if ($data);
 
+    # Check to see if we got any values back
+    if (@values) {
+        # Ensured OID success case
+        if ($ensure) {
+            # Record success in session object
+            $session->{last_ensured_oid_success}->{$oid} = time();
+        }
+
+        # Calculate when this key should expire based on NOW when the response
+        # is received offset against when it was sent, to keep all redis entry timeouts aligned
+        my $expire = ($time + $self->retention) - time();
+
+        # Special key for the interval of the group (used by DB[3] to declare host variables)
+        my $group_interval = sprintf("%s,%s", $group, $self->interval);
+
+        # Create a key from our hostname/ip, port, and context
+        my $name_id = defined($context) ? "$name:$port:$context" : "$name:$port";
+        my $ip_id   = defined($context) ? "$ip:$port:$context"   : "$ip:$port";
+
+        # These hashes hold all of the keys for Redis for each DB entry
+        my %host_keys = (
+            db0 => sprintf("%s,%s,%s", $name_id, $group, $time),
+            db1 => sprintf("%s,%s,%s", $name_id, $group,  $poll_id),
+            db2 => sprintf("%s,%s",    $name_id, $group),
+            db3 => sprintf("%s,%s",    $name_id, $poll_id)
+        );
+        my %ip_keys = (
+            db0 => sprintf("%s,%s,%s", $ip_id, $group, $time),
+            db1 => sprintf("%s,%s,%s", $ip_id, $group,  $poll_id),
+            db2 => sprintf("%s,%s",    $ip_id, $group),
+            db3 => sprintf("%s,%s",    $ip_id, $poll_id)
+        );
+
+        # Attempt to set the data for all of the Redis databases
+        try {
+            # REDIS DB SELECTOR MAPPINGS
+            # Note: These DBs are used by SIMP-Data in decrementing order, starting at DB[3]
+            #
+            # DB[0]: {"$host,$worker,$time" => [Value Data]}
+            # Used to store and lookup value data for OIDs
+            #
+            # DB[1]: {"$host,$group,$poll_id" => "$host,$worker,$time"} 
+        # DB[1]: {"$host,$group,$poll_id" => "$host,$worker,$time"} 
+            # DB[1]: {"$host,$group,$poll_id" => "$host,$worker,$time"} 
+            # Used to retrieve keys to value data using the Host, Group, and Poll ID
+            # Allows us to find keys to value data using keys generated using data from DB[3] and DB[2]
+            #
+            # DB[2]: {"$host,$group" => "$poll_id,$time"}
+            # Used to map a Host and Group to the Poll ID and Timestamp of the Poll ID
+            # Allows us to build a key for DB[1]
+            #
+            # DB[3]: {$hosts => { $oids => "$group,$interval"}}
+            # Used to retrieve a hash of OIDs and their groups using only a hostname
+            # Allows us to build keys for DB[2]
+
+            # Select DB[0] of Redis so we can insert value data
+            # Specifying the callback causes Redis piplining to reduce RTTs
+
+            $redis->select(0, sub{});
+            $redis->sadd($host_keys{db0}, @values, sub{}) if (@values);
+
+            # Check that the session has no pending replies left
+            if (scalar(keys(%{$session->{'pending_replies'}})) == 0) {
+
+                # Set the expiration time for the master key once all replies are received
+                $redis->expire($host_keys{db0}, $expire, sub{});
+
+                # Create keys for the Host, IP and Time
+                my $time_key = sprintf("%s,%s", $poll_id, $time);
+
+                # Set the Poll ID => Timestamp lookup table data and its expiration
+                $redis->select(1, sub{});
+                $redis->setex($host_keys{db1}, $expire, $host_keys{db0}, sub{});
+                $redis->setex($ip_keys{db1}, $expire, $ip_keys{db0}, sub{});
+
+                # Set the Host/IP => Timestamp lookup table data
+                $redis->select(2, sub{});
+                $redis->setex($host_keys{db2}, $expire, $time_key, sub{});
+                $redis->setex($ip_keys{db2}, $expire, $time_key, sub{});
+
+                # Add any host-defined variables to the SNMP data in Redis as "vars.$var,$value"
+                if (defined($vars)) {
+
+                    $self->logger->debug("Adding host variables for $name");
+
+                    # Set Redis back to DB[0] to insert the var data with values
+                    $redis->select(0, sub{});
+
+                    # Add each host variable and its value (remove commas from var name)
+                    while(my ($var, $value) = each(%$vars)) {
+                        $var = ($var =~ s/,//gr);
+                        $redis->sadd($host_keys{db0}, sprintf("vars.%s,%s", $var, $value->{value}), sub{});
+                    }
+
+                    # Set the host variable's interval lookup 
+                # Set the host variable's interval lookup 
+                    # Set the host variable's interval lookup 
+                    $redis->select(3, sub{});
+                    $redis->hset($name_id, "vars", $group_interval, sub{});
+                    $redis->hset($ip_id,   "vars", $group_interval, sub{});
+                }
+
+                # Increment the session's poll_id
+                $session->{poll_id}++;
+            }
+
+            # Set an OID lookup using vars and interval for the OIDs
+            $redis->select(3, sub{});
+            $redis->hset($name_id, $oid, $group_interval, sub{});
+            $redis->hset($ip_id,   $oid, $group_interval, sub{});
+        }
+        catch ($e) {
+            $self->logger->error(sprintf('%s - ERROR: could not set Redis data: %s', $worker, $e));
+        };
+
+        # Ensure we're done with the pipeline
+        $redis->wait_all_responses();
+    }
     # Handle errors where there was no value data for the OID 
-    unless (@values) {
+    else {
         $session->{failed_oids}{"$oid:$port"} = {
             error     => "OID_DATA_ERROR",
             timestamp => time()
@@ -345,6 +466,11 @@ sub _poll_cb {
 
         my $error = "%s - ERROR: %s failed to request %s: %s"; 
         $self->logger->error(sprintf($error, $worker, $name, $reqstr, $snmp->error()));
+
+        # Ensured OID failure case
+        if ($ensure) {
+            # Record failure in session object
+            $session->{ensured_oid_failures}->{"$oid:$port"} = exists $session->{ensured_oid_failures}->{"$oid:$port"} ? $session->{ensured_oid_failures}->{"$oid:$port"} + 1 : 1;
     }
 
     # Calculate when this key should expire based on NOW when the response
@@ -440,20 +566,12 @@ sub _poll_cb {
             # Increment the session's poll_id
             $session->{poll_id}++;
         }
-
-        # Set an OID lookup using vars and interval for the OIDs
-        $redis->select(3, sub{});
-        $redis->hset($name_id, $oid, $group_interval, sub{});
-        $redis->hset($ip_id,   $oid, $group_interval, sub{});
     }
     catch ($e) {
         $self->logger->error(sprintf('%s - ERROR: could not hset Redis data: %s', $worker, $e));
     };
 
-    # Ensure we're done with the pipeline
-    $redis->wait_all_responses();
-
-    # Update the AnyEvent pipeline
+    # In either case, update the AnyEvent pipeline
     AnyEvent->now_update;
 }
 
@@ -549,6 +667,8 @@ sub _connect_to_snmp {
                     errors          => {},
                     failed_oids     => {},
                     pending_replies => {},
+                    ensured_oid_failures        => {},
+                    last_ensured_oid_success    => {},
                 ); 
                 $session_data{context} = $context_id if (defined($context_id));
         
@@ -643,14 +763,28 @@ sub _write_mon_data {
     my $session_errors = $snmp_errors->{session};
 
     for my $session (@{$host->{sessions}}) {
+        # TODO: Unknown if a condition for which we use ensured oids could cause a response to just hang. Doubtful.
         for my $oid (keys($session->{pending_replies})) {
+            # TODO: Fix hardcoded port value below to print actual port from session object
             $failed_oids->{"$oid:161"} = {
                 timestamp => time() - $self->interval / 2,
                 error     => 'OID_DATA_ERROR',
             };
         }
+        
         for my $oid (keys($session->{failed_oids})) {
-            $failed_oids->{$oid} = $session->{failed_oids}{$oid};
+            # Attempt to silence any alarms that would result from (expected) failures of ensured OIDs
+            if ( exists $session->{ensured_oid_failures}->{$oid} and not $session->{last_ensured_oid_success}) {
+                $self->logger->debug(sprintf("Skipping monitoring write for failed ensured OID %s", $oid));
+                $self->logger->debug(sprintf("WARNING: %s will be dropped from %s after %d more consecutive failed collections.",
+                    $oid,
+                    $name,
+                    ($self->{ensured_failout} - $session->{ensured_oid_failures}->{$oid})
+                ));
+            }
+            else {
+                $failed_oids->{$oid} = $session->{failed_oids}{$oid};
+            }
         }
         push(@{$session_errors}, $session->{errors}{session}) if ($session->{errors}{session});
     }
@@ -705,6 +839,9 @@ sub _collect_data {
         # Write mon data out for the host's last completed poll cycle
         $self->_write_mon_data($host, $host_name);
 
+        # Allow for sessions that have crossed the ensure-OID failout threshold to be removed before the collection cycle.
+        $self->_remove_failed_ensured_sessions($host);
+
         for my $session (@{$host->{sessions}}) {
 
             # Reset the failed OIDs for each session after writing the status
@@ -735,6 +872,7 @@ sub _collect_data {
 
                 my $oid     = $oid_attr->{oid};
                 my $is_leaf = $oid_attr->{single} || 0;
+                my $ensure = $oid_attr->{ensure} || 0;
 
                 my $reqstr = " $oid -> $host->{ip}:$session->{port} ($host_name)";
 
@@ -763,13 +901,14 @@ sub _collect_data {
                 # Define the callback with params for the session args
                 $args{'-callback'} = sub {
                     $self->_poll_cb(
-                        session    => $session,
-                        time       => $timestamp,
-                        name       => $host_name,
-                        ip         => $host->{ip},
-                        oid        => $oid,
-                        reqstr     => $reqstr,
-                        vars       => $host->{host_variable}
+                        session     => $session,
+                        time        => $timestamp,
+                        name        => $host_name,
+                        ip          => $host->{ip},
+                        oid         => $oid,
+                        ensure      => $ensure,
+                        reqstr      => $reqstr,
+                        vars        => $host->{host_variable}
                     );
                 }; 
 
@@ -777,6 +916,7 @@ sub _collect_data {
                 $self->logger->debug(sprintf("%s - %s request for %s", $self->worker_name, $get_method, $reqstr));
                 $res = $snmp_session->$get_method(%args);
 
+                # $res will be non-zero if there were any responses. Actual errors in the result processed in _poll_cb
                 if ($res) {
                     # Add the OID to pending replies if the request succeeded
                     $session->{pending_replies}{$oid} = 1;
@@ -797,6 +937,20 @@ sub _collect_data {
 
     if ($self->first_run) {
         $self->_set_first_run(0);
+    }
+}
+
+sub _remove_failed_ensured_sessions() {
+    my $self = shift;
+    my $host = shift;
+
+    for my $idx (reverse 0..$#{$host->{sessions}}) {
+        for my $failures (values $host->{sessions}[$idx]->{ensured_oid_failures}) {
+            if ( $failures >= $self->ensured_failout and $host->{sessions}[$idx]->{last_ensured_oid_success}) {
+                $self->logger->debug(sprintf("Removing a session for %s for failing all (%s) ensured collections since last reload", $host->{name}, $failures));
+                delete $host->{sessions}[$idx];
+            }
+        }
     }
 }
 
