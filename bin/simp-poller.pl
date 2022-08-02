@@ -16,13 +16,14 @@ sub usage
     my $text = <<"EOM";
 Usage: $0 [--config <file path>]  [--hosts <dir path>] [--groups <dir path>]
     [--logging <file path>] [--validation <dir path>] [--status <dir path>] [--nofork]
-    [--user <user name>] [--group <group name>]
+    [--user <user name>] [--group <group name>] [--pid_file <file path>]
 EOM
     print $text;
     exit(1);
 }
 
 use constant {
+    DEFAULT_PID_FILE       => '/var/run/simp_poller.pid',
     DEFAULT_CONFIG_FILE    => '/etc/simp/poller/config.xml',
     DEFAULT_LOGGING_FILE   => '/etc/simp/poller/logging.conf',
     DEFAULT_HOSTS_DIR      => '/etc/simp/poller/hosts.d/',
@@ -31,6 +32,7 @@ use constant {
     DEFAULT_STATUS_DIR     => '/var/lib/simp/poller/',
 };
 
+my $pid_file       = DEFAULT_PID_FILE;
 my $config_file    = DEFAULT_CONFIG_FILE;
 my $logging        = DEFAULT_LOGGING_FILE;
 my $hosts_dir      = DEFAULT_HOSTS_DIR;
@@ -39,10 +41,11 @@ my $validation_dir = DEFAULT_VALIDATION_DIR;
 my $status_dir     = DEFAULT_STATUS_DIR;
 my $nofork;
 my $help;
-my $username;
-my $groupname;
+my $user_name;
+my $group_name;
 
 GetOptions(
+    'pid_file=s'   => \$pid_file,
     'config=s'     => \$config_file,
     'logging=s'    => \$logging,
     'hosts=s'      => \$hosts_dir,
@@ -50,14 +53,15 @@ GetOptions(
     'validation=s' => \$validation_dir,
     'status=s'     => \$status_dir,
     'nofork'       => \$nofork,
-    'user=s'       => \$username,
-    'group=s'      => \$groupname,
+    'user=s'       => \$user_name,
+    'group=s'      => \$group_name,
     'help|h|?'     => \$help
 ) or usage();
 
 usage() if $help;
 
-my $poller = GRNOC::Simp::Poller->new(
+my $poller_args = {
+    pid_file       => $pid_file,
     config_file    => $config_file,
     logging_file   => $logging,
     hosts_dir      => $hosts_dir,
@@ -65,8 +69,9 @@ my $poller = GRNOC::Simp::Poller->new(
     validation_dir => $validation_dir,
     status_dir     => $status_dir,
     daemonize      => !$nofork,
-    run_user       => $username,
-    run_group      => $groupname
-);
+    run_user       => $user_name,
+    run_group      => $group_name
+};
 
-$poller->start();
+GRNOC::Simp::Poller->new($poller_args)->start();
+
