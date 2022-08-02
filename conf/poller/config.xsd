@@ -22,7 +22,7 @@
 	<xsd:attribute name="reconnect_every" type="xsd:integer" use="required" />
 	<xsd:attribute name="read_timeout"    type="xsd:integer" use="required" />
 	<xsd:attribute name="write_timeout"   type="xsd:integer" use="required" />
-	<xsd:attribute name="use_unix_socket"   type="xsd:integer" use="required" />
+	<xsd:attribute name="use_unix_socket"   type="xsd:integer" use="optional" />
 	<xsd:attribute name="unix_socket"   type="xsd:string" use="optional" />
     </xsd:complexType>
 
