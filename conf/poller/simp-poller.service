@@ -40,6 +40,15 @@ stop() {
     return $retval
 }
 
+reload() {
+    echo -n $"Reloading $name: "
+    if [ -f $pidfile ]
+    then
+        killproc -p $pidfile $name -HUP
+    fi
+    echo
+}
+
 restart() {
     stop
     start
@@ -66,11 +75,14 @@ case "$1" in
     restart)
         $1
         ;;
+    reload)
+        $1
+        ;;
     status)
         rh_status
         ;;
     *)
-        echo $"Usage: $0 {start|stop|status|restart}"
+        echo $"Usage: $0 {start|stop|status|restart|reload}"
         exit 2
 esac
 exit $?
