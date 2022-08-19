@@ -3,14 +3,18 @@ package GRNOC::Simp::Poller::Worker;
 use strict;
 use warnings;
 
+# Enable for the -d:Trace option to allow stack tracing
+#$Devel::Trace::TRACE = 1;
+
 use AnyEvent;
 use AnyEvent::SNMP;
 use Data::Dumper;
 use JSON;
 use Moo;
+use Try::Tiny;
+use IPC::Shareable;
 use Net::SNMP::XS;    # Faster than non-XS
 use Redis::Fast;
-use Syntax::Keyword::Try;
 
 # Raised from 64, Default value
 $AnyEvent::SNMP::MAX_RECVQUEUE = 128;
@@ -19,99 +23,50 @@ $AnyEvent::SNMP::MAX_RECVQUEUE = 128;
 =head1 public attributes
 =over 12
 
-=item group_name
-=item instance
-=item config
+=item parent
+=item id
+=item group
 =item logger
-=item hosts
 =item status_dir
-=item oids
-=item interval
 
 =back
 =cut
 
-has group_name => (
-    is       => 'ro',
-    required => 1
-);
-has instance => (
-    is       => 'ro',
-    required => 1
-);
-has config => (
-    is       => 'ro',
-    required => 1
-);
-has logger => (
-    is       => 'rwp',
-    required => 1
-);
-has hosts => (
-    is       => 'ro',
-    required => 1
-);
-has status_dir => (
-    is       => 'ro',
-    required => 1
-);
-has oids => (
-    is       => 'ro',
-    required => 1
-);
-has interval => (
-    is       => 'ro',
-    required => 1
-);
+has parent     => (is => 'rwp', required => 1);
+has id         => (is => 'rwp', required => 1);
+has group      => (is => 'rwp', required => 1);
+has logger     => (is => 'rwp', required => 1);
+has status_dir => (is => 'rwp', required => 1);
 
 ### Internal Attributes ###
 =head1 private attributes
 =over 12
 
-=item worker_name
-=item is_running
-=item need_restart
+=item name
+=item hosts
+=item oids
+=item interval
 =item redis
 =item retention
 =item request_size
 =item timeout
-=item main_cv
+=item event_loop
 =item first_run
 
 =back
 =cut
 
-has worker_name => (
-    is       => 'rwp',
-    required => 0,
-    default  => 'unknown'
-);
-has is_running => (
-    is      => 'rwp',
-    default => 0
-);
-has need_restart => (
-    is      => 'rwp',
-    default => 0
-);
-has redis => (is => 'rwp');
-has retention => (
-    is      => 'rwp',
-    default => 5
-);
-has request_size => (
-    is      => 'rwp',
-    default => 1
-);
-has timeout => (
-    is      => 'rwp',
-    default => 5
-);
-has main_cv => (is => 'rwp');
-has first_run => (
-    is      => 'rwp',
-    default => 1
-);
+has name         => (is => 'rwp');
+has hosts        => (is => 'rwp', default => sub {[]});
+has oids         => (is => 'rwp', default => sub {[]});
+has interval     => (is => 'rwp');
+has redis        => (is => 'rwp');
+has redis_config => (is => 'rwp', default => sub {{}});
+has retention    => (is => 'rwp', default => 5);
+has request_size => (is => 'rwp', default => 1);
+has timeout      => (is => 'rwp', default => 5);
+has event_loop   => (is => 'rwp');
+has first_run    => (is => 'rwp', default => 1);
 
 ### Public Methods ###
 
@@ -121,67 +76,209 @@ has first_run => (
 =item start
 =cut
 
+
+# Logging helpers that shorten calls and add the worker's name
+sub worker_log {
+    my ($self, $msg) = @_;
+    return sprintf('%s: %s', $self->name, $msg)
+}
+sub log_debug {
+    my ($self, $msg) = @_;
+    $self->logger->debug($self->worker_log($msg));
+}
+sub log_info {
+    my ($self, $msg) = @_;
+    $self->logger->info($self->worker_log($msg));
+}
+sub log_error {
+    my ($self, $msg) = @_;
+    $self->logger->error($self->worker_log($msg));
+}
+
+
+=head2 _get_shared_config()
+    Returns the configuration hash for $key from shared memory.
+    Configurations are stored as JSON and are decoded upon retrieval.
+=cut
+sub _get_shared_config {
+    my $self = shift;
+    my $key  = shift;
+ 
+    # Add the parent PID to the key for this instance
+    $key = sprintf("%s:%s", $key, $self->parent);
+
+    $self->log_debug("Retrieving '$key' config from shared memory"); 
+    try { 
+        tie(my $data_json, 'IPC::Shareable', {key => $key});
+        return decode_json($data_json);
+    } 
+    catch {
+        $self->log_error("ERROR: Could not get shared '$key' config: $_");
+    };
+}
+
+
+=head2 _make_config()
+    Wrapper method that runs all of the config-loading methods
+=cut
+sub _make_config {
+    my $self = shift;
+
+    $self->_make_redis();
+    $self->_make_hosts();
+    $self->_make_group();
+    $self->_make_redis();
+
+    $self->log_debug("Finished setting configurations");
+}
+
+
+=head2 _make_hosts()
+    Creates the worker's hosts configuration from shared memory
+=cut
+sub _make_hosts {
+    my $self = shift;
+    my $hosts_config  = $self->_get_shared_config('hosts');
+    my $worker_config = $self->_get_shared_config('workers');
+
+    # Find the hosts assigned to the worker and get their configs
+    my @hosts = map {$hosts_config->{$_}} @{$worker_config->{$self->group}{$self->id}{hosts}};
+
+    # Apply group-specific configs for the hosts
+    for my $host (@hosts) {
+        my $group_configs = $host->{group}{$self->group};
+        
+        $self->log_error("No group-specific configs for ".$host->{name}) unless (defined($group_configs));
+        
+        # Copy values from the group config reference
+        my @ports  = @{$group_configs->{ports}};
+        my %errors = %{$group_configs->{errors}};
+
+        # Apply the copied data to the host config
+        $host->{ports}  = \@ports;
+        $host->{errors} = \%errors;
+
+        # Get rid of the group-specific host configs once applied locally
+        delete $host->{group};
+    }
+
+    $self->_set_hosts(\@hosts);
+    $self->log_info("Updated hosts configuration from shared memory");
+}
+
+
+=head2 _make_group()
+    Create the polling group configuration from shared memory.
+=cut
+sub _make_group {
+    my $self = shift;
+    my $groups_config = $self->_get_shared_config('groups');
+
+    my $group = $groups_config->{$self->group};
+
+    $self->_set_oids($group->{oids});
+    $self->_set_timeout($group->{timeout});
+    $self->_set_interval($group->{interval});
+    $self->_set_retention($group->{retention});
+    $self->_set_request_size($group->{request_size});
+
+    $self->log_info("Updated polling group configuration from shared memory");
+}
+
+
+=head2 _make_redis()
+     Creates the Redis configuration from shared memory.
+     Connects to the Redis server using the new config
+=cut
+sub _make_redis {
+    my $self = shift;
+    my $redis_config = $self->_get_shared_config('redis');
+
+    my $msg  = sprintf("Connecting to Redis server at %s", $redis_config->{server});
+    $msg .= ' (using unix socket)' if (defined($redis_config->{sock}));
+
+    # Connect to Redis. Only continue once Redis is connected.
+    # This will try to reconnect 2x per second for 30s
+    my $redis;
+    my $connected = 0;
+    while (!$connected) {
+        $self->log_info($msg);
+        try {
+            $redis = Redis::Fast->new(%$redis_config);
+            $connected = 1;
+        }
+        catch {
+            $self->log_error("ERROR: Couldn't connect to Redis: $_");
+        };
+    }
+
+    $self->log_debug(sprintf(
+        "Redis reconnect after %ss every %ss",
+        $redis_config->{reconnect},
+        $redis_config->{reconnect_every}
+    ));
+    $self->log_debug(sprintf(
+        "Redis timeouts [Read: %ss, Write: %ss]",
+        $redis_config->{read_timeout},
+        $redis_config->{write_timeout}
+    ));
+
+    $self->_set_redis($redis);
+}
+
+
+=head2 start()
+    Public start method called by the main Poller process.
+    This sets up the worker and begins data collection.
+=cut
 sub start {
     my ($self) = @_;
 
-    $self->_set_worker_name($self->group_name . ' [' . $self->instance . ']');
+    # Create the worker name using its polling group and worker ID
+    # Set the process name to it and store it in the worker instance
+    my $name = sprintf("%s [%s]", $self->group, $self->id);
+    $0 = sprintf("simp_poller(%s)", $name);
+    $self->_set_name($name);
 
-    my $logger = GRNOC::Log->get_logger($self->worker_name);
+    # Get the logger object
+    my $logger = GRNOC::Log->get_logger($self->name);
     $self->_set_logger($logger);
-
-    my $worker = $self->worker_name;
-    $self->logger->error(sprintf("%s - Starting...", $worker));
-
-    # Flag that we're running
-    $self->_set_is_running(1);
-
-    # Change our process name
-    $0 = "simp_poller($worker)";
+    $self->log_info("Starting");
 
     # Setup signal handlers
     $SIG{'TERM'} = sub {
-        $self->logger->info($worker . " - Received SIG TERM.");
+        $self->log_info("Received SIG TERM");
         $self->stop();
+        return 0;
     };
-
     $SIG{'HUP'} = sub {
-        $self->logger->info($worker . " - Received SIG HUP.");
+        $self->log_info("Received SIG HUP");
+        $self->reload();
     };
 
-    my $redis = $self->_connect_to_redis($worker);
+    $self->_make_config();
+    $self->_connect_to_snmp();
 
-    $self->_set_redis($redis);
-    $self->logger->debug(sprintf('%s - Finished connecting to Redis', $worker));
-
-    $self->_set_need_restart(0);
-
-    $self->logger->debug(sprintf('%s - Starting SNMP Poll loop', $worker));
+    $self->log_debug('Starting SNMP Poll loop');
 
     # Establish all of the SNMP sessions for every host the worker has
     $self->_connect_to_snmp();
 
-    unless (scalar(@{$self->hosts})) {
-        $self->logger->debug(sprintf("%s - No hosts found!", $worker));
-    }
-    else {
-        my $host_names = join(', ', (map {$_->{name}} @{$self->hosts}));
-        $self->logger->debug(sprintf("%s - hosts: %s", $worker, $host_names));
-    }
-
-    # Start AnyEvent::SNMP's max outstanding requests window equal to the total
-    # number of requests this process will be making. AnyEvent::SNMP
-    # will scale from there as it observes bottlenecks
+    # Initialize AnyEvent::SNMP's max outstanding requests window.
+    # Set it equal to the total number of requests this process makes. 
+    # AnyEvent::SNMP will scale from there as it observes bottlenecks.
     # TODO: THIS WILL NEED TO FACTOR IN HOST SESSIONS USING THEIR LOADS, NOT JUST HOST COUNT
     if (scalar(@{$self->oids}) && scalar(@{$self->hosts})) {
         AnyEvent::SNMP::set_max_outstanding(scalar(@{$self->hosts}) * scalar(@{$self->oids}));
     }
     else {
-        $self->logger->error(sprintf("%s - Hosts or OIDs were not defined!", $worker));
-        return;
+        $self->log_error('No hosts in configuration') if (scalar(@{$self->hosts}) == 0);
+        $self->log_error('No OIDs in configuration') if (scalar(@{$self->oids}) == 0);
+        exit(1);
     }
 
+    # Create the timer that collects data on every interval
     $self->{'collector_timer'} = AnyEvent->timer(
-        after    => 10,
         interval => $self->interval,
         cb       => sub {
             $self->_collect_data();
@@ -191,75 +288,44 @@ sub start {
 
     # Let the magic happen
     my $cv = AnyEvent->condvar;
-    $self->_set_main_cv($cv);
+    $self->_set_event_loop($cv);
     $cv->recv;
-    $self->logger->error("Exiting");
+    $self->log_info("Exiting");
 }
 
-=item stop
-=back
+=head2 stop()
+    Stops the worker process.
 =cut
 sub stop {
     my $self = shift;
-    $self->logger->error("Stop was called");
-    $self->main_cv->send();
+    $self->log_info("Stopping");
+    $self->event_loop->send();
 }
 
-=head2 _connect_to_redis()
-     Helper function that helps connecting to the redis server 
-     and returns the redis object reference
+
+=head2 reload()
+    Reloads the worker process.
 =cut
-sub _connect_to_redis {
-    my ($self, $worker) = @_;
-
-    # Connect to redis
-    my $reconnect       = $self->config->get('/config/redis/@reconnect')->[0];
-    my $reconnect_every = $self->config->get('/config/redis/@reconnect_every')->[0];
-    my $read_timeout    = $self->config->get('/config/redis/@read_timeout')->[0];
-    my $write_timeout   = $self->config->get('/config/redis/@write_timeout')->[0];
-
- 
-    my %redis_conf = (
-                reconnect     => $reconnect,
-                every         => $reconnect_every,
-                read_timeout  => $read_timeout,
-                write_timeout => $write_timeout );
-    
-    $self->logger->debug(sprintf("%s - Connecting to Redis", $worker));
-
-    # unix socket
-    my $use_unix_socket = $self->config->get('/config/redis/@use_unix_socket')->[0];
-    if ( $use_unix_socket == 1 ) { 
-      $redis_conf{sock} = $self->config->get('/config/redis/@unix_socket')->[0];
-      $self->logger->debug(sprintf("%s - Redis Host unix socket:%s", $worker, $redis_conf{sock}));
-    }else{
-      my $redis_host      = $self->config->get('/config/redis/@ip')->[0];
-      my $redis_port      = $self->config->get('/config/redis/@port')->[0];
-      $redis_conf{server} = "$redis_host:$redis_port";
-      $self->logger->debug(sprintf("%s - Redis Host %s:%s", $worker, $redis_host, $redis_port));
-    }
-    $self->logger->debug(sprintf("%s - Redis reconnect after %ss every %ss", $worker, $reconnect, $reconnect_every));
-    $self->logger->debug(sprintf("%s - Redis timeouts [Read: %ss, Write: %ss]", $worker, $read_timeout, $write_timeout));
-
-    my $redis;
-    my $redis_connected = 0;
-
-    # Try reconnecting to redis. Only continue when redis is connected.
-    while(!$redis_connected) {
-        try {
-            # Try to connect twice per second for 30 seconds,
-            # 60 attempts every 500ms.
-            $redis = Redis::Fast->new( %redis_conf );
-            $redis_connected = 1;
-        }
-        catch ($e) {
-            $self->logger->error(sprintf("%s - Error connecting to Redis: %s. Trying Again...", $worker, $e));
-        };
-    }
-
-    return $redis;
+sub reload {
+    my $self = shift;
+    $self->log_info("Reloading");
+    $self->_make_config();
+    $self->_connect_to_snmp();
 }
 
+
+sub _make_interval_timestamp {
+    my $self = shift;
+    my $time = time();
+
+    my $new = $time % $self->interval
+}
+
+
+=head2 _poll_cb()
+    A callback passed to SNMP GET/GETBULK methods.
+    This runs after the SNMP request completes, independent of other code.
+=cut
 sub _poll_cb {
     my $self   = shift;
     my %params = @_;
@@ -275,8 +341,8 @@ sub _poll_cb {
 
     # Get some variables from the worker
     my $redis    = $self->redis;
-    my $group    = $self->group_name;
-    my $worker   = $self->worker_name;
+    my $group    = $self->group;
+    my $worker   = $self->name;
 
     # Get a reference to the SNMP session, port, and context
     my $snmp    = $session->{session};
@@ -343,8 +409,8 @@ sub _poll_cb {
         # Add the context to the hash of failed OIDs for the session
         $session->{failed_oids}{$oid}{context} = $context if (defined($context));
 
-        my $error = "%s - ERROR: %s failed to request %s: %s"; 
-        $self->logger->error(sprintf($error, $worker, $name, $reqstr, $snmp->error()));
+        my $error = "ERROR: %s failed to request %s: %s"; 
+        $self->log_error(sprintf($error, $name, $reqstr, $snmp->error()));
     }
 
     # Calculate when this key should expire based on NOW when the response
@@ -420,7 +486,7 @@ sub _poll_cb {
             # Add any host-defined variables to the SNMP data in Redis as "vars.$var,$value"
             if (defined($vars)) {
 
-                $self->logger->debug("Adding host variables for $name");
+                $self->log_debug("Adding host variables for $name");
 
                 # Set Redis back to DB[0] to insert the var data with values
                 $redis->select(0, sub{});
@@ -446,8 +512,8 @@ sub _poll_cb {
         $redis->hset($name_id, $oid, $group_interval, sub{});
         $redis->hset($ip_id,   $oid, $group_interval, sub{});
     }
-    catch ($e) {
-        $self->logger->error(sprintf('%s - ERROR: could not hset Redis data: %s', $worker, $e));
+    catch {
+        $self->log_error("ERROR: could not hset Redis data: $_");
     };
 
     # Ensure we're done with the pipeline
@@ -457,6 +523,10 @@ sub _poll_cb {
     AnyEvent->now_update;
 }
 
+
+=head2 _get_session_args()
+    Builds the parameters for a host's Net::SNMP session object.
+=cut
 sub _get_session_args {
     my $self = shift;
     my $host = shift;
@@ -508,7 +578,7 @@ sub _get_session_args {
 }
 
 
-=head2 _connect_to_snmp
+=head2 _connect_to_snmp()
     Uses host configs to generate SNMP args and create an SNMP session for every host.
     Stores the actual SNMP sessions in session hashes containing additional error and session info.
 =cut
@@ -522,7 +592,7 @@ sub _connect_to_snmp {
 
         # Get the hostname, SNMP version, array of session args, and failed session tracker
         my $host_name    = $host_attr->{name};
-        my $context_ids  = $host_attr->{contexts};
+        my $context_ids  = $host_attr->{context_id};
         my $version      = $host_attr->{snmp_version};
         my $session_args = $self->_get_session_args($host_attr);
         my $failed       = 0;
@@ -532,10 +602,10 @@ sub _connect_to_snmp {
         # If we don't have any contexts, pretend we do to avoid duplicate code
         for my $args (@$session_args) {
 
-            $self->logger->debug(sprintf("%s - Creating session for %s:%s", $self->worker_name, $host_name, $args->{'-port'}));
+            $self->log_debug(sprintf("Creating session for %s:%s", $host_name, $args->{'-port'}));
 
             # This will allow the next loop to run when there are not context IDs
-            my $total_contexts = exists($host_attr->{contexts}) ? scalar(@{$host_attr->{contexts}}) : 1;
+            my $total_contexts = defined($context_ids) ? scalar(@$context_ids) : 1;
 
             for (my $i = 0; $i < $total_contexts; $i++ ) {
 
@@ -554,7 +624,7 @@ sub _connect_to_snmp {
         
                 # Send an error when there's no community specified and we have V1 or V2
                 if ($version < 3 && !defined($args->{'-community'})) {
-                    $self->logger->error("SNMP is v1 or v2, but no community is defined for $host_name!");
+                    $self->log_error("SNMP is v1 or v2, but no community is defined for $host_name!");
                     $session_data{errors}{community} = {
                         time  => time,
                         error => "No community was defined for $host_name:"
@@ -571,20 +641,18 @@ sub _connect_to_snmp {
                 # Check for errors creating the SNMP session
                 if (!$snmp_session || $session_error) {
 
-                    my $err_str = "%s - Error while creating SNMPv%s session with %s:%s (ContextID: %s): %s";
+                    my $err_str = "Error while creating SNMPv%s session with %s:%s (ContextID: %s): %s";
                     my $cid_str = exists($session_data{context}) ? $session_data{context} : 'N/A';
 
                     my $error = sprintf(
                         $err_str,
-                        $self->worker_name,
                         $version,
                         $host_name,
                         $session_data{port},
                         $cid_str,
                         $session_error
                     );
-
-                    $self->logger->error($error);
+                    $self->log_error($error);
             
                     $session_data{errors}{session} = {
                         time  => time,
@@ -613,28 +681,30 @@ sub _write_mon_data {
     unless (-e $mon_dir) {
 
         # Note: If the dir can't be accessed due to permissions, writing will fail
-        $self->logger->error("Could not find dir for monitoring data: $mon_dir");
+        $self->log_error("Could not find dir for monitoring data: $mon_dir");
         return;
     }
 
     # Add filename to the path for writing
-    $mon_dir .= $self->group_name . "_status.json";
+    $mon_dir .= $self->group . "_status.json";
     
-    $self->logger->debug("Writing status file $mon_dir");
+    $self->log_debug("Writing status file $mon_dir");
 
     my %mon_data = (
         timestamp   => time(),
         failed_oids => '',
         snmp_errors => '',
-        config      => $self->config->{config_file},
+        #config      => $self->config->{config_file},
         interval    => $self->interval
     );
 
-    # Aggregation of all the error data for each session's failed OIDs
+    # All the error data for each session's failed OIDs
     my $failed_oids = {};
-    # Aggregation of each session's SNMP errors
-    # Note: The community and version subsections are deprecated by config validation
-    # They are left in here for backward compatibility with poller-monitoring.
+
+    # All of each session's SNMP errors
+    # Note: 
+    #   The community and version subsections are deprecated by config validation
+    #   They are left in here for backward compatibility with poller-monitoring.
     my $snmp_errors = {
         session   => [],
         community => 0,
@@ -661,42 +731,66 @@ sub _write_mon_data {
     # Write out the status file
     if (open(my $fh, '>:encoding(UTF-8)', $mon_dir)) {
         print $fh JSON->new->pretty->encode(\%mon_data);
-        close($fh) || $self->logger->error("Could not close $mon_dir");
+        close($fh) || $self->log_error("Could not close $mon_dir");
     }
     else {
-        $self->logger->error("Could not open " . $mon_dir);
+        $self->log_error("Could not open " . $mon_dir);
         return;
     }
 
-    $self->logger->debug("Writing completed for status file $mon_dir");
+    $self->log_debug("Writing completed for status file $mon_dir");
+}
+
+
+# Attempts to stop the worker from becoming a zombie
+# Also cleans up shared memory when the parent has crashed
+sub _zombie_control {
+    my $self = shift;
+   
+    # Returns a true value if the parent PID is running
+    # Does not work when child uid/gid is not the same as parent uid/gid
+    my $running = kill(-0, $self->parent);
+
+    unless ($running) {
+        $self->log_error("Parent PID ".$self->parent." died, stopping zombification");
+
+        # Remove shared memory segments and semaphores for this poller instance
+        # Note: Other workers will error on this after the first one removes them.
+        IPC::Shareable->clean_up_all();
+
+        # Stop the zombie worker
+        $self->stop(); 
+    }
 }
 
 
 sub _collect_data {
-    my $self = shift;
-
+    my $self      = shift;
     my $hosts     = $self->hosts;
     my $oids      = $self->oids;
     my $timestamp = time;
 
-    $self->logger->debug("----  START OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----");
+    # Exit if the parent process has died
+    # This stops a zombie worker from running after a hard crash
+    $self->_zombie_control();
 
-    $self->logger->debug(sprintf(
-        "%s - %s hosts and %s oids per host, max outstanding scaled to %s and queue is %s to %s",
-        $self->worker_name,
+    $self->log_debug("----  START OF POLLING CYCLE  ----");
+
+    $self->log_debug(sprintf(
+        "%s hosts and %s oids per host, max outstanding scaled to %s and queue is %s to %s",
         scalar(@$hosts),
         scalar(@$oids),
         $AnyEvent::SNMP::MAX_OUTSTANDING,
         $AnyEvent::SNMP::MIN_RECVQUEUE,
         $AnyEvent::SNMP::MAX_RECVQUEUE
-    ));
-       
+    ));   
+
     for my $host (@$hosts) {
 
         my $host_name = $host->{name};
 
         # Retrieve any context IDs if present
-        my $context_ids = $host->{contexts} if (exists($host->{contexts}));
+        my $context_ids = $host->{context_id} if (exists($host->{context_id}));
 
         # Used to stagger each request to a specific host, spread load.
         # This does mean you can't collect more OID bases than your interval
@@ -713,9 +807,9 @@ sub _collect_data {
             # Log error and skip collections for the session if it has an
             # OID key in pending response with a val of 1
             if (scalar(keys %{$session->{'pending_replies'}}) > 0) {
-                $self->logger->info(sprintf(
-                    "%s - Unable to query device %s:%s in poll cycle, remaining oids: %s",
-                    $self->worker_name,
+
+                $self->log_info(sprintf(
+                    "Unable to query device %s:%s in poll cycle, remaining oids: %s",
                     $host->{ip},
                     $host_name,
                     Dumper($session->{pending_replies})
@@ -727,7 +821,7 @@ sub _collect_data {
             my $snmp_session = $session->{session};
 
             if (!defined($snmp_session)) {
-                $self->logger->error($self->worker_name . " - No SNMP session defined for $host_name");
+                $self->log_error("No SNMP session defined for $host_name");
                 next;
             }
 
@@ -743,7 +837,7 @@ sub _collect_data {
 
                 # Iterate through the the provided set of base OIDs to collect
                 my $res;
-                my $res_err = sprintf("%s - Unable to issue Net::SNMP method \"%s\"", $self->worker_name, $get_method);
+                my $res_err = sprintf("Unable to issue Net::SNMP method \"%s\"", $get_method);
 
                 # Create a hash of arguments for the request
                 my %args = (-delay => $delay++);
@@ -774,7 +868,7 @@ sub _collect_data {
                 }; 
 
                 # Use the SNMP session to request data using our args
-                $self->logger->debug(sprintf("%s - %s request for %s", $self->worker_name, $get_method, $reqstr));
+                $self->log_debug(sprintf("%s request for %s", $get_method, $reqstr));
                 $res = $snmp_session->$get_method(%args);
 
                 if ($res) {
@@ -788,12 +882,12 @@ sub _collect_data {
                         description => $snmp_session->error(),
                         timestamp   => time()
                     };
-                    $self->logger->error(sprintf("%s - %s: %s", $self->worker_name, $res_err, $snmp_session->error()));
+                    $self->log_error(sprintf("%s: %s", $res_err, $snmp_session->error()));
                 }
             }
         }
     }
-    $self->logger->debug("----  END OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----");
+    $self->log_debug("----  END OF POLLING CYCLE  ----");
 
     if ($self->first_run) {
         $self->_set_first_run(0);

@@ -3,12 +3,19 @@ package GRNOC::Simp::Poller;
 use strict;
 use warnings;
 
+# Enables stack tracing when run with -d:Trace
+$Devel::Trace::TRACE = 1;
+
 use Moo;
+use JSON;
+use AnyEvent;
+use Try::Tiny;
 use Proc::Daemon;
 use Data::Dumper;
-use File::Path 'rmtree';
-use Parallel::ForkManager;
-use POSIX qw( setuid setgid );
+use Devel::Size qw(size total_size);
+use IPC::Shareable;
+use File::Path 'remove_tree';
+use POSIX qw( _exit setsid setuid setgid );
 use Types::Standard qw( Str Bool );
 
 use GRNOC::Config;
@@ -21,6 +28,7 @@ our $VERSION = '1.10.0';
 =head2 public attributes
 =over 12
 
+=item pid_file
 =item config_file
 =item logging_file
 =item hosts_dir
@@ -33,7 +41,10 @@ our $VERSION = '1.10.0';
 
 =back
 =cut
-
+has pid_file => (
+    is       => 'ro',
+    required => 1
+);
 has config_file => (
     is       => 'ro',
     isa      => Str,
@@ -84,32 +95,44 @@ has run_group => (
 =head2 private_attributes
 =over 12
 
+=item pid
 =item config
 =item logger
+=item event_loop
 =item hosts
 =item groups
+=item workers
 =item total_workers
-=item status_path
-=item children
-=item do_reload
+=item obsolete_workers
+=item running
+=item reloading
 
 =back
 =cut
 
-has config => (is => 'rwp');
-has logger => (is => 'rwp');
-has hosts  => (is => 'rwp');
-has groups => (is => 'rwp');
-
+has pid            => (is => 'rwp');
+has config         => (is => 'rwp');
+has logger         => (is => 'rwp');
+has event_loop     => (is => 'rwp');
+has hosts          => (is => 'rwp');
+has groups         => (is => 'rwp');
+has workers        => (
+    is      => 'rwp',
+    default => sub {{}}
+);
 has total_workers => (
     is      => 'rwp',
     default => 0
 );
-has children => (
+has obsolete_workers => (
     is      => 'rwp',
     default => sub {[]}
 );
-has do_reload => (
+has running => (
+    is      => 'rwp',
+    default => 1
+);
+has reloading => (
     is      => 'rwp',
     default => 0
 );
@@ -121,53 +144,186 @@ has do_reload => (
 sub BUILD {
     my ($self) = @_;
 
-    # Create and store logger object
-    my $grnoc_log = GRNOC::Log->new(
-        config => $self->logging_file,
-        watch  => 120
-    );
-    my $logger = GRNOC::Log->get_logger();
-    $self->_set_logger($logger);
-    $self->logger->debug("Started the logger");
-
-    # Create the main config object
-    $self->logger->debug("Configuring the main Poller process");
-    my $config = GRNOC::Config->new(
-        config_file => $self->config_file,
-        force_array => 1
-    );
-
-    # Get the validation file for config.xml
-    my $xsd = $self->validation_dir . 'config.xsd';
-
-    # Validate the main config useing the xsd file for it
-    $self->_validate_config($self->config_file, $config, $xsd);
-
-    # Set the config if it validated
-    $self->_set_config($config);
-    $self->logger->debug("Finished configuring the main Poller process");
-
-    # Set status_dir to path in the configs, if defined and is a dir
-    $self->logger->debug("Setting up status writing for Poller");
-    my $status_path = $self->config->get('/config/status');
-    my $status_dir = $status_path ? $status_path->[0]->{dir} : undef;
-
-    if (defined $status_dir && -d $status_dir) {
-        if (substr($status_dir, -1) ne '/') {
-            $status_dir .= '/';
-            $self->logger->debug("The path for status_dir didn't include a trailing slash, added it: $status_dir");
-        }
-
-        $self->_set_status_dir($status_dir);
-        $self->logger->debug("Found poller_status dir in config, using: " . $self->status_dir);
-    }
-    else {
-        # Use default if not defined in configs, or invalid
-        $self->logger->debug("No valid poller_status dir defined in config, using: " . $self->status_dir);
-    }
-    $self->logger->debug("Finished setting up status writing for Poller");
+    $self->_make_logger();
+    $self->_make_config();
+    $self->_make_status_dir();
 
     return $self;
+}
+
+
+=head2 start
+    Starts all of the simp_poller processes
+=cut
+sub start {
+    my ($self) = @_;
+
+    # Clean up existing IPC shared memory configs for poller
+    #IPC::Shareable->clean_up_all();
+
+    # Daemonize
+    if ($self->daemonize) {
+
+        $self->logger->debug("Summoning simp-poller daemon");
+
+        # Create a forked Daemon process
+        # Resulting PID indicates the process we're in and status:
+        # undef = Error forking
+        #     0 = Running as daemon process
+        #     N = Running as parent process
+        my $pid = fork();
+        $self->_error_exit("simp-poller daemon could not be summoned: $!") unless (defined($pid));
+
+        # Exit the parent here so it doesn't execute any more code
+        unless ($pid == 0) {
+            $self->logger->info("simp-poller daemon has been summoned");
+            _exit(0);
+        }
+
+        # Set the daemon as the session leader
+        setsid() or $self->_error_exit("simp-poller daemon could not become session leader: $!");
+
+        # Change the process name
+        $0 = 'simp_poller [master]';
+
+        # Create daemon PID file
+        if ($self->daemonize) {
+            if (open(my $fh, '>', $self->pid_file)) {
+                print $fh $$;
+                close($fh);
+            }
+            else {
+                $self->_error_exit(sprintf("simp-poller daemon could not open PID file %s: %s", $self->pid_file, $!));
+            }
+        }
+
+        # Redirect the STDOUT and STDERR from the controlling console to the daemon
+        open(STDOUT, ">", "/dev/null") or $self->_error_exit("Could not redirect simp-poller daemon STDOUT: $!");
+        open(STDERR, ">&", \*STDOUT) or $self->_error_exit("Cound not redirect simp-poller daemon STDERR: $!");
+    }
+
+    # Store the running PID
+    $self->_set_pid($$);
+
+    # Set the user and group of the process
+    if (defined($self->run_group)) {
+        my $gid = getgrnam($self->run_group);
+        my $err = "Unable to set GID for group '%s': %s";
+        $self->_error_exit(sprintf($err, $self->run_group, $!)) unless (defined($gid));
+        $! = 0;
+        setgid($gid);
+        $self->_error_exit(sprintf($err, $self->run_group, $!)) if ($!);
+    }
+    if (defined($self->run_user)) {
+        my $uid = getpwnam($self->run_user);
+        my $err = "Unable to set UID for user '%s': %s";
+        $self->_error_exit(sprintf($err, $self->run_user, $!)) unless (defined($uid));
+        $! = 0;
+        setuid($uid);
+        $self->_error_exit(sprintf($err, $self->run_user, $!)) if ($!);
+    }
+
+    # Setup the signal handlers
+    $SIG{'TERM'} = sub {
+        $self->logger->info('Received SIG TERM.');
+        $self->stop();
+    };
+    $SIG{'INT'} = sub {
+        $self->logger->info('Recieved SIG INT.');
+        $self->stop();
+    };
+    $SIG{'HUP'} = sub {
+        $self->logger->info('Recieved SIG HUP.');
+        $self->reload();
+    };
+    $self->logger->debug("Signal handlers ready");
+
+    # Without a watcher, the event_loop AE condvar causes 100% CPU time on the daemon
+    # Adding this watcher resolves the CPU time issue (outlined in AnyEvent::FAQ)
+    # We don't use AE signal watchers because they cannot access $self
+    # SIG CHLD is used and set to do nothing because it would otherwise be ignored
+    my $anyevent_bugfix = AnyEvent->signal(signal => 'CHLD', cb => sub { (); });
+
+    # Main event loop, runs until SIG TERM/INT/KILL
+    while ($self->running) {
+
+        $self->logger->info("Starting new event loop");
+        $self->_set_event_loop(AnyEvent->condvar());
+
+        $self->logger->info("Creating Redis configuration");
+        $self->_make_redis_config();
+
+        $self->logger->info("Creating host configurations");
+        $self->_make_hosts_config();
+
+        $self->logger->info("Creating group configurations");
+        $self->_make_groups_config();
+        
+        $self->logger->info("Creating worker configurations");
+        $self->_make_worker_config();
+
+        $self->logger->info("Creating worker processes");
+        $self->_make_workers();
+
+        # Reload flag was set after receiving a SIG HUP
+        if ($self->reloading) {
+            
+            # HUP all worker processes
+            # Do this after workers are made to ensure workers are running
+            my $pids = $self->_get_worker_pids();
+            kill('HUP', @$pids);
+
+            # Reset the reloading flag
+            $self->_set_reloading(0);
+        }
+
+        $self->logger->info("Cleaning up obsolete worker processes");
+        $self->_cleanup_workers();
+
+        # Block the event loop until SIG is received
+        $self->event_loop->recv;
+        $self->logger->info("Ended the event loop");
+
+    }
+    
+    # Remove PID file if daemonized
+    unlink($self->pid_file) if ($self->daemonize);
+
+    $self->logger->info("Poller exited");
+    return 1;
+}
+
+
+
+=head2 reload
+    Signal handling for SIGHUP.
+    Reloads the main and all child processes
+=cut
+sub reload {
+    my $self = shift;
+
+    # Flag that we want to reload and signal to end the event loop
+    $self->logger->info('Reloading');
+    $self->_set_reloading(1);
+    $self->event_loop->send;
+}
+
+
+=head2 stop
+    Stops the simp_poller processes.
+    If zombie PIDs are given, only kills those.
+=cut
+sub stop {
+    my $self = shift;
+
+    # Terminate all worker processes
+    $self->logger->info('Stopping all worker processes');
+    my $pids = $self->_get_worker_pids();
+    kill('TERM', @$pids);
+
+    # Flag that we should stop running and signal to end the event loop
+    $self->_set_running(0);
+    $self->event_loop->send;
 }
 
 
@@ -186,7 +342,7 @@ sub _validate_config {
 
     # Use the validation code to log the outcome and exit if any errors occur
     if ($validation_code == 1) {
-        $self->logger->debug("Successfully validated $file");
+        $self->logger->info("Validated $file");
         return 1;
     }
     else {
@@ -200,6 +356,148 @@ sub _validate_config {
         }
         exit(1);
     }
+}
+
+=head2 _make_shared_config
+    Creates the variable in a shared memory segment as a JSON string.
+=cut
+sub _make_shared_config {
+    my $self = shift;
+    my $key  = shift;
+    my $data = shift;
+
+    # Add the process PID to the key to separate segments for multiple instances
+    $key = sprintf("%s:%s", $key, $self->pid);
+
+    # Valid Kibibyte sizes for IPC::Shareable segments
+    my @sizes = (64, 128, 256, 512, 1024, 2048, 4096);    
+
+    try {
+        # JSONify the config data and calculate the raw and JSON data size
+        my $data_size  = total_size($data) / 1000;
+        my $data_json  = encode_json($data);
+        my $json_size  = total_size($data_json) / 1000;
+        $self->logger->debug(sprintf(
+            "Compressed '%s' data from %s KiB to %s KiB of JSON",
+            $key,
+            $data_size,
+            $json_size
+        ));
+
+
+        # Determine the appropriate shared memory size in kibibytes
+        my $size;
+        for (my $i = 0; $i <= $#sizes; $i++) {
+            if ($json_size < $sizes[$i]) {
+                $size = int(1024 * $sizes[$i]);
+                last;
+            }
+        }
+        $self->logger->info(sprintf(
+            "Creating %sB shared memory cache for '%s' JSON (%sKiB data)",
+            $size,
+            $key,
+            $json_size
+        ));
+
+        # Create the options to use for the shared memory segment
+        my $share_options = {
+            key       => $key,
+            size      => $size,
+            create    => 1,
+            destroy   => 1,
+            serialize => 'json'
+        };
+
+        # Tie a new scalar to shared memory and assign it to the JSON data
+        tie (my $shared_json, 'IPC::Shareable', $share_options);
+        $shared_json = $data_json;    
+    } catch {
+        $self->logger->error("Error creating shared memory json for '$key': $_");
+    };
+}
+
+
+=head2 _make_logger
+    Reads logging configs and makes a new logger
+=cut
+sub _make_logger {
+    my $self = shift;
+
+    # Create and store logger object
+    my $grnoc_log = GRNOC::Log->new(config => $self->logging_file, watch => 120);
+    my $logger = GRNOC::Log->get_logger();
+    $self->_set_logger($logger);
+    $self->logger->info("Set up the logger");
+}
+
+
+=head2 _make_config
+    Reads and caches the primary config
+=cut
+sub _make_config {
+    my $self = shift;
+
+    # Create the main config object
+    my $config = GRNOC::Config->new(
+        config_file => $self->config_file,
+        force_array => 1
+    );
+
+    # Get the validation file for config.xml
+    my $xsd = $self->validation_dir . 'config.xsd';
+
+    # Validate the main config useing the xsd file for it
+    $self->_validate_config($self->config_file, $config, $xsd);
+
+    # Set the config if it validated
+    $self->_set_config($config);
+    $self->logger->info("Set up the main configuration");
+}
+
+
+=head2 _make_status_dir
+    Creates and sets up the directory needed for status file creation and writing
+=cut
+sub _make_status_dir {
+    my $self = shift;
+
+    # Set status_dir to path in the configs, if defined and is a dir
+    my $status_path = $self->config->get('/config/status');
+    my $status_dir  = $status_path ? $status_path->[0]->{dir} : undef;
+
+    
+    if (defined $status_dir && -d $status_dir) {
+        $status_dir .= '.' if (substr($status_dir, -1) ne '/');
+        $self->_set_status_dir($status_dir);
+    }
+    $self->logger->info("Set up status directories in ".$self->status_dir);
+}
+
+
+=head2 _make_redis_config
+    Reads and caches the redis configuration for the main process and workers
+=cut
+sub _make_redis_config {
+    my $self = shift;
+
+    # Create the server from the host IP and port number
+    my $redis_host = $self->config->get('/config/redis/@ip')->[0];
+    my $redis_port = $self->config->get('/config/redis/@port')->[0];
+    my $redis_server = $redis_host.':'.$redis_port;
+
+    # Set the Redis config hash using keys outlined by Redis::Fast
+    my %redis_config = (
+        server          => $redis_server,
+        sock            => $self->config->get('/config/redis/@unix_socket')->[0],
+        reconnect       => $self->config->get('/config/redis/@reconnect')->[0],
+        reconnect_every => $self->config->get('/config/redis/@reconnect_every')->[0],
+        read_timeout    => $self->config->get('/config/redis/@read_timeout')->[0],
+        write_timeout   => $self->config->get('/config/redis/@write_timeout')->[0]
+    );
+   
+    $self->_make_shared_config('redis', \%redis_config);
+    $self->logger->info("Set up the Redis configuration");
 }
 
 
@@ -248,8 +546,11 @@ sub _get_config_objects {
 
                 # Use the object name as the key to the object
                 if (exists $object->{name}) {
+
                     # Check for a group key and for pre-existing configs; for merging multiple host configs.
                     if (exists $object->{group} && exists $config_objects{$object->{name}}) {
+                       
+                        # Merge in new group objects with existing ones 
                         $config_objects{$object->{name}}->{group} = {%{$config_objects{$object->{name}}->{group}}, %{$object->{group}}};
                     }
                     else {
@@ -273,12 +574,12 @@ sub _get_config_objects {
 }
 
 
-=head2 _process_hosts_config
+=head2 _make_hosts_config
     Process the host configs for their polling groups.
     Create and remove status dirs based upon which hosts are found.
     Set the hosts for the poller objects.
 =cut
-sub _process_hosts_config {
+sub _make_hosts_config {
     my $self = shift;
 
     # Get the hosts from the hosts.d file
@@ -290,6 +591,8 @@ sub _process_hosts_config {
 
     # Process each host in the config
     while (my ($host_name, $host_attr) = each(%$hosts)) {
+
+        $host_attr->{name} = $host_name;
 
         # Parse the SNMP version (default is V2)
         my $snmp_version = ($host_attr->{snmp_version} =~ m/.*([123]).*/) ? $1 : '2';
@@ -303,33 +606,40 @@ sub _process_hosts_config {
         # Parse and set the ports for each polling group the host belongs to
         # Group ports will override host-wide ports
         # If no ports are specified, Net::SNMP will default to port 161
-        my $host_ports = $self->_parse_ports($host_attr->{ports}) if (exists($host_attr->{ports}));
+        my $ports = ['161'];
+        $ports = $self->_parse_ports($host_attr->{ports}) if (exists($host_attr->{ports}));
 
-        while (my ($group_name, $group_attr) = each(%{$host_attr->{group}})) {
+        # Parse group-specific parameters for the host
+        while (my ($group_name, $group_specific) = each(%{$host_attr->{group}})) {
 
-            # Reference to the ports that should be used for the group
-            my $ports;
-
-            # Set ports using the group-specific ports
-            if (exists($group_attr->{ports})) {
-                $ports = $self->_parse_ports($group_attr->{ports});
+            # Set any group-specific ports or use the default host ports
+            if (exists($group_specific->{ports})) {
+                $group_specific->{ports} = $self->_parse_ports($group_specific->{ports});
             }
-            # Set ports using the host-wide ports
-            elsif ($host_ports) {
-                $ports = $host_ports;
-            }
-            # Default to port 161 only
             else {
-                $ports = ['161'];
+                $group_specific->{ports} = $ports;
             }
-            $group_attr->{ports} = $ports; 
+    
+            # Determine the load load it'll have on the worker
+            # This will be N sessions per port and N*M sessions for port+context combos
+            my $host_load = scalar(@$ports);
 
+            # Get any context ID's for the group and factor in their effect on load
+            if (exists($group_specific->{context_id})) {
+                $host_load *= scalar(@{$group_specific->{context_id}});
+            }
+            
+            # Set the host's load for the group
+            $group_specific->{load} = $host_load;
+
+            # Finally, initialize an error hash for tracking polling issues for the group+host
+            $group_specific->{errors} = {};
         }
 
         # Check if status dir for each host exists, or create it.
         my $mon_dir = $self->status_dir . $host_name . '/';
         unless (-e $mon_dir || system("mkdir -m 0755 -p $mon_dir") == 0) {
-            $self->logger->error("Could not find or create dir for monitoring data: $mon_dir");
+            $self->logger->error("Could not find or create dir for monitoring data: $mon_dir: $!");
         }
         else {
             $self->logger->debug("Found or created status dir for $host_name successfully");
@@ -346,10 +656,16 @@ sub _process_hosts_config {
         # Remove the dir unless the dir name exists in the hosts hash
         unless (exists $hosts->{$dir_name}) {
             $self->logger->debug("$host_dir was flagged for removal");
-
-            # This needs constraints, but works as is
-            unless (rmtree([$host_dir])) {
-                $self->logger->error("Attempted to remove $host_dir, but failed!");
+           
+            my $rm_errors; 
+            remove_tree([$host_dir], {error => $rm_errors});
+            
+            if ($rm_errors && @$rm_errors) {
+                for my $err (@$rm_errors) {
+                    my ($err_file, $err_msg) = %$err;
+                    $err_file = $host_dir if ($err_file == '');
+                    $self->logger->error("Failed to remove $err_file: $err_msg");
+                }
             }
             else {
                 $self->logger->debug("Successfully removed $host_dir");
@@ -368,23 +684,28 @@ sub _process_hosts_config {
 
                 # Unless the host is configured for the group, delete the status file
                 unless (exists $hosts->{$dir_name}{group}{$1}) {
-                    unlink $status_file;
-                    $self->logger->debug("Removed status file $file in $host_dir");
+                    if (unlink $status_file) {
+                        $self->logger->debug("Removed status file $file in $host_dir");
+                    }
+                    else {
+                        $self->logger->error("Failed to remove status file $file");
+                    }
                 }
             }
         }
     }
 
     $self->_set_hosts($hosts);
-    $self->logger->debug("Finished processing host configurations");
+    $self->_make_shared_config('hosts', $hosts);
+    $self->logger->info("Set up hosts configurations");
 }
 
 
-=head2 _process_groups_config
+=head2 _make_groups_config
     Process the group configs for their polling oids.
     Set the groups for the poller object.
 =cut
-sub _process_groups_config {
+sub _make_groups_config {
     my $self = shift;
 
     # Get the default results-per-request size (max_repetitions)
@@ -393,17 +714,19 @@ sub _process_groups_config {
     my $num_results = $request_size ? $request_size->[0]->{results} : 15;
 
     # Get the group objects from the files in groups.d
-    my $groups = $self->_get_config_objects(
+    my $group_objects = $self->_get_config_objects(
         '/group', 
         $self->groups_dir, 
         $self->validation_dir . 'group.xsd'
     );
 
+    my %groups = %$group_objects;
+
     # Get the total number of workers to fork and
     # set the group name and any defaults
     my $total_workers = 0;
 
-    while (my ($group_name, $group_attr) = each(%$groups)) {
+    while (my ($group_name, $group_attr) = each(%groups)) {
 
         # Set the oids for the group from the mib elements
         # Then, remove the mib attr to prevent redundant data under a confusing name
@@ -413,166 +736,313 @@ sub _process_groups_config {
         }
         delete $group_attr->{mib};
 
-        $self->logger->debug("Optional settings for group $group_name");
+        # Default the Redis retention time to 5x the polling interval
+        $group_attr->{retention} = $group_attr->{interval} * 5 unless ($group_attr->{retention});
 
-        # Set retention time to 5x the polling interval
-        unless ($group_attr->{retention}) {
-            $group_attr->{retention} = $group_attr->{interval} * 5;
-            $self->logger->debug("Retention Period: $group_attr->{retention} (default)");
-        }
-        else {
-            $self->logger->debug("Retention Period: $group_attr->{retention} (specified)");
-        }
-
-        # Set the packet results size (max_repetitions) or default to size from poller config
-        unless ($group_attr->{request_size}) {
-            $group_attr->{request_size} = $num_results;
-            $self->logger->debug("Request Size: $group_attr->{request_size} results (default)");
-        }
-        else {
-            $self->logger->debug("Request Size: $group_attr->{request_size} results (specified)");
-        }
-
-        # Set the hosts that belong to the polling group
-        $group_attr->{hosts} = ();
-        while (my ($host_name, $host_attr) = each(%{$self->hosts})) {
-
-            # Skip any hosts that don't belong to the group
-            next unless (exists($host_attr->{group}{$group_name}));
-
-            # Create a reference to any host-specific group parameters (ports, contexts)
-            my $host_specific = $host_attr->{group}{$group_name};
-
-            # Build a host object having the host's parameters for the group config
-            my %host_obj = %$host_attr;
-            
-            # Put the hostname in the object
-            $host_obj{name} = $host_name;
-
-            # Get the ports needed for the polling group for this host
-            $host_obj{ports} = $host_specific->{ports};
-
-            # Initialize an error cache for the host
-            $host_obj{errors} = {};
-
-            # Add the count of sessions for the host to determine the load it has on the worker
-            # This will be N sessions per port and N*M sessions for port+context combos
-            my $host_load = scalar(@{$host_obj{ports}});
-
-            # Get any context ID's for the group and factor in their effect on load
-            if (exists($host_specific->{context_id})) {
-                $host_obj{contexts} = $host_specific->{context_id};
-                $host_load *= scalar(@{$host_obj{contexts}});
-            }
-        
-            # Set the calculated load for this host
-            $host_obj{load} = $host_load;
-
-            # Remove the 'group' hash from the host object, the worker doesn't need it
-            delete $host_obj{group};
-
-            # Add the host object to the group's hosts array
-            push(@{$group_attr->{hosts}}, \%host_obj);
-        }
+        # Default the results-per-packet max (max_repetitions)
+        $group_attr->{request_size} = $num_results unless ($group_attr->{request_size});
 
         # Add the groups' workers to the total number of forks to create
         $total_workers += $group_attr->{workers};
     }
 
-    # Set the number of forks and then the groups for the poller object
+    $self->_set_groups(\%groups);
     $self->_set_total_workers($total_workers);
-    $self->_set_groups($groups);
-
-    $self->logger->debug('Finished processing group configurations');
+    $self->_make_shared_config('groups', \%groups);
+    $self->logger->info('Set up polling group configurations');
 }
 
-=head2 start
-    Starts all of the simp_poller processes
+
+
+=head2 _make_worker_config()
+    Creates the hashes for each worker's configuration.
+    These hashes are passed to each worker so they know what to collect.
 =cut
-sub start {
+sub _make_worker_config {
+    my $self = shift;
+
+    my %workers;
+
+    # First, remove any groups currently in config that arent in the new config
+    while (my ($group_name, $group_attr) = each(%{$self->groups})) {
+
+        # Get the count of workers for the group
+        my $worker_count = $group_attr->{workers};
+
+        # Get the range of worker IDs as an array
+        my @worker_ids = map {$_} (0 .. ($worker_count - 1));
+
+        # Track the load each worker has been assigned
+        my %worker_loads = map {$_ => 0} @worker_ids;
+
+        # Initialize the data structure for the group's workers
+        my %group_workers = map {$_, {hosts => [], pid => undef}} @worker_ids;
+        $workers{$group_name} = \%group_workers;
+
+        # Track the worker ID we should be adding a host to
+        my $worker_id = 0;
+
+        # Add hosts to workers and load balance them based upon the load of hosts the worker has
+        while (my ($host_name, $host_attr) = each(%{$self->hosts})) {
+
+            # Skip the host if it doesn't belong to the group
+            next unless (exists($host_attr->{group}{$group_name}));
+
+            my $host_load = $host_attr->{group}{$group_name}{load};
+
+            # Add at least one host to each worker before load balancing
+            if ($worker_loads{$worker_id} == 0) {
+
+                # Add the host and it's load to our tracking hashes
+                push(@{$workers{$group_name}{$worker_id}{hosts}}, $host_name);
+                $worker_loads{$worker_id} += $host_load;
+
+                # Increment the worker ID until each worker has a host, then set back to 0
+                $worker_id = ($worker_id >= $#worker_ids) ? 0 : $worker_id + 1;
+
+                # Skip to the next host
+                next;
+            }
+
+            # Determine least-loaded worker if the current worker already has a load
+            # Init the minimum load as the first worker's load
+            my $min_load = ~0;
+
+            # Check each worker's current load
+            while (my ($id, $load) = each(%worker_loads)) {
+
+                # Switch the worker ID and min load to the new worker if it has less load
+                if ($min_load > $load) {
+                    $min_load  = $load;
+                    $worker_id = $id;
+                }
+            }
+
+            # Add the worker and it's load to our tracking hashes
+            push(@{$workers{$group_name}{$worker_id}{hosts}}, $host_name);
+            $worker_loads{$worker_id} += $host_load;
+        }
+
+        # Remove any worker or group configs that don't have a host load
+        my $has_load = 0;
+        while (my ($id, $load) = each(%worker_loads)) {
+            if ($load == 0) {
+                $self->logger->debug("$group_name [$id] has no hosts and won't be started");
+                delete $workers{$group_name}{$id};
+            }
+            else {
+                $has_load++;
+            }
+        }
+        unless ($has_load) {
+            $self->logger->debug("Polling group '$group_name' removed from config, no hosts");
+            delete $workers{$group_name};
+        }
+    }
+
+    # Reconcile the new worker config with any existing worker config
+    $self->_reconcile_workers(\%workers);
+
+    # Set the new worker configs in local and shared memory
+    $self->_set_workers(\%workers);
+    $self->_make_shared_config('workers', \%workers);
+    $self->logger->info("Set up worker configurations");
+}
+
+
+=head2 _reconcile_workers
+    Compares new and old worker configs to reconcile their differences.
+    Sets the existing PID for a worker in the new config if it's already running.
+    Marks existing PIDs to clean up that no longer exist in the new config.
+    If an entire group has been removed, all its workers will be stopped.
+=cut
+sub _reconcile_workers {
+    my $self       = shift;
+    my $new_config = shift;
+    my $old_config = $self->workers;
+
+    # Nothing to reconcile if no old config exists
+    return unless(%$old_config);
+
+    # Compare the old worker configs against the new ones
+    while (my ($group_name, $old_workers) = each(%$old_config)) {
+        
+        # Validate that the group still exists in the new config
+        my $valid_group = (exists($new_config->{$group_name})) ? 1 : 0;
+
+        unless ($valid_group) {
+            $self->logger->debug("$group_name removed in new configurations");
+            next;
+        }
+
+        # Reconcile the individual workers
+        while (my ($worker_id, $worker_attr) = each(%$old_workers)) {
+
+            # Validate that the worker still exists in the new config
+            my $valid_worker = (exists($new_config->{$group_name}{$worker_id})) ? 1 : 0;
+
+            # Validate whether a valid worker has hosts
+            my $valid_hosts = scalar($new_config->{$group_name}{$worker_id}{hosts});
+
+            # Get any existing PID for the worker
+            my $worker_pid = $worker_attr->{pid};
+
+            # The group and/or worker does not exist in the new config
+            if ((!$valid_group || !$valid_worker) || !$valid_hosts) {
+
+                $self->logger->debug(sprintf(
+                    "Worker %s [%s] with PID %s is obsolete, marking it for removal",
+                    $group_name,
+                    $worker_id,
+                    $worker_pid
+                ));
+
+                # Add its PID to the array of obsolete worker processes to stop
+                push(@{$self->obsolete_workers}, $worker_pid);
+            }
+            # The worker still exists in the new config and is currently running
+            elsif (defined($worker_pid)) {
+
+                # If the worker exists, does it have hosts?
+
+                $self->logger->debug(sprintf(
+                    "Found existing PID %s for %s [%s]",
+                    $worker_pid,
+                    $group_name,
+                    $worker_id
+                ));
+
+                # Set the existing PID for the currently running worker
+                $new_config->{$group_name}{$worker_id}{pid} = $worker_pid;
+            }
+            # The worker exists, but isn't running for some reason
+            else {
+                $self->logger->debug(sprintf(
+                    "Something went wrong trying to reconcile configs for %s [%s]",
+                    $group_name,
+                    $worker_id
+                ));
+            }
+        }
+    }
+}
+
+
+=head2 _get_worker_pids
+    Returns an array ref of all the running worker PIDs
+=cut
+sub _get_worker_pids {
+    my $self = shift;
+    my @pids;
+
+    while (my ($group_name, $worker_ids) = each(%{$self->workers})) {
+        while (my ($worker_id, $worker_attr) = each(%$worker_ids)) {
+            my $pid = $worker_attr->{pid};
+            next unless (defined($pid));
+            push (@pids, $pid);
+        }
+    }
+    return \@pids;
+}
+
+
+=head2 _cleanup_workers()
+    Stops any running worker processes marked as obsolete.
+    Processes are marked during _reconcile_workers()
+=cut
+sub _cleanup_workers {
+    my $self = shift;
+ 
+    my @pids = @{$self->obsolete_workers};
+
+    if (scalar(@pids)) {
+
+        $self->logger->debug("Killing obsolete workers. PIDs: ".join(', ',@pids));
+  
+        # Kill any workers marked obsolete, then empty the array of marked PIDs
+        kill('TERM', @pids);
+    }
+    $self->_set_obsolete_workers([]);
+}
+
+
+=head2 _start_worker()
+    This will create a new worker and start it.
+    It takes a group name and worker ID along with the logger and status dir
+    NOTE: This is NOT a method of $self because worker forks have no reference
+=cut
+sub _start_worker {
+    my $parent_pid = shift;
+    my $worker_id  = shift;
+    my $group_name = shift;
+    my $logger     = shift;
+    my $status_dir = shift;
+
+    my $worker = GRNOC::Simp::Poller::Worker->new(
+        parent       => $parent_pid,
+        id           => $worker_id,
+        group        => $group_name,
+        logger       => $logger,
+        status_dir   => $status_dir,
+    );
+    $worker->start();    
+}
+
+
+=head2 _make_workers
+    Creates the forked worker processes for each polling group.
+    Delegates hosts to their polling groups' workers.
+=cut
+sub _make_workers {
     my ($self) = @_;
 
-    # Daemonized
-    if ($self->daemonize) {
+    # Create workers for each group
+    while (my ($group_name, $group_workers) = each(%{$self->workers})) {
 
-        $self->logger->debug('Starting Poller in daemonized mode');
+        $self->logger->info("Creating worker processes for $group_name");
 
-        # Set the PID file from config or use the default
-        my $pid_file = $self->config->get('/config/@pid-file')->[0] || '/var/run/simp_poller.pid';
-        $self->logger->debug("PID FILE: " . $pid_file);
+        while (my ($worker_id, $worker_attr) = each(%{$self->workers->{$group_name}})) {
 
-        # Create the main Poller daemon using our PID and initialize it
-        my $daemon = Proc::Daemon->new(pid_file => $pid_file);
-        my $pid    = $daemon->Init();
+            # Ensure an existing worker process is still running
+            if (defined($worker_attr->{pid})) {
+                my $worker_running = kill(-0, $worker_attr->{pid});
 
-        # Jump out from the main Poller daemon process
-        return if ($pid);
+                # Don't create a new process for the worker if it's running
+                if ($worker_running) {
+                    $self->logger->debug("$group_name [$worker_id] already running");
+                    next;
+                }
+                # PID wasn't running, reset PID and restart the worker process
+                else {
+                    $self->logger->error("$group_name [$worker_id] should be running but isn't, restarting it");
+                    $worker_attr->{pid} = undef;
+                }
+            }
 
-        $self->logger->debug('Created daemon process.');
+            # Create a fork for new workers
+            my $pid = fork();
 
-        # Change the process name
-        $0 = "simp_poller [master]";
+            # PID is 0 if we're in the child process
+            if ($pid == 0) {
 
-        # Figure out what user/group (if any) to change to
-        my $user_name  = $self->run_user;
-        my $group_name = $self->run_group;
+                # Start a new worker in the child process, then POSIX exit back to the parent
+                _start_worker($self->pid, $worker_id, $group_name, $self->logger, $self->status_dir);
 
-        # Set the process' group
-        if (defined($group_name)) {
-            my $gid = getgrnam($group_name);
-            $self->_log_err_then_exit("Unable to get GID for group '$group_name'") unless (defined($gid));
-            $! = 0;
-            setgid($gid);
-            $self->_log_err_then_exit("Unable to set GID to $gid ($group_name)") unless ($! == 0);
+                # Leaves the child process
+                _exit(0);
+            }
+            # PID is the process number if we're in the parent again
+            elsif (defined($pid)) {
+
+                # Track the worker fork's PID inside the main process
+                $self->workers->{$group_name}{$worker_id}{pid} = $pid;  
+            }
+            # PID is undef if a fork could not be created for some reason
+            else {
+                $self->logger->error("ERROR: Could not fork a child process for $group_name [$worker_id]");
+            }
         }
-
-        # Set the process' user
-        if (defined($user_name)) {
-            my $uid = getpwnam($user_name);
-            $self->_log_err_then_exit("Unable to get UID for user '$user_name'") unless (defined($uid));
-            $! = 0;
-            setuid($uid);
-            $self->_log_err_then_exit("Unable to set UID to $uid ($user_name)") unless ($! == 0);
-        }
     }
-    # Foreground
-    else {
-        $self->logger->info('Starting Poller in foreground mode');
-    }
-
-    # Setup the signal handlers
-    $SIG{'TERM'} = sub {
-        $self->logger->info('Received SIG TERM.');
-        $self->stop();
-    };
-    $SIG{'HUP'} = sub {
-        $self->logger->info('Received SIG HUP.');
-        $self->_set_do_reload(1);
-        $self->stop();
-    # Create and store the host portion of the config
-    };
-    $self->logger->debug("Signal handlers ready");
-
-    # Parse configs and create workers from within the reload loop
-    # When reloaded, hosts.d and groups.d will be re-parsed
-    while (1) {
-        $self->logger->info("Processing host configurations");
-        $self->_process_hosts_config();
-
-        $self->logger->info("Processing group configurations");
-        $self->_process_groups_config();
-
-        $self->logger->info("Creating worker processes");
-        $self->_create_workers();
-
-        # We only arrive here if the loop is running or poller is killed
-        $self->logger->info("Poller has exited successfully");
-
-        last if (!$self->do_reload);
-        $self->_set_do_reload(0);
-    }
-
-    return 1;
 }
 
 
@@ -591,15 +1061,15 @@ sub _parse_ports {
     my @csv_array = split(/ ?, ?/, $port_str);
 
     for (my $i = 0; $i <= $#csv_array; $i++) {
-        
+
         my $entry = $csv_array[$i];
 
         # Parse out individual ports from a range
         if ($entry =~ m/\d+-\d+/) {
-            
+
             # Split the range on the hyphen
             my @range = split(/-/, $entry);
-            
+
             # Get the first and last port of the range
             my $first = $range[0];
             my $last  = $range[1];
@@ -618,149 +1088,17 @@ sub _parse_ports {
 }
 
 
-=head2 _log_err_then_exit()
+=head2 _error_exit()
     Does exactly what the name implies
 =cut
-sub _log_err_then_exit {
+sub _error_exit {
     my $self = shift;
     my $msg  = shift;
 
     $self->logger->error($msg);
     warn "$msg\n";
-    exit 1;
+    _exit(1);
 }
 
-
-=head2 stop
-    Stops all of the simp_poller processes.
-=cut
-sub stop {
-    my ($self) = @_;
-
-    $self->logger->info('Stopping.');
-
-    my @pids = @{$self->children};
-
-    $self->logger->debug('Stopping child worker processes ' . join(' ', @pids) . '.');
-
-    # Kill children, then wait for them to finish exiting
-    my $res = kill('TERM', @pids);
-}
-
-
-=head2 _create_workers
-    Creates the forked worker processes for each polling group.
-    Delegates hosts to their polling groups' workers.
-=cut
-sub _create_workers {
-    my ($self) = @_;
-
-    # Create a fork for each worker that is needed
-    my $forker = Parallel::ForkManager->new($self->total_workers);
-
-    # Create workers for each group
-    while (my ($group_name, $group_attr) = each(%{$self->groups})) {
-
-        # Get the range of worker IDs in an array
-        my @worker_ids = map {$_} (0 .. ($group_attr->{workers} - 1));
-
-        # Track the session load a worker has been assigned
-        my %worker_loads = map {$_ => 0} @worker_ids;
-
-        # Track which hosts have been assigned to which worker
-        my %worker_hosts = map {$_, []} @worker_ids;
-
-        # Track the worker ID we should be adding a host to
-        my $worker_id = 0;
-
-        # Add hosts to workers and load balance them based upon the load of hosts the worker has
-        for my $host_obj (@{$group_attr->{hosts}}) {            
-
-            # Add at least one host to each worker before load balancing
-            if ($worker_loads{$worker_id} == 0) {
-
-                # Add the host and it's load to our tracking hashes
-                push(@{$worker_hosts{$worker_id}}, $host_obj);
-                $worker_loads{$worker_id} += $host_obj->{load};
-
-                # Increment the worker ID until each worker has a host, then set back to 0
-                $worker_id = ($worker_id >= $#worker_ids) ? 0 : $worker_id + 1;
-
-                # Skip to the next host
-                next;
-            }
-
-            # Determine least-loaded worker if the current worker already has a load
-            # Init the minimum load as the first worker's load
-            my $min_load = ~0 ;
-
-            # Check each worker's current load
-            while (my ($id, $load) = each(%worker_loads)) {
-
-                # Switch the worker ID and min load to the new worker if it has less load
-                if ($min_load > $load) {
-                    $min_load  = $load;
-                    $worker_id = $id;
-                }
-            }
-
-            # Add the worker and it's load to our tracking hashes
-            push(@{$worker_hosts{$worker_id}}, $host_obj);
-            $worker_loads{$worker_id} += $host_obj->{load};
-        }
-
-        $self->logger->info("Creating $group_attr->{workers} worker processes for $group_name");
-
-        # Keep track of children pids
-        $forker->run_on_finish(
-            sub {
-                my ($pid) = @_;
-                $self->logger->error(sprintf("%s worker with PID %s has died", $group_name, $pid));
-            }
-        );
-
-        # Create workers
-        for (my $worker_id = 0; $worker_id < $group_attr->{workers}; $worker_id++) {
-
-            my $pid = $forker->start();
-
-            # We're still in the parent if so
-            if ($pid) {
-                $self->logger->debug(sprintf("PID %s created for %s [%s]", $pid, $group_name, $worker_id));
-                push(@{$self->children}, $pid);
-                next;
-            }
-
-            # Create worker in this process
-            my $worker = GRNOC::Simp::Poller::Worker->new(
-                instance     => $worker_id,
-                config       => $self->config,
-                logger       => $self->logger,
-                status_dir   => $self->status_dir,
-                group_name   => $group_name,
-                oids         => $group_attr->{oids},
-                interval     => $group_attr->{interval},
-                retention    => $group_attr->{retention},
-                request_size => $group_attr->{request_size},
-                timeout      => $group_attr->{timeout},
-                hosts        => $worker_hosts{$worker_id} || {}
-            );
-
-            # This should only return when the worker has stopped (TERM, No hosts, etc)
-            $worker->start();
-
-            # Exit child process
-            $forker->finish();
-        }
-    }
-
-    $self->logger->info('Waiting for all child worker processes to exit.');
-
-    $forker->wait_all_children();
-
-    $self->_set_children([]);
-
-    $self->logger->info('All child workers have exited.');
-}
 
 1;
