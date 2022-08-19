@@ -278,11 +278,47 @@ sub _poll_cb {
     my $group    = $self->group_name;
     my $worker   = $self->worker_name;
 
-    # Get a reference to the SNMP session, context, and poll ID
+    # Get a reference to the SNMP session, port, and context
     my $snmp    = $session->{session};
     my $port    = $session->{port};
-    my $poll_id = $session->{poll_id};
     my $context = $session->{context};
+
+    # Get, find, or initialize the session's poll_id
+    my $poll_id;
+    my $poll_time;
+    if (exists($session->{poll_id})) {
+        $poll_id = $session->{poll_id};
+    }
+    else {
+        # Get the current poll ID for the host from Redis
+        try {
+            # Poll IDs are stored in "$poll_id,$time" strings in DB[2]
+            # They're retrieved with "$hostname:$port,$poll_group" keys
+            $self->redis->wait_all_responses();
+            $self->redis->select(2);
+            my $poll_cycle = $self->redis->get(sprintf("%s:%s,%s", $name, $port, $group));
+            ($poll_id, $poll_time) = split(',', $poll_cycle) if (defined($poll_cycle));
+        }
+        catch {
+            $self->logger->error("Error fetching the current poll cycle ID from Redis for $name: $_");
+            $self->redis->wait_all_responses();
+            $self->redis->select(0);
+        };
+
+        # Initialize the poll_id to 0 if it wasn't found
+        unless (defined($poll_id)) {
+            $poll_id = 0;
+            $poll_time = time();
+            $self->logger->debug("Poll cycle ID not found, initializing it as cycle $poll_id at $poll_time");
+        }
+        else {
+            $self->logger->debug("Poll cycle ID found, continuing from poll cycle $poll_id at $poll_time");
+            $poll_id += 1;
+        }
+
+        # Set the poll_id for the session
+        $session->{poll_id} = $poll_id;
+    }
 
     $self->logger->debug(sprintf("%s - _poll_cb processing %s:%s %s", $worker, $name, $port, $oid));
 
@@ -325,13 +361,13 @@ sub _poll_cb {
     # These hashes hold all of the keys for Redis for each DB entry
     my %host_keys = (
         db0 => sprintf("%s,%s,%s", $name_id, $group, $time),
-        db1 => sprintf("%s,%s,%s", $name_id, $group,  $poll_id),
+        db1 => sprintf("%s,%s,%s", $name_id, $group, $poll_id),
         db2 => sprintf("%s,%s",    $name_id, $group),
         db3 => sprintf("%s,%s",    $name_id, $poll_id)
     );
     my %ip_keys = (
         db0 => sprintf("%s,%s,%s", $ip_id, $group, $time),
-        db1 => sprintf("%s,%s,%s", $ip_id, $group,  $poll_id),
+        db1 => sprintf("%s,%s,%s", $ip_id, $group, $poll_id),
         db2 => sprintf("%s,%s",    $ip_id, $group),
         db3 => sprintf("%s,%s",    $ip_id, $poll_id)
     );
@@ -360,7 +396,7 @@ sub _poll_cb {
         # Specifying the callback causes Redis piplining to reduce RTTs
 
         $redis->select(0, sub{});
-	$redis->sadd($host_keys{db0}, @values, sub{}) if (@values);
+        $redis->sadd($host_keys{db0}, @values, sub{}) if (@values);
 
         # Check that the session has no pending replies left
         if (scalar(keys(%{$session->{'pending_replies'}})) == 0) {
@@ -491,20 +527,6 @@ sub _connect_to_snmp {
         my $session_args = $self->_get_session_args($host_attr);
         my $failed       = 0;
 
-        # Get the current poll ID for the host from Redis, stored by each session
-        # Initializes/Defaults to 0
-        my $poll_id;
-        try {
-            $self->redis->wait_all_responses();
-            $self->redis->select(2);
-            $poll_id = $self->redis->get($host_name . ",main_oid");
-        }
-        catch ($e) {
-            $self->logger->error("Error fetching the current poll cycle ID from Redis for $host_name: $e");
-            $self->redis->wait_all_responses();
-            $self->redis->select(0);
-        };
-
         # Create the session data hashes for each session
         # Apply the session args that were generated, multiplying by context IDs
         # If we don't have any contexts, pretend we do to avoid duplicate code
@@ -520,9 +542,9 @@ sub _connect_to_snmp {
                 my $context_id = $context_ids->[$i];
 
                 # We store the SNMP session, poll_id, port, context, and error data in this hash
+                # Note: A poll_id will be set later during the first polling cycle in poll_cb().
                 my %session_data = (
                     session         => 0,
-                    poll_id         => $poll_id || 0,
                     port            => $args->{'-port'},
                     errors          => {},
                     failed_oids     => {},
