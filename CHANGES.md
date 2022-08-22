@@ -1,5 +1,10 @@
 # Simp ChangeLog
 
+## 1.10.0 - Aug 22, 2022
+* Added IPv6 SNMP support to Poller
+* Fixed issue where Poller could not properly lookup previous polling cycles
+* Fixed issue where Poller would not combine groups for a host when defined across multiple host configuration files.
+
 ## 1.9.1 - Apr 26, 2022
 * hotfix: hash for tracking workers now cleared when master is restarted with HUP
 

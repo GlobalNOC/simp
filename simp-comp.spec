@@ -1,6 +1,6 @@
 Summary: A system for fetching data from simp and compiling the data into a composite
 Name: simp-comp
-Version: 1.9.1
+Version: 1.10.0
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
