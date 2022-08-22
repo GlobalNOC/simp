@@ -19,19 +19,17 @@ BuildRequires: perl(Test::Pod) >= 1.22
 Requires: redis
 Requires: perl(AnyEvent)
 Requires: perl(AnyEvent::SNMP)
-Requires: perl(List::MoreUtils)
-Requires: perl(Data::Munge)
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 Requires: perl-Moo
-Requires: perl-Net-SNMP
 Requires: perl-Net-SNMP-XS
-Requires: perl-Parallel-ForkManager
 Requires: perl(POSIX)
 Requires: perl-Redis-Fast >= 0.28
-Requires: perl-Syntax-Keyword-Try
-Requires: perl-Type-Tiny
-Requires: perl-Crypt-Rijndael
+Requires: perl-Try-Tiny
+Requires: perl-Devel-Trace
+Requires: perl-JSON
+Requires: perl-IPC-Shareable
+requires: perl-Devel-Size
 
 Provides: perl(GRNOC::Simp::Poller)
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
