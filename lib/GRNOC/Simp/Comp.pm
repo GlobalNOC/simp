@@ -10,6 +10,7 @@ use POSIX qw( setuid setgid );
 use Parallel::ForkManager;
 use Proc::Daemon;
 use Types::Standard qw( Str Bool );
+use Safe;
 
 use GRNOC::Config;
 use GRNOC::Log;
@@ -396,39 +397,10 @@ sub _make_composites {
         # For this reason, we init conversions as an array
         $composite{'conversions'} = [];
 
+        my $safe = Safe->new();
         # Assign the conversion type and parameters based on XML element attributes
         for my $c (@$conversions) {
-
-            # Set the array of data targets the conversion is applied to
-            my $targets = [keys %{$c->{'data'}}];
-
-            # Create a hash for the conversion with the data targets set
-            my $conversion = { data => $targets };
-
-            # Add all of the attributes from the config to the conversion
-            for my $attr (keys %$c) {
-                $conversion->{$attr} = $c->{$attr} if ($attr ne 'data');
-            }
-
-            # Choose the conversion type based upon required attributes
-            $conversion->{'type'} = 'function' if (exists $c->{'definition'});
-            $conversion->{'type'} = 'replace' if (exists $c->{'this'});
-            $conversion->{'type'} = 'match' if (exists $c->{'pattern'});
-            $conversion->{'type'} = 'drop' if (!$conversion->{'type'});
-
-	    # If the conversation if a replacement AND we have a subroutine
-	    # as the 'with' parameter, make it eval'd in a safe way so that
-	    # it actually gets evaluated properly later.
-	    if ($conversion->{'type'} eq 'replace' &&
-		$conversion->{'with'} =~ /^\s*sub\s*{/) {
-		my $new_with = Safe->new()->reval($conversion->{'with'});
-		if (! $new_with || ! ref $new_with eq 'CODE') {
-		    $self->_log_and_exit("ERROR: Cannot parse conversion \"with\" attribute as subroutine code ->" . $@);
-		}
-		$conversion->{'with'} = $new_with;
-	    }
-
-            push($composite{'conversions'}, $conversion);
+            push($composite{conversions}, $safe->reval("sub { my \$data = shift; $c->{definition} }"));
         }
 
         # We want to get the config hash here so it isn't reparsed by the worker

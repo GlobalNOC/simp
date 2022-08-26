@@ -13,7 +13,7 @@ use lib "$FindBin::Bin/lib";
 use SimpTesting;
 
 # This flag will cause the test to run better for benchmarking
-my $benchmarking = 0;
+my $benchmarking = 1;
 
 # This flag will tell Comp to use debug logging and isolate a composite if wanted
 # Useful when a test fails and you want to view debug logging for it
@@ -37,7 +37,7 @@ sub load_expected {
 }
 
 # Get every composite name from the composite configs in t/conf/composites/
-my @composites = map {$_ =~ m/.*\/(.*)\.xml/} glob($FindBin::Bin . '/conf/composites/*.xml');
+my @composites = map {$_ =~ m/.*\/(.*)\.xml/} glob($FindBin::Bin . '/conf/1.9.0-composites/*.xml');
 
 # Track the number of tests we run
 my $total = 0;
