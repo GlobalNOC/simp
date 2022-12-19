@@ -715,6 +715,20 @@ sub _balance_workers {
     
     $self->logger->debug("Balancing host load across $group->{workers} $group_name workers");
 
+    # Handle configs where workers > total hosts by reducing to the host count
+    # This prevents workers from spawning with no hosts that die instantly
+    my $host_count = scalar(@{$self->hosts->{$group_name}});
+    if ($host_count < $group->{workers}) {
+        $self->logger->info(sprintf(
+            '%s has more workers than hosts, only %s of %s configured workers will be created',
+            $group_name,
+            $host_count,
+            $group->{workers}
+        ));
+        $group->{workers} = $host_count;
+        $self->total_workers -= ($group->{workers} - $host_count);
+    }
+
     # Get the worker IDs, and track their load and assigned host configs
     my @workers = map {[]} (0 .. ($group->{workers} - 1));
 
