@@ -245,10 +245,16 @@ sub _get_config_objects {
 sub _make_status_dir {
     my $self = shift;
     my $host = shift;
-    my $host_dir = $self->status_dir . $host->{name} . '/';
+    my $host_dir = $self->status_dir . $host->{name};
 
-    unless (-e $host_dir || system("mkdir -m 0755 -p $host_dir") == 0) {
-        $self->logger->error("Could not find or create dir for monitoring data: $host_dir");
+    if (-e $host_dir) {
+        $self->logger->debug("Found status dir: $host_dir");
+    }
+    elsif (mkdir($host_dir, oct('0744'))) {
+        $self->logger->debug("Created status dir: $host_dir");
+    }
+    else {
+        $self->logger->error("ERROR: Failed to create status dir: $host_dir");
     }
 }
 
@@ -268,25 +274,24 @@ sub _refresh_status_dirs {
     for my $path (glob($self->status_dir . '*')) {
 
         # Get the intended host name from the dir name
-        my $dir_host = (split(/\//, $path))[-1];
+        my $host = (split(/\//, $path))[-1];
 
         # Validate if the host exists in any group
         my $valid = 0;
-
-        while (my ($group_name, $hosts) = each(%{$self->group_hosts})) {
-            if (exists($hosts->{$dir_host})) {
-                $valid++;
+        for my $group_hosts (values(%{$self->group_hosts})) {
+            if (exists($group_hosts->{$host})) {
+                $valid = 1;
                 last;
             }
         }
         
         # If the host was invalidated, remove its dir and skip to next host
         unless ($valid) {
-            unless (rmtree[$path]) {
-                $self->logger->error("ERROR: Attempt to remove $path failed!");
+            if (rmtree[$path]) {
+                $self->logger->debug("Removed $path");
             }
             else {
-                $self->logger->debug("Removed $path");
+                $self->logger->error("ERROR: Attempt to remove $path failed!");
             }
             next;
         }
@@ -302,7 +307,7 @@ sub _refresh_status_dirs {
             $group_file =~ /^(.+)_status\.json$/;
 
             # Unless the host is configured for the group, delete the status file
-            unless (exists($self->group_hosts->{$1}{$dir_host})) {
+            unless (exists($self->group_hosts->{$1}{$host})) {
                 unlink $status_file;
                 $self->logger->debug("Removed $path/$group_file");
             }
@@ -359,10 +364,6 @@ sub _process_host_configs {
                 pending_replies => {},
             };
 
-            # Tracks pending SNMP requests for oids.
-            # Used by workers to determine if a response has been received
-            $host->{pending_replies} = {};
-
             # SNMP version (default is V2)
             my $snmp_version = ($host->{snmp_version} =~ m/.*([123]).*/) ? $1 : '2';
             $host->{snmp_version} = $snmp_version;
@@ -389,7 +390,7 @@ sub _process_host_configs {
                 $hosts{$group_name} = [] unless (exists($hosts{$group_name}));
 
                 # Initialize the group_hosts mapping if needed
-                $group_hosts{$group_name} = () unless (exists($group_hosts{$group_name}));
+                $group_hosts{$group_name} = {} unless (exists($group_hosts{$group_name}));
 
                 # Track the hostname for the group
                 $group_hosts{$group_name}{$host->{name}} = 1;
@@ -472,16 +473,17 @@ sub _process_groups_config {
         my $file  = $group_object->{file};
         my $group = $group_object->{config}->get('/group')->[0];
 
-        $self->logger->debug("Processing group defined in $file");
-
         # Parse the group name from the file name
         my $name = substr($file, 0, -4);
 
         # Ensure there are configured hosts for the group
-        # Don't configure this group if it has no configured hosts
-        unless (exists($self->hosts->{$name}) && $self->hosts->{$name}) {
-            $self->logger->info("No hosts configured for $name, skipping it");
+        # Don't configure this group if it has no host configs
+        unless (exists($self->hosts->{$name}) && scalar(@{$self->hosts->{$name}}) != 0) {
+            $self->logger->info("No workers will be created for $name, it has no hosts");
             next;
+        }
+        else {
+            $self->logger->debug("Processing group defined in $file");
         }
 
         # Set the oids for the group from the mib elements
@@ -774,7 +776,7 @@ sub _create_workers {
         $forker->run_on_finish(
             sub {
                 my ($pid) = @_;
-                $self->logger->error(sprintf("%s worker with PID %s has died", $group_name, $pid));
+                $self->logger->error(sprintf("Worker with PID %s has died", $pid));
             }
         );
 

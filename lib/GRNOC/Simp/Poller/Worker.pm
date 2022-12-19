@@ -176,12 +176,17 @@ sub start {
     # Start AnyEvent::SNMP's max outstanding requests window equal to the total
     # number of requests this process will be making. AnyEvent::SNMP
     # will scale from there as it observes bottlenecks
-    # TODO: THIS WILL NEED TO FACTOR IN HOST SESSIONS USING THEIR LOADS, NOT JUST HOST COUNT
-    if (scalar(@{$self->oids}) && scalar(@{$self->hosts})) {
-        AnyEvent::SNMP::set_max_outstanding(scalar(@{$self->hosts}) * scalar(@{$self->oids}));
+    my $host_count = scalar(@{$self->hosts});
+    my $oid_count  = scalar(@{$self->oids});
+    if ($host_count && $oid_count) {
+        AnyEvent::SNMP::set_max_outstanding($host_count * $oid_count);
     }
-    else {
-        $self->logger->error(sprintf("%s - Hosts or OIDs were not defined!", $worker));
+    elsif ($host_count == 0) {
+        $self->logger->error(sprintf("%s - No hosts assigned to worker", $worker));
+        return;
+    }
+    elsif ($oid_count == 0) {
+        $self->logger->error(sprintf("%s - No OIDs defined for polling group", $worker));
         return;
     }
 
@@ -234,10 +239,11 @@ sub _connect_to_redis {
 
     # unix socket
     my $use_unix_socket = $self->config->get('/config/redis/@use_unix_socket')->[0];
-    if ( $use_unix_socket == 1 ) { 
+    if ($use_unix_socket == 1) { 
       $redis_conf{sock} = $self->config->get('/config/redis/@unix_socket')->[0];
       $self->logger->debug(sprintf("%s - Redis Host unix socket:%s", $worker, $redis_conf{sock}));
-    }else{
+    }
+    else {
       my $redis_host      = $self->config->get('/config/redis/@ip')->[0];
       my $redis_port      = $self->config->get('/config/redis/@port')->[0];
       $redis_conf{server} = "$redis_host:$redis_port";
