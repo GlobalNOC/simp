@@ -26,6 +26,7 @@ Requires: perl(Parallel::ForkManager)
 Requires: perl(POSIX)
 Requires: perl(Proc::Daemon)
 Requires: perl(Types::Standard)
+Requires: perl-Syntax-Keyword-Try
 Requires: perl(GRNOC::Config)
 Requires: perl(GRNOC::WebService::Client)
 Requires: perl(GRNOC::RabbitMQ) >= 1.2.2
