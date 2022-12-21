@@ -533,7 +533,7 @@ sub _process_groups_config {
                 $info .= "$k = $v, ";             
             }
         }
-        $self->logger->info($info);
+        $self->logger->error($info);
     }
 
     # Set the number of forks and then the groups for the poller object
@@ -719,7 +719,7 @@ sub _balance_workers {
     # This prevents workers from spawning with no hosts that die instantly
     my $host_count = scalar(@{$self->hosts->{$group_name}});
     if ($host_count < $group->{workers}) {
-        $self->logger->info(sprintf(
+        $self->logger->error(sprintf(
             '%s has more workers than hosts, only %s of %s configured workers will be created',
             $group_name,
             $host_count,

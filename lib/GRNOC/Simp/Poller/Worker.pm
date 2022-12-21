@@ -237,12 +237,13 @@ sub _connect_to_redis {
     
     $self->logger->debug(sprintf("%s - Connecting to Redis", $worker));
 
-    # unix socket
-    my $use_unix_socket = $self->config->get('/config/redis/@use_unix_socket')->[0];
-    if ($use_unix_socket == 1) { 
-      $redis_conf{sock} = $self->config->get('/config/redis/@unix_socket')->[0];
+    # Connect to Redis locally using a Unix socket
+    my $unix_socket = $self->config->get('/config/redis/@unix_socket')->[0];
+    if (defined($unix_socket)) { 
+      $redis_conf{sock} = $unix_socket;
       $self->logger->debug(sprintf("%s - Redis Host unix socket:%s", $worker, $redis_conf{sock}));
     }
+    # Connect to redis using an IP:Port configuration
     else {
       my $redis_host      = $self->config->get('/config/redis/@ip')->[0];
       my $redis_port      = $self->config->get('/config/redis/@port')->[0];
@@ -341,7 +342,7 @@ sub _poll_cb {
     delete $status->{pending_replies}{$oid};
 
     # Get the data returned by the session's SNMP request
-    my $data = $snmp->var_bind_list();
+    my $data = $snmp->var_bind_list;
 
     # Parse the values from the data for Redis as an array of "oid,value" strings
     my @values = map {sprintf("%s,%s", $_, $data->{$_})} keys(%$data) if ($data);
@@ -408,11 +409,13 @@ sub _poll_cb {
         # Select DB[0] of Redis so we can insert value data
         # Specifying the callback causes Redis piplining to reduce RTTs
 
+        # Always write defined value data to Redis
         $redis->select(0, sub{});
         $redis->sadd($host_keys{db0}, @values, sub{}) if (@values);
 
-        # Check that the session has no pending replies left
-        if (keys($status->{pending_replies})) {
+        # Write lookup key data to Redis
+        # Only write if there are no pending replies left
+        unless (keys($status->{pending_replies})) {
 
             # Set the expiration time for the master key once all replies are received
             $redis->expire($host_keys{db0}, $expire, sub{});
@@ -702,6 +705,7 @@ sub _collect_data {
 
         # Used to stagger each request to a specific host, spread load.
         # This does mean you can't collect more OID bases than your interval
+        # TODO: Deprecate this if non-impactful
         my $delay = 0;
 
         # Reset the host status before new requests are made
@@ -750,7 +754,7 @@ sub _collect_data {
             my $oid = $oid_attr->{oid};
 
             # Determine which SNMPGET method we should use
-            my $snmp_method = $oid_attr->{single} ? "get_request" : "get_table";
+            my $snmp_method = exists($oid_attr->{single}) ? "get_request" : "get_table";
 
             # Create a hash of arguments for the request
             my %args = (-delay => $delay++);
@@ -763,8 +767,8 @@ sub _collect_data {
             }
 
             # Add the context to session args if present
-            if (exists($host->{context})) {
-                $args{'-contextengineid'} = $host->{context};
+            if (defined($context)) {
+                $args{'-contextengineid'} = $context;
             }
 
             # Define the callback with params for the session args
