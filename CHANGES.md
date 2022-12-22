@@ -1,4 +1,18 @@
-# Simp ChangeLog
+# SIMP ChangeLog
+
+## 1.11.0 - Dec 22, 2022
+* Added simp-poller support for multiple host configurations for a single host
+* Added simp-poller support for all Net::SNMP parameters
+* Added simp-poller support for logging group worker configuration parameters at startup
+* Improved simp-poller worker configuration handling
+* Improved simp-poller worker balancing in preparation for automatic worker scaling
+* Fixed issue where simp-poller would not allow remote Redis server configuration
+* Fixed issue where simp-poller would not properly identify failing SNMP requests for status monitoring
+* Fixed issue where simp-poller would discard status monitoring data for hosts with multiple SNMP configurations
+* Fixed issue where simp-poller would spawn zombie workers with no hosts configured for their group
+* Fixed issue where simp-poller would ignore additional configurations for the same host
+* Fixed issue where simp-tsds would fail while encoding JSON
+* Deprecated simp-poller "use_unix_socket" flag, now implied by the specification of a "unix_socket"
 
 ## 1.10.0 - Aug 22, 2022
 * Added IPv6 SNMP support to Poller

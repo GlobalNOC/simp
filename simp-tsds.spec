@@ -1,6 +1,6 @@
 Summary: SIMP TSDS Collector
 Name: simp-tsds
-Version: 1.10.0
+Version: 1.11.0
 Release: 1%{dist}
 License: APL 2.0
 Group: Network
@@ -26,6 +26,7 @@ Requires: perl(Parallel::ForkManager)
 Requires: perl(POSIX)
 Requires: perl(Proc::Daemon)
 Requires: perl(Types::Standard)
+Requires: perl-Syntax-Keyword-Try
 Requires: perl(GRNOC::Config)
 Requires: perl(GRNOC::WebService::Client)
 Requires: perl(GRNOC::RabbitMQ) >= 1.2.2

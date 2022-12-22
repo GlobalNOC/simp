@@ -11,6 +11,7 @@ $Data::Dumper::Indent = 0;
 
 use Moo;
 use JSON::XS qw(encode_json);
+use Syntax::Keyword::Try;
 
 use GRNOC::Simp::TSDS;
 use GRNOC::WebService::Client;
@@ -90,13 +91,27 @@ sub push {
         return;
     };
 
-    # Add the block of messages to TSDS using push.cgi
-    my $res = $self->tsds_svc->add_data(data => encode_json($msg_list));
+    my $res;
+    try {
+        # Add the block of messages to TSDS using push.cgi
+        $res = $self->tsds_svc->add_data(data => encode_json($msg_list));
+    }
+    catch ($e) {
+        $self->logger->error(sprintf(
+            '[%s] Could not push data to TSDS: %s',
+            $self->worker_name,
+            $e
+        ));
+    };
 
     # Check the response from TSDS
     if (!defined($res) || $res->{'error'}) {
 
-        my $error = sprintf("[%s] Error pushing to TSDS: %s", $self->worker_name, GRNOC::Simp::TSDS::error_message($res));
+        my $error = sprintf(
+            "[%s] Error pushing to TSDS: %s",
+            $self->worker_name,
+            GRNOC::Simp::TSDS::error_message($res)
+        );
 
         # Check whether the issue was sending a message that has invalid characters
         if ($res && $res->{error_text} && $res->{error_text} =~ m/only accepts printable characters/g) {
