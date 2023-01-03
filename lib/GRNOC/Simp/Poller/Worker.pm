@@ -249,14 +249,14 @@ sub _connect_to_redis {
 
     if (defined($unix_socket)) { 
       $redis_conf{sock} = $unix_socket;
-      $self->logger->debug(sprintf("%s - Redis Host unix socket:%s", $worker, $redis_conf{sock}));
+      $self->logger->debug(sprintf("%s - Redis host unix socket:%s", $worker, $redis_conf{sock}));
     }
     # Connect to redis using an IP:Port configuration
     else {
       my $redis_host      = $self->config->get('/config/redis/@ip')->[0];
       my $redis_port      = $self->config->get('/config/redis/@port')->[0];
       $redis_conf{server} = "$redis_host:$redis_port";
-      $self->logger->debug(sprintf("%s - Redis Host %s:%s", $worker, $redis_host, $redis_port));
+      $self->logger->debug(sprintf("%s - Redis host %s:%s", $worker, $redis_host, $redis_port));
     }
     $self->logger->debug(sprintf("%s - Redis reconnect after %ss every %ss", $worker, $reconnect, $reconnect_every));
     $self->logger->debug(sprintf("%s - Redis timeouts [Read: %ss, Write: %ss]", $worker, $read_timeout, $write_timeout));
@@ -265,15 +265,15 @@ sub _connect_to_redis {
     my $redis_connected = 0;
 
     # Try reconnecting to redis. Only continue when redis is connected.
+    # Reconnection attepted every second
     while(!$redis_connected) {
         try {
-            # Try to connect twice per second for 30 seconds,
-            # 60 attempts every 500ms.
             $redis = Redis::Fast->new( %redis_conf );
             $redis_connected = 1;
         }
         catch ($e) {
             $self->logger->error(sprintf("%s - Error connecting to Redis: %s. Trying Again...", $worker, $e));
+            sleep(1);
         };
     }
 
