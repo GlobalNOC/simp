@@ -230,15 +230,23 @@ sub _connect_to_redis {
 
  
     my %redis_conf = (
-                reconnect     => $reconnect,
-                every         => $reconnect_every,
-                read_timeout  => $read_timeout,
-                write_timeout => $write_timeout );
+        reconnect     => $reconnect,
+        every         => $reconnect_every,
+        read_timeout  => $read_timeout,
+        write_timeout => $write_timeout
+    );
     
     $self->logger->debug(sprintf("%s - Connecting to Redis", $worker));
 
     # Connect to Redis locally using a Unix socket
-    my $unix_socket = $self->config->get('/config/redis/@unix_socket')->[0];
+    my $unix_socket      = $self->config->get('/config/redis/@unix_socket')->[0];
+    my $unix_socket_flag = $self->config->get('/config/redis/@use_unix_socket')->[0];
+
+    # Handle deprecated flag
+    if (defined($unix_socket_flag) && $unix_socket_flag eq '0') {
+        $unix_socket = undef;
+    }
+
     if (defined($unix_socket)) { 
       $redis_conf{sock} = $unix_socket;
       $self->logger->debug(sprintf("%s - Redis Host unix socket:%s", $worker, $redis_conf{sock}));
