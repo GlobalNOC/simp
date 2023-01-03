@@ -323,11 +323,11 @@ sub _poll_cb {
         }
         catch {
             $self->logger->error(sprintf(
-                "%s - Error fetching the current poll cycle ID from Redis for %s: %s"
+                "%s - Error fetching the current poll cycle ID from Redis for %s: %s",
                 $worker,
                 $name,
                 $_
-            );
+            ));
             $self->redis->wait_all_responses();
             $self->redis->select(0);
         };
