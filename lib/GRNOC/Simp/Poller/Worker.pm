@@ -203,7 +203,7 @@ sub start {
     my $cv = AnyEvent->condvar;
     $self->_set_main_cv($cv);
     $cv->recv;
-    $self->logger->error("Exiting");
+    $self->logger->error(sprintf("%s - Exiting", $worker));
 }
 
 =item stop
@@ -211,7 +211,7 @@ sub start {
 =cut
 sub stop {
     my $self = shift;
-    $self->logger->error("Stop was called");
+    $self->logger->error(sprintf("%s - Stop was called", $self->worker_name));
     $self->main_cv->send();
 }
 
@@ -230,25 +230,33 @@ sub _connect_to_redis {
 
  
     my %redis_conf = (
-                reconnect     => $reconnect,
-                every         => $reconnect_every,
-                read_timeout  => $read_timeout,
-                write_timeout => $write_timeout );
+        reconnect     => $reconnect,
+        every         => $reconnect_every,
+        read_timeout  => $read_timeout,
+        write_timeout => $write_timeout
+    );
     
     $self->logger->debug(sprintf("%s - Connecting to Redis", $worker));
 
     # Connect to Redis locally using a Unix socket
-    my $unix_socket = $self->config->get('/config/redis/@unix_socket')->[0];
+    my $unix_socket      = $self->config->get('/config/redis/@unix_socket')->[0];
+    my $unix_socket_flag = $self->config->get('/config/redis/@use_unix_socket')->[0];
+
+    # Handle deprecated flag
+    if (defined($unix_socket_flag) && $unix_socket_flag eq '0') {
+        $unix_socket = undef;
+    }
+
     if (defined($unix_socket)) { 
       $redis_conf{sock} = $unix_socket;
-      $self->logger->debug(sprintf("%s - Redis Host unix socket:%s", $worker, $redis_conf{sock}));
+      $self->logger->debug(sprintf("%s - Redis host unix socket:%s", $worker, $redis_conf{sock}));
     }
     # Connect to redis using an IP:Port configuration
     else {
       my $redis_host      = $self->config->get('/config/redis/@ip')->[0];
       my $redis_port      = $self->config->get('/config/redis/@port')->[0];
       $redis_conf{server} = "$redis_host:$redis_port";
-      $self->logger->debug(sprintf("%s - Redis Host %s:%s", $worker, $redis_host, $redis_port));
+      $self->logger->debug(sprintf("%s - Redis host %s:%s", $worker, $redis_host, $redis_port));
     }
     $self->logger->debug(sprintf("%s - Redis reconnect after %ss every %ss", $worker, $reconnect, $reconnect_every));
     $self->logger->debug(sprintf("%s - Redis timeouts [Read: %ss, Write: %ss]", $worker, $read_timeout, $write_timeout));
@@ -257,15 +265,15 @@ sub _connect_to_redis {
     my $redis_connected = 0;
 
     # Try reconnecting to redis. Only continue when redis is connected.
+    # Reconnection attepted every second
     while(!$redis_connected) {
         try {
-            # Try to connect twice per second for 30 seconds,
-            # 60 attempts every 500ms.
             $redis = Redis::Fast->new( %redis_conf );
             $redis_connected = 1;
         }
         catch ($e) {
-            $self->logger->error(sprintf("%s - Error connecting to Redis: %s. Trying Again...", $worker, $e));
+            $self->logger->error(sprintf("%s - Error connecting to Redis: %s", $worker, $e));
+            sleep(1);
         };
     }
 
@@ -314,7 +322,12 @@ sub _poll_cb {
             ($poll_id, $poll_time) = split(',', $poll_cycle) if (defined($poll_cycle));
         }
         catch {
-            $self->logger->error("Error fetching the current poll cycle ID from Redis for $name: $_");
+            $self->logger->error(sprintf(
+                "%s - Error fetching the current poll cycle ID from Redis for %s: %s",
+                $worker,
+                $name,
+                $_
+            ));
             $self->redis->wait_all_responses();
             $self->redis->select(0);
         };
@@ -356,9 +369,6 @@ sub _poll_cb {
             timestamp   => time()
         };
         push(@{$status->{failed_oids}}, $error_data);
-
-        my $error = "%s - ERROR: No data returned from %s:%s for %s: %s";
-        $self->logger->error(sprintf($error, $worker, $name, $port, $oid, $snmp->error()));
     }
 
     # Calculate when this key should expire based on NOW when the response
@@ -713,12 +723,12 @@ sub _collect_data {
 
         # Log error and skip collections if there are still pending replies
         if (keys($status->{'pending_replies'})) {
-            $self->logger->info(sprintf(
-                "%s - Unable to query device %s:%s in poll cycle, remaining oids: %s",
+            $self->logger->error(sprintf(
+                "%s - Unable to query device %s:%s in poll cycle, %s pending oid requests",
                 $self->worker_name,
                 $ip,
                 $name,
-                Dumper($status->{pending_replies})
+                scalar(keys(%{$status->{pending_replies}}))
             ));
             for my $oid (keys(%{$status->{pending_replies}})) {
                 my $error_data = {
@@ -747,6 +757,9 @@ sub _collect_data {
             # Skip when no SNMP session exists to prevent further failures
             next;
         }
+
+        # Tracking request failures to compress logging
+        my $failures = 0;
 
         # Initiate an SNMP request for each OID
         for my $oid_attr (@$oids) {
@@ -806,8 +819,6 @@ sub _collect_data {
                     $oid,
                     $snmp_session->error()
                 );
-                $self->logger->error($error);
-
                 my $error_data = {
                     oid         => $oid,
                     error       => 'OID_REQUEST_ERROR',
@@ -815,7 +826,19 @@ sub _collect_data {
                     timestamp   => time()
                 };
                 push(@{$status->{failed_oids}}, $error_data);
+                $failures++;
             }
+        }
+        if ($failures) {
+            my $error = sprintf(
+                "%s - Requests to %s:%s failed for %s of %s OIDs",
+                $self->worker_name,
+                $name,
+                $port,
+                $failures,
+                scalar(@$oids),
+            );
+            $self->logger->error($error);
         }
     }
     $self->logger->debug("----  END OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----");

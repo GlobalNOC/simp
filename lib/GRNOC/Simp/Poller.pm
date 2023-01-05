@@ -15,7 +15,7 @@ use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Poller::Worker;
 
-our $VERSION = '1.11.0';
+our $VERSION = '1.11.1';
 
 ### Required Attributes ###
 =head2 public attributes
@@ -467,6 +467,19 @@ sub _process_groups_config {
     # Get the total number of workers to fork and
     # set the group name and any defaults
     my $total_workers = 0;
+    
+    # Variables used to show configuration statistics 
+    my $conf_info = "%s - Configuration: [workers: %s | hosts: %s | sessions: %s | oids: %s | interval: %ss | timeout: %ss | retention %ss]";
+    my $load_info = "%s - Load: %s requests every %ss (%s average requests/sec)";
+    my @conf_strs;
+    my @load_strs;
+    my $agg_stats = {
+        groups   => 0,
+        workers  => 0,
+        hosts    => {},
+        sessions => 0,
+        load_avg => 0,
+    };
 
     for my $group_object (@$group_objects) {   
  
@@ -505,6 +518,9 @@ sub _process_groups_config {
 
         # Get the array of host configs for the group
         my $hosts = $self->hosts->{$name};
+        for my $host (@$hosts) {
+            $agg_stats->{hosts}{$host->{name}} = 1 unless exists($agg_stats->{hosts}{$host->{name}});
+        }
 
         # Set total host and session counts needed
         $group->{unique_hosts} = scalar(keys(%{$self->group_hosts->{$name}}));
@@ -520,21 +536,54 @@ sub _process_groups_config {
 
         # Set the group config
         $groups{$name} = $group;
-   
-        my $info = "Configured $name: ";
-        while (my ($k, $v) = each(%$group)) {
-            if ($k eq 'oids') {
-                $info .= sprintf("%s %s, ", scalar(@$v), $k);
-            }
-            elsif ($k eq 'load') {
-                $info .= sprintf("%s avg worker requests per second, ", $v);
-            }
-            else {
-                $info .= "$k = $v, ";             
-            }
-        }
-        $self->logger->error($info);
+
+        # Record stats related to configuration load
+        my $total_hosts   = scalar(@$hosts);
+        my $total_oids    = scalar(@{$group->{oids}});
+        my $total_workers = $group->{workers};
+        my $worker_hosts  = $total_hosts / $total_workers;
+        my $worker_reqs   = $worker_hosts * $total_oids;
+        my $worker_avg    = $worker_reqs / $group->{interval};
+        push(@conf_strs, sprintf(
+            $conf_info,
+            $name,
+            $group->{workers},
+            $group->{unique_hosts},
+            $group->{snmp_sessions},
+            scalar(@{$group->{oids}}),
+            $group->{interval},
+            $group->{timeout},
+            $group->{request_size},
+            $group->{retention},
+        ));
+        push(@load_strs, sprintf(
+            $load_info,
+            $name,
+            $worker_reqs,
+            $group->{interval},
+            sprintf("%.2f", $worker_avg),
+        ));
+        $agg_stats->{groups} += 1;
+        $agg_stats->{workers} += $total_workers;
+        $agg_stats->{sessions} += $group->{snmp_sessions};
+        $agg_stats->{load_avg} += $worker_avg;
     }
+
+    # Log the configuration statistics in order
+    for (my $i=0; $i < scalar(@conf_strs); $i++) {
+        $self->logger->error(@conf_strs->[$i]);
+        $self->logger->error(@load_strs->[$i]);
+    }
+    # Log the aggregated statistics for all configs
+    $self->logger->error(sprintf(
+        "Configuration Summary: [%s groups | %s workers | %s unique hosts | %s SNMP sessions | %s average requests/s]",
+        $agg_stats->{groups},
+        $agg_stats->{workers},
+        scalar(keys(%{$agg_stats->{hosts}})),
+        $agg_stats->{sessions},
+        sprintf("%.2f", $agg_stats->{load_avg}),
+    ));
+
 
     # Set the number of forks and then the groups for the poller object
     $self->_set_total_workers($total_workers);
