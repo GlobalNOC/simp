@@ -806,7 +806,10 @@ sub _check_value {
     $data->{$name} = undef if (!exists($data->{$name}));
 
     # Check if the data element's value is required to match a pattern
-    if (exists($attr->{'require_match'})) {
+    if (exists($attr->{'require_match'}) && defined($attr->{require_match})) {
+
+        # Undefined data values cannot be matched, remove the hash
+        return unless (defined($data->{$name}));
 
         # Does the value for the field match the given pattern?
         my $match  = $data->{$name} =~ $attr->{'require_match'};
