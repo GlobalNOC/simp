@@ -1046,23 +1046,47 @@ sub _convert_data {
                     # Match application
                     elsif ($conversion->{'type'} eq 'match') {
 
-                        # Change the output of the match where exclusion on match is desired
-                        my $exclude     = exists($conversion->{'exclude'}) ? $conversion->{'exclude'} : 0;
-			            my $drop_target = exists($conversion->{'drop'}) ? $conversion->{'drop'} : undef;
+                        # Skip matching when the target data is undef
+                        next unless (exists($data->{$target}) && defined($data->{$target}));
+
+                        # Get parameters for the match operation
+                        # $exclude = Inverse match of the pattern, excluding matching values
+                        # $drop_targets = CSV string of fields to drop on a postive match/exclusion
+                        # $update = Update the value to a capture group on match (default)
+                        my $exclude      = exists($conversion->{'exclude'}) ? $conversion->{'exclude'} : 0;
+			            my $drop_targets = exists($conversion->{'drop'}) ? $conversion->{'drop'} : '';
+                        my $update       = exists($conversion->{'update'}) ? $conversion->{update} : 1;                     
+                        $self->logger->debug(Dumper($data->{$target}));
+                        
+                        # Keep the original value for matches that shouldn't update it
+                        my $original_value = $data->{$target};
 
                         # Does the value match the pattern?
-                        if ($data->{$target} =~ /$temp_pattern/) {
-
+                        my $match = $original_value =~ /$temp_pattern/;
+                       
+                        if ($match) {
                             # Set new value to the match or set to undef if excluding
                             $new_value = ($exclude != 1) ? $1 : undef;
                         }
                         else {
                             # Set new value to undef if it didn't match, or to the original value if excluding
-                            $new_value = ($exclude != 1) ? undef : $data->{$target};
+                            $new_value = ($exclude != 1) ? undef : $original_value;
                         }
 
-                        # Delete the data for our drop target if our match produced a value that's defined
-                        delete $data->{$drop_target} if (defined($new_value) && defined($drop_target) && exists($data->{$drop_target}));
+                        # Defined values mean a positive match or exclusion
+                        if (defined($new_value)) {
+
+                            # Drop any fields in the CSV string
+                            for my $drop_target (split(/,/, $drop_targets)) {
+                                $self->logger->debug(sprintf("Dropping %s", $drop_target));
+                                delete($data->{$drop_target}) if exists($data->{$drop_target});
+                            }   
+                        }
+
+                        # Reset the value unless it should be updated from a capture group
+                        unless ($update) {
+                            $new_value = $original_value;
+                        }
                     }
                     # Drops
                     elsif ($conversion->{'type'} eq 'drop') {
