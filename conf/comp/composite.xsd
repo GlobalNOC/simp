@@ -113,6 +113,7 @@
         </xsd:sequence>
         <xsd:attribute name="pattern" type="xsd:string" use="required" />
         <xsd:attribute name="exclude" type="INT_BOOL" />
+        <xsd:attribute name="update" type="INT_BOOL" />
         <xsd:attribute name="drop" type="xsd:string" />
     </xsd:complexType>
 
