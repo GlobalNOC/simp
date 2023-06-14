@@ -1,3 +1,0 @@
-# Overrides variables in /etc/init.d/simp-collector
-
-# pidfile=/var/run/custom.pid

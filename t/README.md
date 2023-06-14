@@ -16,18 +16,18 @@ $ make test TEST_FILES=t/$TestLevel*.t
 #### Test One Specific Thing
 You can run a specific test by specifying which test file to the previous command as shown below (example tests only composites)
 ```sh
-$ make test TEST_FILES=t/31-composites.t
+$ make test TEST_FILES=t/01-comp.t
 ```
 
 ---
 ## Benchmarking & Profiling
-### Some tests, like `31-composites.t`, have a secondary function that allows them to be used to perform software profiling and benchmarking
+### Some tests, like `01-comp.t`, have a secondary function that allows them to be used to perform software profiling and benchmarking
 To run a benchmark or software profile using a test file, we can run the test script from the command line with [Devel::NYTProf software profiler for perl](https://metacpan.org/pod/Devel::NYTProf) from CPAN. You will need to install `perl-Devel-NYTProf` before you can do this. In the following example, we benchmark the performance of the SIMP Comp processor package which is common to do prior to a new release.
 
-1. In your local repository, determine the test you want to use for profiling. We'll use `31-composites.t`.
-2. Adjust any flags or determine command-line arguments needed to run the test in benchmarking/profiling mode. For `31-composites.t`, we will set a variable called `benchmarking` to `true`/`1` before running it with the profiler.
+1. In your local repository, determine the test you want to use for profiling. We'll use `01-comp.t`.
+2. Adjust any flags or determine command-line arguments needed to run the test in benchmarking/profiling mode. For `01-comp.t`, we will set a variable called `benchmarking` to `true`/`1` before running it with the profiler.
 3. Once the test script is ready to run for benchmarking, run it like so from the root of your local repository:
-`/usr/bin/perl -d:NYTProf -I ./lib t/31-composites.t`
+`/usr/bin/perl -d:NYTProf -I ./lib t/01-comp.t`
 4. You should have a new file from the output in the root of your repository called `nytprof.out`.
 `ls -l | grep "nytprof.out"`
 5. The Devel::NYTProf package includes a nice utility for quickly building web assets for viewing your profile results in a browser. To do this, run `nytprofhtml ./nytprof.out` from the directory where `nytprof.out` is located.
@@ -73,7 +73,7 @@ To run a benchmark or software profile using a test file, we can run the test sc
 
 ---
 ## Adding Composite Tests for Simp-Comp
-The test file for composites is `t/31-composites.t`, which can be run individually when testing a composite.
+The test file for composites is `t/01-comp.t`, which can be run individually when testing a composite.
 
 
 To AUTOMATICALLY synchronize or add composite test files from composites installed on a host running SIMP:
@@ -90,18 +90,18 @@ To MANUALLY add a test for a *new* composite do the following:
 3. Add the data expected from the node as would be retrieved by Simp-Data to the JSON file. Other [composite input files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/input) are a great example.
 4. Create a new JSON file in `t/conf/data_sets/output/` with the name like `composite_name.json`
 5. Add the data expected from Simp-Comp after processing has finished to the JSON file. Other [composite output files](https://github.com/GlobalNOC/simp/tree/master/t/conf/data_sets/output) are a great example. *Note: The JSON is converted to Perl hashes. For this reason, the JSON must pass linting and values expected to be `undef` must be specified as `null` in the JSON to be converted appropriately.*
-6. Test the new composite by running the test `t/31-composites.t` as shown [here](#test-one-specific-thing).
+6. Test the new composite by running the test `t/01-comp.t` as shown [here](#test-one-specific-thing).
 
 ---
 ## Debugging a Composite Using Tests
-The test file for composites, `31-composites.t`, includes a feature for debugging. This can be especially useful for identifying issues occurring for a single composite when it fails its test.
+The test file for composites, `01-comp.t`, includes a feature for debugging. This can be especially useful for identifying issues occurring for a single composite when it fails its test.
 *Note: The feature is only accessible by editing the code of the composite test file.*
 
 To turn on debugging mode for a specific composite:
-1. Open `t/31-composites.t` in your text editor
+1. Open `t/01-comp.t` in your text editor
 2. Find the variable called `$debug` near the top
-3. Set "enable" to `1` to allow debug logging every time you run `31-composites.t`
+3. Set "enable" to `1` to allow debug logging every time you run `01-comp.t`
 4. Isolate testing to one composite by specifying its name as the value for `composite`
-5. Run `t/31-composites.t` as shown [here](#test-one-specific-thing) and see that the output is more detailed and is specific to the problem composite.
+5. Run `t/01-comp.t` as shown [here](#test-one-specific-thing) and see that the output is more detailed and is specific to the problem composite.
 
 Using this method, it is much easier to identify why a composite isn't working after changes were made to the lib files. 

@@ -1,8 +1,0 @@
-<config>
-  <!-- Default credentials to use for all services / URNs -->
-  <userInfo username="insert here" password="insert a valid password"/>
-  <rabbitMQ host="rabbitMQ_host" port="rabbitMQ_port" user="xyz" password="xyz"/>
-  <redis host="redis_host" port="6380"/>
-  <redisInfo host = "redis_host" port ="6380"/>
-  <tsdsInfo url ='tsds_url' database ='db0' interval ='300' type="simp_redis_counts" />
-</config>

@@ -1,4 +1,0 @@
-<config workers="3" pid-file="@TEST_DIR@/conf/simpData.pid" >
- <redis host="127.0.0.1" port="6380"/>
- <rabbitMQ host="127.0.0.1" port="5673" user="guest" password="guest"/>
-</config>

@@ -6,52 +6,41 @@ use warnings;
 use Data::Dumper;
 use Test::Harness;
 
-$Test::Harness::verbose = shift
-  if defined $ARGV[0] and $ARGV[0] =~ /^\d+$/ || $ARGV[0] eq "-v";
+if (defined $ARGV[0] and $ARGV[0] =~ /^\d+$/ || $ARGV[0] eq "-v") {
+    $Test::Harness::verbose = shift;
+}
 
 my $formatter;
 
-if (@ARGV && $ARGV[0] =~ /^--formatter=/)
-{
+if (@ARGV && $ARGV[0] =~ /^--formatter=/) {
     (undef, $formatter) = split(/=/, shift, 2);
     $formatter = "TAP::Formatter::$formatter" unless $formatter =~ /::/;
 }
-
 unshift(@INC, "blib/lib", "blib/arch");
 
 my @tests;
-
-if (defined $ENV{'TEST_FILES'})
-{
-    my @test_files = $ENV{'TEST_FILES'};
-    for (@test_files)
-    {
-        if (-d $_)
-        {
-            push(@tests, <$_/*.t>);
+if (defined $ENV{'TEST_FILES'}) {
+    for my $file (@{$ENV{'TEST_FILES'}}) {
+        if (-d $file) {
+            push(@tests, <$file/*.t>);
         }
-        else
-        {
-            if (/\*/)
-            {
+        else {
+            if (/\*/) {
                 my @files = glob($_);
                 push(@tests, @files);
             }
-            else
-            {
+            else {
                 $_ .= ".t" unless /\.t$/;
                 push(@tests, $_);
             }
         }
     }
 }
-else
-{
+else {
     @tests = (<t/*.t>);
 }
 
-if ($formatter)
-{
+if ($formatter) {
     use File::Path;
     File::Path::rmtree("tap");
 
@@ -77,7 +66,6 @@ if ($formatter)
     exit($return_code);
 
 }
-else
-{
+else {
     runtests @tests;
 }

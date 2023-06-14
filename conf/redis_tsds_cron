@@ -1,2 +1,0 @@
-# Update TSDS with redis data every 5 mins
-*/5 * * * * root /usr/bin/perl /usr/bin/redis_tsds.pl 2>/tmp/redis_cron_error
