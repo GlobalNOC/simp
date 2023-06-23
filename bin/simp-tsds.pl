@@ -1,61 +1,63 @@
 #!/usr/bin/perl
-
-#
-# Daemon script
-# Creates and starts Master object
-#
-
 use strict;
 use warnings;
 
 use Getopt::Long;
-use Log::Log4perl;
 
-use GRNOC::Simp::TSDS::Master;
+use GRNOC::Simp::TSDS;
 
-my $config          = '/etc/simp/tsds/config.xml';
-my $logging         = '/etc/simp/tsds/logging.conf';
-my $collections_dir = '/etc/simp/tsds/collections.d/';
-my $validation_dir  = '/etc/simp/tsds/validation.d/';
-my $pidfile         = '/var/run/simp-tsds.pid';
+sub usage {
+    print("$0 [--config <config_file>] [--collections <dir path>] [--validation <dir path>] [--logging <logging_file>] [--pidfile pidfile]\n");
+    print("\t[--status <dir path>] [--group <group>] [--user <user>]\n");
+    print("\t--nofork - Do not daemonize\n");
+    exit(1);
+}
+
+use constant {
+    DEFAULT_CONFIG_FILE     => '/etc/simp/tsds/config.xml',
+    DEFAULT_LOGGING_FILE    => '/etc/simp/tsds/logging.conf',
+    DEFAULT_PID_FILE        => '/var/run/simp-tsds.pid',
+    DEFAULT_COLLECTIONS_DIR => '/etc/simp/tsds/collections.d/',
+    DEFAULT_VALIDATION_DIR  => '/etc/simp/tsds/validation.d/',
+    DEFAULT_STATUS_DIR      => '/var/lib/grnoc/simp-tsds/',
+};
+
+my $config_file     = DEFAULT_CONFIG_FILE;
+my $logging_file    = DEFAULT_LOGGING_FILE;
+my $pid_file        = DEFAULT_PID_FILE;
+my $collections_dir = DEFAULT_COLLECTIONS_DIR;
+my $validation_dir  = DEFAULT_VALIDATION_DIR;
+my $status_dir      = DEFAULT_STATUS_DIR;
 my $nofork          = 0;
 my $run_group;
 my $run_user;
 my $help;
 
 GetOptions(
-    'config=s'      => \$config,
-    'logging=s'     => \$logging,
+    'config=s'      => \$config_file,
+    'logging=s'     => \$logging_file,
     'collections=s' => \$collections_dir,
     'validation=s'  => \$validation_dir,
-    'pidfile=s'     => \$pidfile,
+    'status=s'      => \$status_dir,
+    'pidfile=s'     => \$pid_file,
     'nofork'        => \$nofork,
     'group=s'       => \$run_group,
     'user=s'        => \$run_user,
     'help|h|?'      => \$help
-);
+) or usage();
 
 usage() if ($help);
 
-Log::Log4perl::init($logging);
-
-my $collector = GRNOC::Simp::TSDS::Master->new(
-    config          => $config,
+my $collector = GRNOC::Simp::TSDS->new(
+    config_file     => $config_file,
+    logging_file    => $logging_file,
+    pid_file        => $pid_file,
     collections_dir => $collections_dir,
     validation_dir  => $validation_dir,
-    pidfile         => $pidfile,
+    status_dir      => $status_dir,
     daemonize       => !$nofork,
     run_user        => $run_user,
     run_group       => $run_group
 );
 
 $collector->start();
-
-sub usage
-{
-    print
-      "$0 [--config <config_file>] [--collections <dir path>] [--validation <dir path>] [--logging <logging_file>] [--pidfile pidfile]\n";
-    print "\t[--group <group>] [--user <user>]\n";
-    print "\t--nofork - Do not daemonize\n";
-    exit(1);
-}
