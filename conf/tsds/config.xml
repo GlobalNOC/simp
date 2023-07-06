@@ -1,15 +1,28 @@
 <?xml version="1.0"?>
 
-<!-- Main Simp-TSDS Config -->
 <config>
-    <!-- RabbitMQ host being used by Simp -->
-    <rabbitmq ip="127.0.0.1" port="5672" user="" password=""/>
 
-    <!-- TSDS Credentials -->
-    <tsds url="" user="" password=""/>
+    <!-- Global Simp::TSDS Settings -->
+    <settings
+        max_workers="4"
+        dump_threshold="10000"
+    />
 
-    <!-- Separate worker creation to reduce request load -->
+    <!-- RabbitMQ Connection -->
+    <rabbitmq
+        ip="127.0.0.1"
+        port="5672"
+        user=""
+        password=""
+    />
 
-    <stagger seconds="5"/>
+    <!-- TSDS Connection -->
+    <tsds
+        url=""
+        user=""
+        password=""
+        realm=""
+        push_size="100"
+    />
 
 </config>

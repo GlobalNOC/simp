@@ -14,185 +14,163 @@ package GRNOC::Simp::TSDS::Worker;
 use strict;
 use warnings;
 
+
+=head2 IMPORTS
+=cut
+use Moo;
+use Try::Tiny;
 use Data::Dumper;
+use JSON::XS qw(encode_json);
 use Time::HiRes qw(gettimeofday tv_interval usleep);
 use List::MoreUtils qw(any natatime);
-use Moo;
 
 use GRNOC::RabbitMQ::Client;
 use GRNOC::RabbitMQ::Dispatcher;
 use GRNOC::RabbitMQ::Method;
-use GRNOC::Monitoring::Service::Status;
-use GRNOC::Simp::TSDS;
-use GRNOC::Simp::TSDS::Pusher;
+use GRNOC::WebService::Client;
+
 
 =head2 PUBLIC ATTRIBUTES
 =over 4 
-=item name
 =item id
-=item hosts
-=item composite
-=item measurement
-=item interval
-=item exclusions
-=item filter
+=item requests
 =item logger
 =item rmq_config
 =item tsds_config
-=item status_dir
-=item stagger
+=item unsent
 =back
 =cut
-has name        => (is => 'ro',  required => 1);
-has id          => (is => 'ro',  required => 1);
-has hosts       => (is => 'rwp', required => 1);
-has composite   => (is => 'rwp', required => 1);
-has measurement => (is => 'rwp', required => 1);
-has interval    => (is => 'rwp', required => 1);
-has exclusions  => (is => 'rwp', default => sub { [] });
-has filter      => (is => 'rwp', default => sub { {} });
-has logger      => (is => 'rwp', required => 1);
-has rmq_config  => (is => 'rwp', required => 1);
-has tsds_config => (is => 'rwp', required => 1);
-has status_dir  => (is => 'rwp', required => 1);
-has stagger     => (is => 'rwp', required => 1);
+has id          => (is => 'ro', required => 1);
+has requests    => (is => 'ro', required => 1);
+has logger      => (is => 'ro', required => 1);
+has rmq_config  => (is => 'ro', required => 1);
+has tsds_config => (is => 'ro', required => 1);
+has unsent      => (is => 'ro', default => sub { [] });
+
 
 =head2 PRIVATE ATTRIBUTES
 =over 4
-=item simp_client
-=item tsds_pusher
-=item poll_w
-=item push_w
+=item rabbitmq
+=item tsds
+=item data
+=item status
+=item push_size
 =back
 =cut
-has simp_client => (is => 'rwp');
-has tsds_pusher => (is => 'rwp');
-has poll_w      => (is => 'rwp');
-has push_w      => (is => 'rwp');
-has messages    => (is => 'rwp', default => sub { [] });
+has rabbitmq  => (is => 'rwp');
+has tsds      => (is => 'rwp');
+has data      => (is => 'rwp', default => sub { [] });
+has status    => (is => 'rwp', default => sub { {} });
+has push_size => (is => 'rwp', default => 100);
 
-=head2 start()
-    This method is called by the Simp.TSDS master to start up the worker
-    We loop on _run() where the event loop is entered and exited.
-    The loop will only stop once the process is terminated.
-    Once _run() is called, we only re-enter the loop when RMQ disconnects.
-    This allows us to reconnect by restarting the worker processes.
+
+=head2 PUBLIC METHODS
+=head3 run()
+    This method is called by Simp::TSDS to run the worker.
+    It will request data from Simp::Comp and push results to TSDS.
 =cut
-sub start {
-    
-    my $self = shift;
+sub run {
+    my ($self) = @_;
+    $self->logger->info(sprintf("%s: running %s requests", $0, scalar(@{$self->requests})));
 
-    # Change the process name
-    $0 = sprintf("simp_tsds(%s) [%s]", $self->name, $self->id);
+    # Track the start time of the run
+    my $cycle_start = gettimeofday();
 
-    $self->logger->info($0);
+    # Set up the worker process
+    # Return early if RabbitMQ or TSDS connection fails.
+    return $self->status unless ($self->_setup());
 
-    # Setup signal handlers
-    $SIG{'TERM'} = sub {
-        $self->logger->info($0 . " - Received SIG TERM.");
-        exit(1);
-    };
-    $SIG{'INT'} = sub {
-        $self->logger->info($0 . " - Received SIG INT.");
-        exit(1);
-    };
-    $SIG{'HUP'} = sub {
-        $self->logger->info($0 . " - Received SIG HUP.");
-        exit(1);
-    };
+    # Process requests by gathering data from Simp::Comp and preparing it for TSDS.
+    $self->_process_requests();
 
+    # Push the data for the processed requests.
+    $self->_push_data($self->data, 'new');
 
-    # Add worker PID to the path passed in by master
-    $self->_set_status_dir(sprintf("%s/%s-%s-", $self->status_dir, $$, $self->name));
+    # Try pushing unsent data received from the Simp::TSDS unsent cache.
+    $self->_push_data($self->unsent, 'unsent');
 
-    # Initialize status file
-    my $res = write_service_status(
-        path         => $self->status_dir,
-        service_name => $0,
-        error        => 0,
-    );
+    # Calculate and log the run time for the worker.
+    # Rounded to 3 decimal places.
+    $self->status->{'duration'} = sprintf("%.3f", tv_interval([$cycle_start], [gettimeofday]));
 
-    if ( $res ) {
-        $self->logger->debug("Created status file in ".$self->status_dir);
-    } else {
-        $self->logger->error(sprintf("ERROR: Worker %s was unable to create a status file", $self->name));
-    }
-
-    # I'm not sure if this is a good idea or not. The intent here is to make it so that
-    # if the stagger time would bring us to within 10% of the next interval, we truncate it
-    # down to 80%. We don't want the timer firing on -exactly- the interval since we will
-    # then be bordering on whether we're within T-now or T-now+1 based on any drift
-    my $now        = time();
-    my $start_time = $now + $self->stagger;
-
-    $self->logger->debug($self->name ." now = " . time() . " -- next start = $start_time  -- stagger = " . $self->stagger . " -- interval = " . $self->interval);
-
-    # e.g 60s interval, starting at T=57s, move backward to starting at T=51s
-    if ($start_time % $self->interval > $self->interval * 0.9){
-    $start_time -= $self->interval * 0.1;
-    }
-
-    # e.g. 60s interval, starting at T=3s, move forward to starting at T=9s
-    elsif ($start_time % $self->interval < $self->interval * 0.1){
-    $start_time += $self->interval * 0.1;
-    }
-
-    my $sleep_stagger = $start_time - $now;
-    $sleep_stagger = 0 if $sleep_stagger < 0;
-
-    $self->logger->debug($self->name . " sleeping for " . $sleep_stagger . " seconds to stagger");
-    sleep($sleep_stagger);
-
-    # This startup loop will catch when a worker exits the event loop without termination
-    # In turn, we can handle connection errors here and/or restart the worker's main processes
-    while (1) {
-
-        $self->logger->info($self->name." Starting...");
-        $self->_run();
-
-        $self->logger->error($self->name." Not connected to RabbitMQ, retrying after 1 interval (".$self->interval."s)");
-        sleep $self->interval;
-    }
-        
+    # Return the status data cache
+    return $self->status;
 }
 
-
-=head2 run
-    This kicks off the worker processes and enters the event loop.
-    We only enter the event loop when RabbitMQ is connected.
-    On an error the process exits or _run() is called again by the start() loop.
+=head2 PRIVATE METHODS
+=head3 _setup()
+    A wrapper method for various methods that set up the worker.
+    Sets the process name, status cache, and RabbitMQ and TSDS clients.
 =cut
-sub _run {
+sub _setup {
     my ($self) = @_;
 
-    # Connect and set the RabbitMQ Client
-    # The worker will be locked on this step until Rabbitmq has connected
-    $self->_setup_client();
+    # Change the process name.
+    $0 = sprintf("simp_tsds [%s]", $self->id);
 
-    # We don't want to perform any other operations until RabbitMQ is connected
-    # Once it is, we create the pusher and enter the event loop.
-    if ($self->simp_client && $self->simp_client->connected) {
+    # Set up the status data cache.
+    $self->_setup_status();
 
-        $self->logger->info($self->name.' Entering event loop');
-    
-        # Create and set the Simp.TSDS Pusher instance for the worker
-        $self->_setup_pusher();
+    # Exit setup if there are no requests to process.
+    return unless (scalar(@{$self->requests}));
 
-        # Set the worker properties and event timer, entering the event loop
-        $self->_setup_worker();
-    }
+    # Set up the connection to RabbitMQ, exit if connection fails.
+    return unless ($self->_setup_rabbitmq());
+
+    # Set up the connection to the TSDS API
+    # Do not return failed state on failed connection.
+    # Data messages can still be produced and cached for resending.
+    $self->_setup_tsds();
+
+    return 1;
 }
 
-
-=head2 _setup_client()
-    This will connect the worker's RabbitMQ Client.
-    If the worker fails to connect on the first try, the event loop will not start.
-    We continue the _run() loop until connected.
+=head3 _setup_status()
+    Method that initializes the status cache.
+    Must run before any other methods.
 =cut
-sub _setup_client {
+sub _setup_status {
+    my ($self) = @_;
+    $self->logger->debug("Setting up status cache");
 
-    my $self  = shift;
+    my %status = (
+        'errors'   => 0,        # Worker had ANY errors
+        'rabbitmq' => 0,        # Worker can't connect to RabbitMQ
+        'tsds'     => 0,        # Worker can't connect to TSDS
+        'duration' => -1,       # Worker run duration
+        'name'     => $0,       # Worker process name
+        'time'     => time(),   # Timestamp
+        'requests' => {},       # Error data for individual request IDs
+        'unsent'   => [],       # Data messages not pushed to TSDS
+    );
 
+    $self->_set_status(\%status);
+    $self->logger->debug("Set the status cache");
+}
+
+=head3 _check_rabbitmq()
+    Checks the connection state of the cached RabbitMQ Client.
+    Returns true when connected.
+=cut
+sub _check_rabbitmq {
+    my ($self) = @_;
+    unless ($self->rabbitmq && $self->rabbitmq->connected) {
+        $self->logger->error('Not connected to RabbitMQ');
+        return 0;
+    }
+    $self->logger->debug('RabbitMQ Client is connected');
+    return 1;
+}
+
+=head3 _setup_rabbitmq()
+    Creates a new RabbitMQ Client and caches it.
+    Returns true on successful creation and connection.
+=cut
+sub _setup_rabbitmq {
+    my ($self) = @_;
+    $self->logger->debug("$0: Setting up RabbitMQ client");
+
+    # Create a new RabbitMQ client and cache it.
     my $client = GRNOC::RabbitMQ::Client->new(
         host     => $self->rmq_config->{'ip'},
         port     => $self->rmq_config->{'port'},
@@ -201,237 +179,326 @@ sub _setup_client {
         exchange => 'Simp',
         topic    => 'Simp.Comp',
     );
-    $self->_set_simp_client($client);
+    $self->_set_rabbitmq($client);
+    $self->logger->debug("$0: Set the RabbitMQ client");
 
-    unless ($client && $client->connected) {
-        $self->logger->error($self->name.' Could not connect to RabbitMQ');
+    # Check the connection status of RabbitMQ
+    my $connected = $self->_check_rabbitmq();
+
+    # Update the status if the connection failed.
+    unless ($connected) {
+        $self->status->{'errors'}   = 1;
+        $self->status->{'rabbitmq'} = 1;
     }
-    else {
-        $self->logger->debug($self->name.' RabbitMQ Client connected successfully');
-    }
+
+    return $connected;
 }
 
-
-=head2 _setup_pusher()
-    This will create and set the Simp.TSDS Pusher for the worker
+=head3 _check_tsds()
+    Checks the connection state of the cached TSDS Push API.
+    Returns true when connected.
 =cut
-sub _setup_pusher {
-
-    my $self = shift;
-
-    my $pusher = GRNOC::Simp::TSDS::Pusher->new(
-        logger      => $self->logger,
-        worker_name => $self->name,
-        tsds_config => $self->tsds_config,
-    );
-
-    if (!$pusher) {
-        $self->logger->error($self->name." Could not create the Simp.TSDS Pusher, please check the config");
-    }
-    else {
-        $self->logger->info($self->name." Created the Simp.TSDS Pusher");
-        $self->_set_tsds_pusher($pusher);
-    }
-}
-
-=head2 _setup_worker()
-    This will start the main Worker processes and enter the timed event loop.
-    The loop will exit if RabbitMQ disconnects or the process is terminated.
-    The timer will call to process and push data whenever it's not requesting it.
-=cut
-sub _setup_worker {
-
+sub _check_tsds {
     my ($self) = @_;
+    unless ($self->tsds->help()) {
+        $self->logger->error("$0: Not connected to TSDS");
+        return 0;
+    }
+    $self->logger->debug("$0: TSDS client is connected");
+    return 1;
+}
 
-    # Get the composite name to use as a RabbitMQ method
-    my $composite = $self->composite;
+=head3 _setup_tsds()
+    This will create and set the TSDS GRNOC::WebServiceClient for the worker.
+    The TSDS client is used to push data to a TSDS API push.cgi endpoint.
+=cut
+sub _setup_tsds {
+    my ($self) = @_;
+    $self->logger->debug("$0: Setting up TSDS Push API client");
 
-    # Create polling timer for event loop
-    while (1) {
+    # Create a new RabbitMQ client and cache it.
+    my $tsds = GRNOC::WebService::Client->new(
+        url     => $self->tsds_config->{'url'},
+        uid     => $self->tsds_config->{'user'},
+        passwd  => $self->tsds_config->{'password'},
+        realm   => $self->tsds_config->{'realm'},
+        usePost => 1,
 
-        # For timing
-        my $cycle_start = gettimeofday();
+        # DEPRECATED REMOTE SERVICE CONFIGS
+        # urn => $self->tsds_config->{'urn'},
+        # service_cache_file => SERVICE_CACHE_FILE,
+    );
+    $self->_set_tsds($tsds);
+    $self->logger->debug("$0: Set the TSDS Push API client");
 
-        # For query
-        my $now = time();
+    # Set the push size or use the default.
+    my $push_size = $self->tsds_config->{'push_size'};
+    $self->_set_push_size($push_size) if ($push_size);
 
-        # Exit the event loop but don't exit the process when RMQ disconnects
-        unless ($self->simp_client && $self->simp_client->connected) {
-            $self->logger->error($self->name." Disconnected from RabbitMQ, restarting");
-            return;
+    # Update the status if connection failed.
+    unless ($self->_check_tsds()) {
+        $self->status->{'errors'} = 1;
+        $self->status->{'tsds'}   = 1;
+    }
+}
+
+=head3
+=cut
+sub _get_response_error {
+    my ($self, $type, $id, $response) = @_;
+
+    my $error;
+    if (!defined($response)) {
+        $error  = sprintf('%s: No response from %s for %s', $0, $type, $id);
+        $error .= sprintf(' - ERROR="%s"', $!) if (defined($!) && ($! ne ''));
+    }
+    elsif (defined($response->{'error'})) {
+        $error  = sprintf('%s: Error response from %s for %s', $0, $type, $id);
+        $error .= sprintf(' - ERROR_CODE="%s"', $response->{'error'});
+
+        if (defined $response->{'error_text'}) {
+            $error .= sprintf(' - ERROR_TEXT="%s"', $response->{'error_text'});
+        }
+        $error .= sprintf(' - ERROR="%s"', $!) if (defined($!) && ($! ne ''));
+        $error .= sprintf(' - STACK="%s"', $@) if (defined($@) && ($@ ne ''));
+    }
+    $self->logger->error($error) if ($error);
+
+    return $error
+}
+
+=head3 _process_requests()
+=cut
+sub _process_requests {
+    my ($self) = @_;
+    $self->logger->info(sprintf("%s: Processing %s data requests", $0, scalar(@{$self->requests})));
+
+    # Current time for queries
+    my $now = time();
+        
+    # Gather data from Simp::Comp for each request
+    for my $request (@{$self->requests}) {
+        $self->logger->debug(sprintf("%s: getting %s for %s", $0, $request->{'composite'}, $request->{'node'}));
+
+        # Initialize status data for the request with error flags.
+        # There are flags for each step, and a general error(s) flag.
+        $self->status->{'requests'}{$request->{'id'}} = {
+            'errors'   => 0,
+            'rabbitmq' => 0,
+            'encoding' => 0,
+            'tsds'     => 0
+        };
+
+        # Set the query to pass to Simp::Comp via the Simp.Comp queue
+        # Always search one interval behind to avoid a race condition with Simp::Poller
+        my %query = (
+            node    => $request->{'node'},
+            period  => $request->{'interval'},
+            time    => $now - $request->{'interval'}
+        );
+        
+        # Apply filters to the Simp.Comp RabbitMQ query
+        if (defined($request->{'filter'}{'name'})) {
+            $query{$request->{'filter'}{'name'}} = $request->{'filter'}{'value'};
         }
         
-        # Pull data for each host from Comp
-        for my $host (@{$self->hosts}) {
-            
-            $self->logger->info($self->name." Processing ".$host->{'name'});
-
-            # Set the arguments to pass to Simp::Comp
-            # Always search one interval behind to avoid a race condition with Simp::Poller
-            my %args = (
-                node    => $host->{'name'},
-                period  => $self->interval,
-                time    => $now - $self->interval
-            );
-            
-            # if we're trying to only get a subset of values out of
-            # simp, add those arguments now. This presumes that SIMP
-            # and SIMP-collector have been correctly configured to have
-            # the data available validity is checked for earlier
-            # in Master
-            if (defined($self->filter->{'name'})) {
-                $args{$self->filter->{'name'}} = $self->filter->{'value'};
-            }
-            
-            # to provide some degree of backward compatibility,
-            # we only put this field on if we need to:
-            if (scalar(@{$self->exclusions}) > 0) {
-                $args{'exclude_regexp'} = $self->exclusions;
-            }
-            
-            # Add a request for the composite method from RabbitMQ
-            # We pass the args hash from above to the method
-            my $start_query = gettimeofday();
-            my $res         = $self->simp_client->$composite(%args);
-            my $end_query   = gettimeofday();
-
-            $self->logger->debug(sprintf(
-                "%s Received %s (%ss)",
-                $self->name,
-                $host->{'name'},
-                tv_interval([$start_query],[$end_query])
-            ));
-
-            $self->_process_data($res, $host);
-        }	
-
-        $self->_push_data();
-
-        my $cycle_end = gettimeofday;
-        my $elapsed   = tv_interval([$cycle_start], [$cycle_end]);
-        my $diff      = $self->interval - $elapsed;
-
-        # Clear internal buffer
-        $self->_set_messages([]);
-
-        if ($diff > 0){	    
-            $self->logger->info($self->name . " sleeping $diff seconds until next cycle...");
-            usleep($diff * 1000 * 1000);
+        # Apply exclusions to the Simp.Comp RabbitMQ query
+        # NOTE: This is done rarely for backwards-compatiblity
+        if (defined($request->{'exclusions'}) && scalar(@{$request->{'exclusions'}}) > 0) {
+            $query{'exclude_regexp'} = $request->{'exclusions'};
         }
-        else {
-            $self->logger->warn($self->name . " !! Took too long on previous cycle, would have slept for $diff seconds");
-        }
+        
+        # Time the query
+        my $query_start = gettimeofday();
+
+        # Ask Simp::Comp to provide data via the Simp.Comp queue in RabbitMQ
+        # The RabbitMQ method name provides the composite to Simp::Comp
+        my $composite  = sprintf("%s", $request->{'composite'});
+        my $response   = $self->rabbitmq->$composite(%query);
+        
+        # Finish timing the query
+        my $query_end   = gettimeofday();
+        my $query_time  = tv_interval([$query_start], [$query_end]);
+        $self->logger->debug(sprintf("%s: got %s (%ss)", $0, $request->{'node'}, $query_time));
+
+        # Process the data returned by Simp::Comp
+        $self->_process_data($response, $request);
     }
+    $self->logger->debug("$0: Finished processing data from Simp.Comp");
 }
 
-
-=head2 _process_data
+=head3 _process_data(\%response, \%request)
     This will process data from Comp into TSDS-friendly messages.
     All data is processed before it can be posted to TSDS.
     Metadata and Value fields are separated here.
 =cut
 sub _process_data {
-    my ($self, $res, $host) = @_;
+    my ($self, $response, $request) = @_;
+    $self->logger->debug(sprintf('%s: Processing data response for %s', $0, $request->{'id'}));
 
-    # Drop out if we get an error from Comp
-    if (!defined($res) || $res->{'error'}) {
-        $self->logger->error($self->name." Comp error getting data for $host: ".GRNOC::Simp::TSDS::error_message($res));
+    my $id     = $request->{'id'};
+    my $node   = $request->{'node'};
+
+    # Get a reference to the request's status trackers.
+    my $request_status = $self->status->{'requests'}{$id};
+
+    $self->logger->debug(Dumper($response));
+
+    # Do not process error responses or those without data for the node.
+    if ($self->_get_response_error($id, 'RabbitMQ', $response)) {
+
+        # Set the pull and error flags in the status.
+        $self->status->{'errors'}      = 1;
+        $request_status->{'errors'}    = 1;
+        $request_status->{'rabbitmq'}  = 1;
         return;
     }
 
-    # Take data from Comp by node and process for posting to TSDS
-    for my $node_name (keys %{$res->{'results'}}) {
+    # Process every data hash in the response for the node.
+    for my $data (@{$response->{'results'}{$node}}) {
 
-        my $data = $res->{'results'}->{$node_name};
+        # Skip the data hash when a required field is empty.
+        next if (any { !defined($data->{$_}) && !defined($data->{"*$_"}) } @{$request->{'required'}});
 
-        # Process every data object/hash for the node
-        for my $datum (@$data) {
+        # Build a TSDS Push API data message from the results' data hash.
+        # TODO: Simp::Comp should return preformatted TSDS Push data messages
+        my $time;
+        my %vals;
+        my %meta;
+        while (my ($k, $v) = each(%$data)) {
 
-            my %vals;
-            my %meta;
-            my $datum_tm;
-
-            # When required_values are empty, skip the data
-            next if (any { !defined($datum->{$_}) && !defined($datum->{"*$_"}) } @{$host->required_values});
-
-            # Check the keys in the data and separate metadata and value fields
-            for my $key (keys %{$datum}) {
-
-                # This is commented out for now due to a bug in TSDS (3135:160)
-                # where bad things happen if a key is sent some of the time
-                # (as opposed to all the time or none of the time):
-                # next if !defined($datum->{$key});
-                if ($key eq 'time') {
-                    next if !defined($datum->{$key});  # workaround for 3135:160
-                    $datum_tm = $datum->{$key} + 0;
-                }
-                # Keys for metadata start with an asterisk (*)
-                elsif ($key =~ /^\*/) {
-                    $meta{substr($key, 1)} = $datum->{$key};
-                }
-                # Keys for values do not have an asterisk
-                else {
-                    $vals{$key} = defined($datum->{$key}) ? $datum->{$key} + 0 : undef;
-                }
+            # Get the timestamp
+            if ($k eq 'time') {
+                next if !defined($v); # Workaround for 3135:160
+                $time = $v + 0;
             }
-
-            # Create and push the message onto the queue for posting to TSDS
-            my $msg = {
-                type     => $host->measurement,
-                time     => $datum_tm,
-                interval => $self->interval,
-                values   => \%vals,
-                meta     => \%meta
-            };
-            push(@{$self->messages}, $msg);
+            # Keys for metadata start with an asterisk (*)
+            elsif ($k =~ /^\*/) {
+                $meta{substr($k, 1)} = $v;
+            }
+            # Keys for values do not have an asterisk
+            else {
+                $vals{$k} = defined($v) ? $v + 0 : undef;
+            }
         }
+
+        # Create a data message for the TSDS Push API
+        my $message = {
+            time     => $time,
+            type     => $request->{'measurement'},
+            interval => $request->{'interval'},
+            values   => \%vals,
+            meta     => \%meta
+        };
+
+        # Encode the individual data message as a JSON object string.
+        # Track and skip messages that could not be encoded as JSON.
+        my $message_json;
+        try {
+            $message_json = encode_json($message);
+        } catch {
+            $self->logger->error(sprintf("%s: Could not encode data as JSON for %s: %s", $id, $0, $_));
+            $self->status->{'errors'}     = 1;
+            $request_status->{'errors'}   = 1;
+            $request_status->{'encoding'} = 1;
+            next;
+        };
+
+        # Create a data hash to tie the message to a request ID
+        my $data = {
+            time    => $time,
+            id      => $request->{'id'},
+            message => $message_json
+        };
+
+        # Cache the data hash
+        push(@{$self->data}, $data);
     }
 }
 
-
-=head2 _push_data
+=head3 _push_data()
     This pushes data messages to TSDS once they've been processed.
     We call this method as a callback from within the event loop.
 =cut
 sub _push_data {
+    my ($self, $data, $type) = @_;
+    $self->logger->debug(sprintf("%s: pushing %s %s messages to TSDS", $0, scalar(@$data), $type));
 
-    my ($self)   = @_;
+    # Don't try to push an empty data array.
+    return unless (scalar(@$data) > 0);
 
-    $self->logger->debug($self->name . " Sending " . scalar(@{$self->messages}) . " messages");
+    # Don't try to push when TSDS is disconnected.
+    # Add the data messages to unsent instead.
+    if ($self->status->{'tsds'}) {
+        push(@{$self->status->{'unsent'}}, @$data);
+        return;
+    }
 
-    my $iterator = natatime(100, @{$self->messages});
-    my $last_failure;
-    my $res;
-    while (my @block = $iterator->()) {
-        $res = $self->tsds_pusher->push(\@block);
-        if ( defined($res) && $res->{'error'} ) { 
-            $last_failure = $res;
+    # Iterate over "N at a time" data hashes to batch pushes.
+    # The push size comes from config or defaults to 100.
+    my $batch_iterator = natatime($self->push_size, @$data);
+
+    # Push each data batch to the TSDS Push API.
+    while (my @data_batch = $batch_iterator->()) {
+
+        # Get the batch of data messages only
+        my @messages = map { $_->{'message'} } @data_batch;
+
+        # Do not push empty message batches
+        next if (scalar(@messages) < 1);
+
+        # Encode the data message JSON batch as a JSON array string
+        my $data_json;
+        try {
+            $data_json = encode_json(\@messages);
+        } catch {
+            $self->logger->error(sprintf("%s: Could not encode data as JSON: %s", $0, $_));
+        };
+
+        # Push the data message JSON array to the TSDS API
+        my $response = $self->tsds->add_data(data => $data_json);
+
+        # Get any errors found in the response.
+        my $batch_error = $self->_get_response_error('TSDS', 'message batch', $response);
+
+        # Go to the next batch unless there were errors.
+        next unless ($batch_error);
+
+        # Retry sending each data message individually if the batch couldn't be pushed.
+        # If a specific message can't be sent, keep it to return it to Simp::TSDS.
+        # Unsent messages will be retried on the next cycle by Simp::TSDS using retry_push().
+        for my $d (@data_batch) {
+
+            # Get the ID and data message JSON from the data hash
+            my $id      = $d->{'id'};
+            my $message = $d->{'message'};
+
+            # Do not push empty messages
+            next unless (defined($message));
+
+            # Get a reference to the request's status trackers.
+            my $request_status = $self->status->{'requests'}{$id};
+
+            # Push the data batch JSON to the TSDS API.
+            $response = $self->tsds->add_data(data => $message);
+
+            # Get any errors found in the response.
+            my $message_error = $self->_get_response_error('TSDS', $id, $response);
+
+            # Track this requests' TSDS push failure.
+            if ($message_error) {
+                $self->status->{'errors'}   = 1;
+                $request_status->{'errors'} = 1;
+                $request_status->{'tsds'}   = 1;
+
+                # Allow Simp::TSDS to retry pushing the message if it didn't contain invalid chars.
+                # Keep the encoded JSON to prevent re-processing.
+                # It will pass it to a worker on the next run, skipping the pull, process, and encode steps.
+                unless ($message_error =~ m/only accepts printable characters/g) {
+                    push(@{$self->status->{'unsent'}}, $d);
+                }
+            }
         }
     }
-    # Last failure will catch cases where an error occurs in a middle block of the iterator
-    # which would otherwise be overwritten by a subsequent 'okay' block
-    $self->_write_push_status(( defined($last_failure) ? $last_failure : $res ));
-
 }
-
-# Writes the results of a push action, $res, to a status file, /var/lib/grnoc/simp-tsds/($name)status.txt
-sub _write_push_status {
-    my $self  = shift; 
-    my $res = shift;
-
-    my $path = $self->status_dir;
-    my $error = (defined($res) && $res->{'error'}) ? 1 : 0;
-    my $error_txt = ($error eq 1) ? $res->{'error'} : "";
- 
-    my $write_res = write_service_status(
-        path      => $path,
-        error     => $error + 0,
-        error_txt => $error_txt,
-    );
-    if (!$write_res) {
-        $self->logger->error(sprintf("ERROR: Worker %s was unable to write a status file after push to tsds", $self->name));
-    }
-
-}
-
 1;

@@ -4,14 +4,18 @@
     <!-- Main Config Element -->    
     <xsd:element name="config">
         <xsd:complexType>
-            <xsd:choice minOccurs="3" maxOccurs="3">
+            <xsd:sequence>
+                <!-- Note: Optional element only compatible >= simp-tsds-1.12.0 -->
+                <xsd:element name="settings" type="SETTINGS" minOccurs="0" maxOccurs="1"/>
+
                 <xsd:element name="rabbitmq" type="RABBITMQ_CONFIG" minOccurs="1" maxOccurs="1"/>
                 <xsd:element name="tsds"     type="TSDS_CONFIG"     minOccurs="1" maxOccurs="1"/>
-                <xsd:element name="stagger"  type="STAGGER"         minOccurs="1" maxOccurs="1"/>
-            </xsd:choice>
+
+                <!-- Note: Stagger left in for backward-compatibility only -->
+                <xsd:element name="stagger" minOccurs="0" maxOccurs="1"/>
+            </xsd:sequence>
         </xsd:complexType>
     </xsd:element>
-
 
     <!-- Required Child Elements -->
     <xsd:complexType name="RABBITMQ_CONFIG">
@@ -22,14 +26,17 @@
     </xsd:complexType>
 
     <xsd:complexType name="TSDS_CONFIG">
-        <xsd:attribute name="url"      type="xsd:string" use="required" />
-        <xsd:attribute name="user"     type="xsd:string" use="required" />
-        <xsd:attribute name="password" type="xsd:string" use="required" />
-	<xsd:attribute name="realm"    type="xsd:string" />
+        <xsd:attribute name="url"       type="xsd:string" use="required" />
+        <xsd:attribute name="user"      type="xsd:string" use="required" />
+        <xsd:attribute name="password"  type="xsd:string" use="required" />
+        <xsd:attribute name="realm"     type="xsd:string" />
+        <xsd:attribute name="push_size" type="xsd:integer"/>
     </xsd:complexType>
 
-    <xsd:complexType name="STAGGER">
-        <xsd:attribute name="seconds" type="xsd:integer" use="required" />
+    <!-- New (simp-tsds >= 1.12.0) -->
+    <xsd:complexType name="SETTINGS">
+        <xsd:attribute name="max_workers"    type="xsd:integer"/>
+        <xsd:attribute name="dump_threshold" type="xsd:integer"/>
     </xsd:complexType>
 
     <!-- IPv4/IPv6 address validator -->
@@ -38,5 +45,5 @@
             <xsd:pattern value="((:(:[0-9a-fA-F]{1,4}){0,5}((:[0-9a-fA-F]{1,4}){1,2}|:((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})))|[0-9a-fA-F]{1,4}:([0-9a-fA-F]{1,4}:([0-9a-fA-F]{1,4}:([0-9a-fA-F]{1,4}:([0-9a-fA-F]{1,4}:([0-9a-fA-F]{1,4}:([0-9a-fA-F]{1,4}:([0-9a-fA-F]{1,4}|:)|(:([0-9a-fA-F]{1,4})?|((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))))|:(((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4})?|))|(:((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|:[0-9a-fA-F]{1,4}(:((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|(:[0-9a-fA-F]{1,4}){0,2})|:))|((:[0-9a-fA-F]{1,4}){0,2}(:((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|(:[0-9a-fA-F]{1,4}){1,2})|:))|((:[0-9a-fA-F]{1,4}){0,3}(:((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|(:[0-9a-fA-F]{1,4}){1,2})|:))|((:[0-9a-fA-F]{1,4}){0,4}(:((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))|(:[0-9a-fA-F]{1,4}){1,2})|:))|((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})[.](25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}))))"/>
         </xsd:restriction>
     </xsd:simpleType>
-
+    
 </xsd:schema>
