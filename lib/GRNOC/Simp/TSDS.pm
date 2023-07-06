@@ -2,16 +2,9 @@ package GRNOC::Simp::TSDS;
 
 our $VERSION = '1.11.2';
 
-# Documentation commands in Perl Pod format.
-# see: https://perldoc.perlorg/perlpod.
-
-=head1 GRNOC::SIMP::TSDS
-    The main module providing a Simp collector to TSDS DB interface.
-    Simp::TSDS requests data collections from GRNOC::Simp::Comp via AMQP.
-    GRNOC::Simp::TSDS::Worker procs initiate requests unless run with --nofork.
-    Specific collections are set via collection.xml configurations.
-=cut
-
+#---------------------------------------------------
+# IMPORTS
+#---------------------------------------------------
 use strict;
 use warnings;
 
@@ -31,18 +24,9 @@ use GRNOC::Monitoring::Service::Status;
 # use Data::Dumper;
 # $Data::Dumper::Indent = 1;
 
-=head2 PUBLIC ATTRIBUTES
-=over 4
-=item config_file
-=item logging_file
-=item pid_file
-=item collections_dir
-=item daemonize
-=item run_user
-=item run_group
-=item status_dir
-=back
-=cut
+#---------------------------------------------------
+# PUBLIC ATTRIBUTES
+#---------------------------------------------------
 has config_file     => (is => 'ro', required => 1);
 has logging_file    => (is => 'ro', required => 1);
 has pid_file        => (is => 'ro', required => 1);
@@ -53,20 +37,9 @@ has run_user        => (is => 'ro', required => 1);
 has run_group       => (is => 'ro', required => 1);
 has status_dir      => (is => 'ro', required => 1);
 
-=head2 PRIVATE ATTRIBUTES
-=over 4
-=item config
-=item logger
-=item rmq_config
-=item tsds_config
-=item forker
-=item workers
-=item push_size
-=item collections
-=item status_cache
-=item unsent_cache
-=back
-=cut
+#---------------------------------------------------
+# PRIVATE ATTRIBUTES
+#---------------------------------------------------
 has config         => (is => 'rwp');
 has logger         => (is => 'rwp');
 has rmq_config     => (is => 'rwp');
@@ -78,21 +51,11 @@ has collections    => (is => 'rwp', default => sub { [] });
 has status_cache   => (is => 'rwp', default => sub { {} });
 has unsent_cache   => (is => 'rwp', default => sub { [] });
 
-=head2 PUBLIC METHODS
-=item BUILD
-    Initialization method for the Moo Simp::TSDS class.
-    This runs when GRNOC::Simp::TSDS->new() is called.
-=cut
-sub BUILD {
-    my $self = shift;
-    $self->_setup_logging();
-    return $self;
-}
-
-=item run()
-    Runs the main process loop that requests data from Simp::Comp.
-=cut
+#---------------------------------------------------
+# PUBLIC METHODS
+#---------------------------------------------------
 sub run {
+    # Runs the main process loop that requests data from Simp::Comp.
     my ($self) = @_;
 
     # Daemonized
@@ -154,7 +117,10 @@ sub run {
     };
 
     # Set up all the required configurations, caches, and objects.
-    # NOTE: _setup() MUST occur after any daemonization for P::FM.
+    # NOTE:
+    # Run after forking with Proc::Daemon for Parallel::ForkManager.
+    # P::FM will use the current PID as the main/parent PID.
+    # Breaks child->parent data when the current PID is not the daemon's.
     $self->_setup();
 
     # The process loop for Simp::TSDS to start workers and request data.
@@ -167,16 +133,18 @@ sub run {
     exit(70);
 }
 
-=head2 PRIVATE METHODS
-=item _setup()
-    Wrapper method that loads all configurations sets up caches.
-    This should be run any time a configuration change is made.
+#---------------------------------------------------
+# PRIVATE METHODS
+#---------------------------------------------------
+# Initialization method for the Moo Simp::TSDS class.
+# This runs when GRNOC::Simp::TSDS->new() is called.
+sub BUILD {
+    my $self = shift;
+    $self->_setup_logging();
+    return $self;
+}
 
-    Note:
-    MUST run after forking to daemon for Parallel::ForkManager.
-    P::FM will use the current PID as the main/parent PID.
-    This breaks child->parent data when the current PID is not the daemon's.
-=cut
+# Loads all configurations and sets up caches.
 sub _setup {
     my ($self) = @_;
     $self->_setup_logging();
@@ -187,9 +155,7 @@ sub _setup {
     $self->logger->info('Finished loading');
 }
 
-=item _setup_logging()
-    Creates the GRNOC::Log logger and caches it in $self.
-=cut
+# Creates the GRNOC::Log logger and caches it in $self.
 sub _setup_logging {
     my ($self) = @_;
     my $log    = GRNOC::Log->new(config => $self->logging_file, watch => 120);
@@ -198,21 +164,12 @@ sub _setup_logging {
     $self->logger->debug("Set the logger");
 }
 
-=item _validate_config()
-    Validates a GRNOC::Config object using an XSD file.
-    Requires the filename for logging purposes.
-    Returns true for valid configs else undef.
-=cut
+# Validates a GRNOC::Config object using an XSD file.
 sub _validate_config {
-    my $self   = shift;
-    my $file   = shift;
-    my $config = shift;
-    my $xsd    = shift;
+    my ($self, $file, $config, $xsd) = @_;
 
-    # Validate the config.
     my $validation_code = $config->validate($xsd);
 
-    # Use the validation code to log the outcome and exit if any errors occur.
     if ($validation_code == 1) {
         $self->logger->debug("Validated $file");
         return 1;
@@ -228,10 +185,7 @@ sub _validate_config {
     return;
 }
 
-=item _setup_config()
-    Loads and processes the main Simp::TSDS configuration.
-    Sets the RabbitMQ, TSDS, and config private attributes.
-=cut
+# Loads and processes the main Simp::TSDS configuration.
 sub _setup_config {
     my ($self) = @_;
     $self->logger->info(sprintf("Reading config %s", $self->config_file));
@@ -242,11 +196,11 @@ sub _setup_config {
         force_array => 1
     );
 
-    # Get the validation file for configxml.
-    my $xsd = $self->validation_dir . 'config.xsd';
-
-    # Validate the main config useing the xsd file for it.
+    # Get the validation XSD file and validate config.xml.
+    my $xsd   = $self->validation_dir . 'config.xsd';
     my $valid = $self->_validate_config($self->config_file, $config, $xsd);
+
+    # Exit upon reading an invalid configuration.
     exit(1) unless ($valid);
 
     # Set the main config object and contained parameters.
@@ -256,8 +210,7 @@ sub _setup_config {
     $self->_set_rmq_config($config->get('/config/rabbitmq')->[0]);
     $self->_set_tsds_config($config->get('/config/tsds')->[0]);
 
-    # Set the global performance tuning settings 
-    # Defaults set so reloaded config without these parameters uses them.
+    # Set global performance settings or default them.
     my $settings = $config->get('/config/settings');
     $settings = $settings->[0] if ($settings);
     my $max_workers    = $settings->{'max_workers'} || 4;
@@ -268,9 +221,7 @@ sub _setup_config {
     $self->logger->debug("Set the config");
 }
 
-=item _get_collection_configs()
-    Loads the collections.d configuration files.
-=cut
+# Loads the collections.d files as GRNOC::Config objects.
 sub _get_collection_configs {
     my ($self) = @_;
     $self->logger->debug(sprintf("Reading collection configurations in %s", $self->collections_dir));
@@ -311,22 +262,16 @@ sub _get_collection_configs {
     return \@collection_configs;
 }
 
-=item _setup_collections()
-    Loads and processes the collections.d configurations.
-    These are used in the creation of Simp::TSDS::Worker procs.
-=cut
+# Loads and processes the collections.d configurations.
 sub _setup_collections {
     my ($self) = @_;
     $self->logger->debug(sprintf("Setting up collections"));
 
-    # Create a hash of collections grouped by interval
-    # This hash is returned as a flat array of its values
-    my %collections;
-
-    # Get the current time to set the next cycle of each collection.
-    # Collections are instantiated to $now so they run on start up.
+    # Get the current time to set next_cycle for collections.
     my $now = time();
 
+    # Create a hash of collections grouped by interval
+    my %collections;
     for my $config (@{$self->_get_collection_configs()}) {
 
         # Process each collection in the config and push the result to collections.
@@ -335,13 +280,12 @@ sub _setup_collections {
             # Get the interval for the collection's requests
             my $interval = $collection->{'interval'};
 
-            # Initialize the next cycle as the current round-minute interval.
+            # Initialize the next_cycle as the current round-minute interval.
             # This ensures that cycles stay rounded and arent missed during restart.
             # Simp::TSDS::Worker will always request data back one interval from this.
             my $next_cycle = $now - ($now % $interval);
 
-            # Initialize the collection's cached configurations.
-            # A collection has an interval, next collection cycle, and requests array.
+            # Initialize the collection's configuration hash.
             unless (exists($collections{$interval})) {
                 $collections{$interval} = {
                     interval   => $interval,
@@ -400,7 +344,6 @@ sub _setup_collections {
             }
         }
     }
-
     # Collection parameters were built as a hash of collection hashes keyed on interval.
     # Unpack the interval hashes into an array.
     my $collections_array = [values(\%collections)];
@@ -410,10 +353,8 @@ sub _setup_collections {
     $self->logger->debug("Finished setting up collections");
 }
 
-=item _setup_status_cache()
-    Initializes the status cache for all requests after _setup_collections().
-    This will also clear any cached status data during a reload (HUP).
-=cut
+# Initializes the status cache for all requests after _setup_collections().
+# NOTE: This will clear any previously cached status data.
 sub _setup_status_cache {
     my ($self) = @_;
     $self->logger->debug("Setting up status cache");
@@ -423,7 +364,7 @@ sub _setup_status_cache {
     # Errors, Rabbitmq, and TSDS values are counts of workers with flagged errors.
     # Unsent is counter of total unsent messages (DO NOT CONFUSE WITH $self->unsent_cache)
     # Duration is sum of worker durations, used to calculate cycle average.
-    # Dump is the number of messages that have failed to dump to disk.
+    # Dump is the number of messages failed while dumping to disk.
     # Requests will be a hash of request ID's to their individual status data.
     my $status_cache = {
         'errors'   => 0,
@@ -435,13 +376,11 @@ sub _setup_status_cache {
     };
 
     # Set the resulting hash as the status cache.
-    # NOTE: This will clear any previously cached status data.
     $self->_set_status_cache($status_cache);
     $self->logger->debug("Set status cache");
 }
 
-=item _setup_forker()
-=cut
+# Creates and sets the P::FM object in $self.
 sub _setup_forker {
     my ($self) = @_;
 
@@ -468,37 +407,33 @@ sub _setup_forker {
     $self->_set_forker($forker);
 }
 
-=item _cache_worker_status()
-=cut
+# Caches a worker's status data in $self->status_cache.
 sub _cache_worker_status {
     my ($self, $status) = @_;
     $self->logger->info(sprintf('%s: Finished %s requests in %s seconds', $status->{'name'}, scalar(keys(%{$status->{'requests'}})), $status->{'duration'}));
 
-    # Add status counters to the totals.
+    # Add worker's status counters to the totals.
     for my $counter (('errors', 'rabbitmq', 'tsds', 'duration')) {
         $self->status_cache->{$counter} += $status->{$counter};
     }
 
-    # Cache each requests' status hash using its ID.
+    # Cache each requests' status hash from the worker using its ID.
     while (my ($id, $request_status) = each(%{$status->{'requests'}})) {
         $self->status_cache->{'requests'}{$id} = $request_status;
     }
 
-    # Cache messages the unsent messages for resending.
+    # Cache the worker's unsent messages for resending.
     push(@{$self->unsent_cache}, @{$status->{'unsent'}});
 }
 
-=head2 _balance_requests
-    Creates an array of host config assignments per worker given a collection.
-    The array index is the worker ID and its element is the array of configs.
-    This can't be run until all collection configs have been processed.
-=cut 
+# Balances request hashes across a max_workers number of arrays.
+# Array indexes become the worker IDs and elements are arrays of their requests.
+# NOTE: This can't run until after $self->_setup_collections().
 sub _balance_requests {
     my ($self, $requests) = @_;
     $self->logger->debug(sprintf("Balancing %s request load across %s workers", scalar(@$requests), $self->max_workers));
 
     # Create an array of arrays to store requests for each worker.
-    # The array index serves as the worker ID number.
     my @worker_requests = map {[]} (0 .. ($self->max_workers - 1));
 
     # Track the worker ID getting host assignments
@@ -507,7 +442,7 @@ sub _balance_requests {
     # Assign hosts to workers evenly (round-robin).
     for my $request (@$requests) {
 
-        # Add the host to the worker's host array
+        # Add the request to the worker's request array
         push(@{$worker_requests[$id]}, $request);
 
         # Update ID to the next worker.
@@ -518,8 +453,7 @@ sub _balance_requests {
     return \@worker_requests;
 }
 
-=item _collect
-=cut
+# Creates workers to fulfill requests when ready.
 sub _collect {
     my ($self) = @_;
 
@@ -546,7 +480,7 @@ sub _collect {
     my $worker_requests = $self->_balance_requests($cycle_requests);
     my $unsent_messages = $self->_balance_requests($self->unsent_cache);
 
-    # Clear the cache of unsent messages.
+    # Clear the cache of unsent messages after balancing them.
     # If a retry fails, they will be cached again by workers.
     $self->_set_unsent_cache([]);
 
@@ -575,7 +509,7 @@ sub _collect {
             tsds_config => $self->tsds_config,
         );
 
-        # Process the requests and return a status data hashref.
+        # Process the requests and return a status data hashref to cache.
         my $worker_status = $worker->run();
 
         # Exit when the fork has finished, returning data from the worker.
@@ -589,7 +523,6 @@ sub _collect {
     my $average_duration = ($self->status_cache->{'duration'} / scalar(@$worker_requests));
     $self->logger->info(sprintf('Average worker duration: %.3fs', $average_duration));
     
-
     # Write a dump of unsent messages when past the threshold.
     $self->_write_unsent() if (scalar(@{$self->unsent_cache}) > $self->dump_threshold);
 
@@ -600,11 +533,12 @@ sub _collect {
     $self->_setup_status_cache();
 }
 
+# Writes a data dump of unsent TSDS data messages to disk.
 sub _write_unsent {
     my ($self) = @_;
     $self->logger->info(sprintf('Unsent messages cached: %s (max: %s)', scalar(@{$self->unsent_cache}), $self->dump_threshold));
 
-    # Do not attempt to write an empty array.
+    # Do not attempt to write an empty array of messages.
     return unless (scalar(@{$self->unsent_cache}));
 
     # Pull the data messages out of the unsent data objects.
@@ -618,16 +552,14 @@ sub _write_unsent {
         $self->logger->error(sprintf("Could not encode data as JSON during dump: %s", $_));
     };
 
-    # Write the array of data messages to the dump dir.
+    # Write the array of data messages to a dump file.
     my $file = $self->status_dir . sprintf('dumps/dump_%s.json', time());
-
-    # Write the file dump to disk and catch any I/O errors.
     my $write_error;
     open(FH, '>', $file) or $write_error = $!;
     print(FH $json_dump);
     close(FH) or $write_error = $!;
 
-    # Clear the cache unless there were errors dumping it.
+    # Clear the cache unless there were errors writing it.
     unless ($write_error) {
         $self->logger->info(sprintf("Wrote %s message dump in %s", scalar(@dump), $file));
         $self->_set_unsent_cache([]);
@@ -638,11 +570,9 @@ sub _write_unsent {
     }
 }
 
-=head3 _write_status
-=cut
+# Writes a service status file using the status_cache data.
 sub _write_status {
     my ($self, $workers) = @_;
-
     $self->logger->debug(sprintf('Writing status data to %sstatus.txt', $self->status_dir));
 
     # Get the current time and reference to the status cache.
@@ -710,9 +640,7 @@ sub _write_status {
     $self->logger->error("Could not write status file: $write_result") unless ($write_result);
 }
 
-=head2 _log_exit()
-    Does exactly what the name implies
-=cut
+# Logs an error and exits the program.
 sub _log_exit {
     my $self = shift;
     my $msg  = shift;

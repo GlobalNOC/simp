@@ -1,22 +1,11 @@
 package GRNOC::Simp::TSDS::Worker;
 
-# Documentation commands in Perl Pod format.
-# see: https://perldoc.perlorg/perlpod.
-
-=head1 GRNOC::SIMP::TSDS::Worker
-    Workers that push data requested from Simp::Comp to a TSDS DB.
-    A worker process will perform this on a set interval cycle.
-    The data type is set on creation and is immutable.
-    Input is requested from GRNOC::Simp::Comp via AMQP.
-    Output is pushed to a TSDS DB given the config defined in GRNOC::Simp:TSDS.
-=cut
-
+#---------------------------------------------------
+# IMPORTS
+#---------------------------------------------------
 use strict;
 use warnings;
 
-
-=head2 IMPORTS
-=cut
 use Moo;
 use Try::Tiny;
 use Data::Dumper;
@@ -30,16 +19,9 @@ use GRNOC::RabbitMQ::Method;
 use GRNOC::WebService::Client;
 
 
-=head2 PUBLIC ATTRIBUTES
-=over 4 
-=item id
-=item requests
-=item logger
-=item rmq_config
-=item tsds_config
-=item unsent
-=back
-=cut
+#---------------------------------------------------
+# PUBLIC ATTRIBUTES
+#---------------------------------------------------
 has id          => (is => 'ro', required => 1);
 has requests    => (is => 'ro', required => 1);
 has logger      => (is => 'ro', required => 1);
@@ -48,15 +30,9 @@ has tsds_config => (is => 'ro', required => 1);
 has unsent      => (is => 'ro', default => sub { [] });
 
 
-=head2 PRIVATE ATTRIBUTES
-=over 4
-=item rabbitmq
-=item tsds
-=item data
-=item status
-=item push_size
-=back
-=cut
+#---------------------------------------------------
+# PRIVATE ATTRIBUTES
+#---------------------------------------------------
 has rabbitmq  => (is => 'rwp');
 has tsds      => (is => 'rwp');
 has data      => (is => 'rwp', default => sub { [] });
@@ -64,11 +40,12 @@ has status    => (is => 'rwp', default => sub { {} });
 has push_size => (is => 'rwp', default => 100);
 
 
-=head2 PUBLIC METHODS
-=head3 run()
-    This method is called by Simp::TSDS to run the worker.
-    It will request data from Simp::Comp and push results to TSDS.
-=cut
+#---------------------------------------------------
+# PUBLIC METHODS
+#---------------------------------------------------
+# This method is called by GRNOC::Simp::TSDS to run the worker.
+# It will request data from Simp::Comp and push results to TSDS.
+# Returns a status hash to GRNOC::Simp::TSDS.
 sub run {
     my ($self) = @_;
     $self->logger->info(sprintf("%s: running %s requests", $0, scalar(@{$self->requests})));
@@ -97,11 +74,11 @@ sub run {
     return $self->status;
 }
 
-=head2 PRIVATE METHODS
-=head3 _setup()
-    A wrapper method for various methods that set up the worker.
-    Sets the process name, status cache, and RabbitMQ and TSDS clients.
-=cut
+#---------------------------------------------------
+# PRIVATE METHODS
+#---------------------------------------------------
+# A wrapper method for various methods that set up the worker.
+# Sets the process name, status cache, and RabbitMQ and TSDS clients.
 sub _setup {
     my ($self) = @_;
 
@@ -125,10 +102,8 @@ sub _setup {
     return 1;
 }
 
-=head3 _setup_status()
-    Method that initializes the status cache.
-    Must run before any other methods.
-=cut
+# Method that initializes the status cache.
+# NOTE: Must run before any other methods.
 sub _setup_status {
     my ($self) = @_;
     $self->logger->debug("Setting up status cache");
@@ -148,10 +123,8 @@ sub _setup_status {
     $self->logger->debug("Set the status cache");
 }
 
-=head3 _check_rabbitmq()
-    Checks the connection state of the cached RabbitMQ Client.
-    Returns true when connected.
-=cut
+# Checks the connection state of the cached RabbitMQ Client.
+# Returns true when connected.
 sub _check_rabbitmq {
     my ($self) = @_;
     unless ($self->rabbitmq && $self->rabbitmq->connected) {
@@ -162,10 +135,8 @@ sub _check_rabbitmq {
     return 1;
 }
 
-=head3 _setup_rabbitmq()
-    Creates a new RabbitMQ Client and caches it.
-    Returns true on successful creation and connection.
-=cut
+# Creates a new RabbitMQ Client and caches it.
+# Returns true on successful creation and connection.
 sub _setup_rabbitmq {
     my ($self) = @_;
     $self->logger->debug("$0: Setting up RabbitMQ client");
@@ -194,10 +165,8 @@ sub _setup_rabbitmq {
     return $connected;
 }
 
-=head3 _check_tsds()
-    Checks the connection state of the cached TSDS Push API.
-    Returns true when connected.
-=cut
+# Checks the connection state of the cached TSDS Push API.
+# Returns true when connected.
 sub _check_tsds {
     my ($self) = @_;
     unless ($self->tsds->help()) {
@@ -208,10 +177,8 @@ sub _check_tsds {
     return 1;
 }
 
-=head3 _setup_tsds()
-    This will create and set the TSDS GRNOC::WebServiceClient for the worker.
-    The TSDS client is used to push data to a TSDS API push.cgi endpoint.
-=cut
+# Creates and sets the TSDS GRNOC::WebServiceClient for the worker.
+# The TSDS client is used to push data to a TSDS API push.cgi endpoint.
 sub _setup_tsds {
     my ($self) = @_;
     $self->logger->debug("$0: Setting up TSDS Push API client");
@@ -242,8 +209,7 @@ sub _setup_tsds {
     }
 }
 
-=head3
-=cut
+# Helper function for processing response errors from RabbitMQ and TSDS.
 sub _get_response_error {
     my ($self, $type, $id, $response) = @_;
 
@@ -267,8 +233,8 @@ sub _get_response_error {
     return $error
 }
 
-=head3 _process_requests()
-=cut
+# Reads requests and gets data from the RabbitMQ Simp.Comp queue.
+# Data returned from RabbitMQ is reformatted for TSDS and cached.
 sub _process_requests {
     my ($self) = @_;
     $self->logger->info(sprintf("%s: Processing %s data requests", $0, scalar(@{$self->requests})));
@@ -321,17 +287,13 @@ sub _process_requests {
         my $query_time  = tv_interval([$query_start], [$query_end]);
         $self->logger->debug(sprintf("%s: got %s (%ss)", $0, $request->{'node'}, $query_time));
 
-        # Process the data returned by Simp::Comp
+        # Process the data returned by Simp.Comp and cache it.
         $self->_process_data($response, $request);
     }
     $self->logger->debug("$0: Finished processing data from Simp.Comp");
 }
 
-=head3 _process_data(\%response, \%request)
-    This will process data from Comp into TSDS-friendly messages.
-    All data is processed before it can be posted to TSDS.
-    Metadata and Value fields are separated here.
-=cut
+# Transforms responses from Simp.Comp into JSON TSDS data messages and caches them.
 sub _process_data {
     my ($self, $response, $request) = @_;
     $self->logger->debug(sprintf('%s: Processing data response for %s', $0, $request->{'id'}));
@@ -416,10 +378,7 @@ sub _process_data {
     }
 }
 
-=head3 _push_data()
-    This pushes data messages to TSDS once they've been processed.
-    We call this method as a callback from within the event loop.
-=cut
+# Pushes JSON TSDS data messages to TSDS.
 sub _push_data {
     my ($self, $data, $type) = @_;
     $self->logger->debug(sprintf("%s: pushing %s %s messages to TSDS", $0, scalar(@$data), $type));
