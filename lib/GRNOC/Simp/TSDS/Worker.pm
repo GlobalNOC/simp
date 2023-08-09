@@ -48,7 +48,6 @@ has push_size => (is => 'rwp', default => 100);
 # Returns a status hash to GRNOC::Simp::TSDS.
 sub run {
     my ($self) = @_;
-    $self->logger->info(sprintf("%s: running %s requests", $0, scalar(@{$self->requests})));
 
     # Track the start time of the run
     my $cycle_start = gettimeofday();
@@ -149,6 +148,7 @@ sub _setup_rabbitmq {
         pass     => $self->rmq_config->{'password'},
         exchange => 'Simp',
         topic    => 'Simp.Comp',
+        exlusive => 0,
     );
     $self->_set_rabbitmq($client);
     $self->logger->debug("$0: Set the RabbitMQ client");
@@ -241,7 +241,10 @@ sub _process_requests {
 
     # Current time for queries
     my $now = time();
-        
+
+    # Queries to be sent to Simp.Comp
+    my @queries;
+
     # Gather data from Simp::Comp for each request
     for my $request (@{$self->requests}) {
         $self->logger->debug(sprintf("%s: getting %s for %s", $0, $request->{'composite'}, $request->{'node'}));
@@ -258,9 +261,10 @@ sub _process_requests {
         # Set the query to pass to Simp::Comp via the Simp.Comp queue
         # Always search one interval behind to avoid a race condition with Simp::Poller
         my %query = (
-            node    => $request->{'node'},
-            period  => $request->{'interval'},
-            time    => $now - $request->{'interval'}
+            node      => $request->{'node'},
+            interval  => $request->{'interval'},
+            composite => $request->{'composite'},
+            time      => $now - $request->{'interval'}
         );
         
         # Apply filters to the Simp.Comp RabbitMQ query
@@ -273,108 +277,114 @@ sub _process_requests {
         if (defined($request->{'exclusions'}) && scalar(@{$request->{'exclusions'}}) > 0) {
             $query{'exclude_regexp'} = $request->{'exclusions'};
         }
-        
-        # Time the query
-        my $query_start = gettimeofday();
 
-        # Ask Simp::Comp to provide data via the Simp.Comp queue in RabbitMQ
-        # The RabbitMQ method name provides the composite to Simp::Comp
-        my $composite  = sprintf("%s", $request->{'composite'});
-        my $response   = $self->rabbitmq->$composite(%query);
-        
-        # Finish timing the query
-        my $query_end   = gettimeofday();
-        my $query_time  = tv_interval([$query_start], [$query_end]);
-        $self->logger->debug(sprintf("%s: got %s (%ss)", $0, $request->{'node'}, $query_time));
-
-        # Process the data returned by Simp.Comp and cache it.
-        $self->_process_data($response, $request);
+        # Add the query params to our array of queries to request
+        push(@queries, \%query);
     }
+
+    # Time the query
+    my $query_start = gettimeofday();
+
+    # Ask Simp::Comp to provide data via the Simp.Comp queue in RabbitMQ
+    # The RabbitMQ method name provides the composite to Simp::Comp
+    my %args = ('requests' => \@queries);
+    my $response = $self->rabbitmq->get(%args);
+
+    # Finish timing the request to Simp.Comp
+    my $query_end   = gettimeofday();
+    my $query_time  = tv_interval([$query_start], [$query_end]);
+    #$self->logger->debug(sprintf("%s: got %s (%ss)", $0, $request->{'id'}, $query_time));
+
+    # Process the data returned by Simp.Comp and cache it.
+    $self->_process_data($response);
+
     $self->logger->debug("$0: Finished processing data from Simp.Comp");
 }
 
 # Transforms responses from Simp.Comp into JSON TSDS data messages and caches them.
 sub _process_data {
-    my ($self, $response, $request) = @_;
-    $self->logger->debug(sprintf('%s: Processing data response for %s', $0, $request->{'id'}));
+    my ($self, $response) = @_;
 
-    my $id     = $request->{'id'};
-    my $node   = $request->{'node'};
+    for my $request (@{$self->requests}) {
 
-    # Get a reference to the request's status trackers.
-    my $request_status = $self->status->{'requests'}{$id};
+        $self->logger->debug(sprintf('%s: Processing data response for %s', $0, $request->{'id'}));
 
-    $self->logger->debug(Dumper($response));
+        my $id     = $request->{'id'};
+        my $node   = $request->{'node'};
 
-    # Do not process error responses or those without data for the node.
-    if ($self->_get_response_error($id, 'RabbitMQ', $response)) {
+        # Get a reference to the request's status trackers.
+        my $request_status = $self->status->{'requests'}{$id};
 
-        # Set the pull and error flags in the status.
-        $self->status->{'errors'}      = 1;
-        $request_status->{'errors'}    = 1;
-        $request_status->{'rabbitmq'}  = 1;
-        return;
-    }
+        # Do not process error responses or those without data for the node.
+        if ($self->_get_response_error($id, 'RabbitMQ', $response)) {
 
-    # Process every data hash in the response for the node.
-    for my $data (@{$response->{'results'}{$node}}) {
-
-        # Skip the data hash when a required field is empty.
-        next if (any { !defined($data->{$_}) && !defined($data->{"*$_"}) } @{$request->{'required'}});
-
-        # Build a TSDS Push API data message from the results' data hash.
-        # TODO: Simp::Comp should return preformatted TSDS Push data messages
-        my $time;
-        my %vals;
-        my %meta;
-        while (my ($k, $v) = each(%$data)) {
-
-            # Get the timestamp
-            if ($k eq 'time') {
-                next if !defined($v); # Workaround for 3135:160
-                $time = $v + 0;
-            }
-            # Keys for metadata start with an asterisk (*)
-            elsif ($k =~ /^\*/) {
-                $meta{substr($k, 1)} = $v;
-            }
-            # Keys for values do not have an asterisk
-            else {
-                $vals{$k} = defined($v) ? $v + 0 : undef;
-            }
+            # Set the pull and error flags in the status.
+            $self->status->{'errors'}      = 1;
+            $request_status->{'errors'}    = 1;
+            $request_status->{'rabbitmq'}  = 1;
+            return;
         }
 
-        # Create a data message for the TSDS Push API
-        my $message = {
-            time     => $time,
-            type     => $request->{'measurement'},
-            interval => $request->{'interval'},
-            values   => \%vals,
-            meta     => \%meta
-        };
+        # Process every data hash in the response for the node.
+        for my $data (@{$response->{'results'}{$node}}) {
 
-        # Encode the individual data message as a JSON object string.
-        # Track and skip messages that could not be encoded as JSON.
-        my $message_json;
-        try {
-            $message_json = encode_json($message);
-        } catch {
-            $self->logger->error(sprintf("%s: Could not encode data as JSON for %s: %s", $id, $0, $_));
-            $self->status->{'errors'}     = 1;
-            $request_status->{'errors'}   = 1;
-            $request_status->{'encoding'} = 1;
-            next;
-        };
+            # Skip the data hash when a required field is empty.
+            next if (any { !defined($data->{$_}) && !defined($data->{"*$_"}) } @{$request->{'required'}});
 
-        # Create a data hash to tie the message to a request ID
-        my $data = {
-            time    => $time,
-            id      => $request->{'id'},
-            message => $message_json
-        };
+            # Build a TSDS Push API data message from the results' data hash.
+            # TODO: Simp::Comp should return preformatted TSDS Push data messages
+            my $time;
+            my %vals;
+            my %meta;
+            while (my ($k, $v) = each(%$data)) {
 
-        # Cache the data hash
-        push(@{$self->data}, $data);
+                # Get the timestamp
+                if ($k eq 'time') {
+                    next if !defined($v); # Workaround for 3135:160
+                    $time = $v + 0;
+                }
+                # Keys for metadata start with an asterisk (*)
+                elsif ($k =~ /^\*/) {
+                    $meta{substr($k, 1)} = $v;
+                }
+                # Keys for values do not have an asterisk
+                else {
+                    $vals{$k} = defined($v) ? $v + 0 : undef;
+                }
+            }
+
+            # Create a data message for the TSDS Push API
+            my $message = {
+                time     => $time,
+                type     => $request->{'measurement'},
+                interval => $request->{'interval'},
+                values   => \%vals,
+                meta     => \%meta
+            };
+
+            # Encode the individual data message as a JSON object string.
+            # Track and skip messages that could not be encoded as JSON.
+            my $message_json;
+            try {
+                $message_json = encode_json($message);
+            } catch {
+                $self->logger->error(sprintf("%s: Could not encode data as JSON for %s: %s", $id, $0, $_));
+                $self->status->{'errors'}     = 1;
+                $request_status->{'errors'}   = 1;
+                $request_status->{'encoding'} = 1;
+                next;
+            };
+
+            # Create a data hash to tie the message to a request ID
+            my $data = {
+                time    => $time,
+                id      => $request->{'id'},
+                message => $message_json
+            };
+
+            # Cache the data hash
+            push(@{$self->data}, $data);
+        }
     }
 }
 
