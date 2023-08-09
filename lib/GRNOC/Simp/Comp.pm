@@ -342,6 +342,8 @@ sub _make_composites {
 
         # Begin processing the given parameters for "data"
         my $data = $parameters->{'data'}[0];
+        $data->{'meta'}{'node'} = {source => 'node'};
+
         my $metadata = exists $data->{'meta'} ? $data->{'meta'} : {};
         my $values   = exists $data->{'value'} ? $data->{'value'} : {};
 
@@ -472,8 +474,8 @@ sub _map_oid {
     # sure it lines up with poller
     my $leading_dot = 0;
     if ($elem->{'base_oid'} =~ /^\./){
-	$leading_dot = 1;
-	$elem->{'base_oid'} =~ s/^\.//;
+	    $leading_dot = 1;
+	    $elem->{'base_oid'} =~ s/^\.//;
     }
 
     # Split the oid into its nodes
