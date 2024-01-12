@@ -7,6 +7,7 @@ use Data::Dumper;
 use Time::HiRes qw(gettimeofday tv_interval usleep);
 use List::MoreUtils qw(any natatime);
 use Moo;
+use Syntax::Keyword::Try;
 
 use GRNOC::RabbitMQ::Client;
 use GRNOC::RabbitMQ::Dispatcher;
@@ -452,15 +453,19 @@ sub _write_push_status {
     my $error = (defined($res) && $res->{'error'}) ? 1 : 0;
     my $error_txt = ($error eq 1) ? $res->{'error_text'} : "";
  
-    my $write_res = write_service_status(
-        path => $path,
-        error        => $error + 0,
-        error_txt    => $error_txt,
-    );
-    if (!$write_res) {
-        $self->logger->error(sprintf("ERROR: Worker %s was unable to write a status file after push to tsds", $self->worker_name));
+    try {
+        my $write_res = write_service_status(
+            path => $path,
+            error        => $error + 0,
+            error_txt    => $error_txt,
+        );
+        if (!$write_res) {
+            $self->logger->error(sprintf("ERROR: Worker %s was unable to write a status file after push to tsds", $self->worker_name));
+        }
     }
-
+    catch ($e) {
+        $self->logger->error(sprintf("%s Error: Exception while trying to write %s", $self->worker_name, $path));
+    }
 }
 
 1;
