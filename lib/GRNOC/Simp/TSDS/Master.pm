@@ -510,7 +510,7 @@ sub _create_worker
         },
         code => sub {
             $worker->start();
-        }
+        },
         delegates => ['StandardHandles', 'PrintError']
     );
     # Start worker, 
@@ -518,11 +518,11 @@ sub _create_worker
 
     # Register delegate handlers for the AE::Subprocess::Run instances
     # This is a way to ensure fork logging works.
-    $proc->delegate->('stdout')->handle->push_read(line => sub {
+    $proc->delegate('stdout')->handle->push_read(line => sub {
         my ($h, $line) = @_;
         $self->logger->info($line);
     });
-    $proc->delegate->('stderr')->handle->push_read(line => sub {
+    $proc->delegate('stderr')->handle->push_read(line => sub {
         my ($h, $line) = @_;
         $self->logger->error($line);
     });
