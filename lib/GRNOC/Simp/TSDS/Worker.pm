@@ -453,6 +453,8 @@ sub _write_push_status {
     my $error = (defined($res) && $res->{'error'}) ? 1 : 0;
     my $error_txt = ($error eq 1) ? $res->{'error_text'} : "";
  
+    # Status writing is wrapped in try/catch for i/o exceptions.
+    # Both the master and worker access the same file without locking.
     try {
         my $write_res = write_service_status(
             path => $path,

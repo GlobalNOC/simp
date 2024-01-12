@@ -11,6 +11,7 @@ use Moo;
 use JSON::XS qw(decode_json);
 use POSIX qw(setuid setgid);
 use Proc::Daemon;
+use Syntax::Keyword::Try;
 use Types::Standard qw(Str Bool Int);
 
 use GRNOC::Monitoring::Service::Status;
@@ -539,42 +540,58 @@ sub _check_worker_health() {
     my $self = shift;
     my $dir = $self->worker_status_dir."/*status.txt";
     my %files = map { basename($_) => $_ } glob($dir); 
-
     my $errors_found = 0;
     my $now = time();
+
     # Loop through all worker names we expect to find status files for
     while (my ($child_pid, $worker) = each(%{$self->worker_patterns})) {
+
         my $filename = sprintf("%s-%s-status.txt", $child_pid, $worker->worker_name);
+
         if ( exists $files{$filename} ) {
-            my $res = open(my $fh, "<", "$files{$filename}");
-            if ( $res ) {
-                my $worker_status = readline($fh);
-                $worker_status = decode_json($worker_status);
-                # Check that status file has a clear error flag i.e. 0
-                if ( $worker_status->{'error'} ne 0 ) {
-                    $self->logger->error(sprintf("Non-zero error flag from %s. Error: %s",
-                        $worker->worker_name,
-                        $worker_status->{'error_text'})
-                    );
-                    $errors_found += 1; 
-                } 
-                # Check that timestamp is fresh (timestamp within 2 * interval of current time)
-                if ( $worker_status->{'timestamp'} < ($now - $worker->interval * 2) ) {
-                    $self->logger->error(sprintf("\n Stale status file from %s - \n current time: %s \n interval: %s \n latest timestamp: %s",
-                        $worker->worker_name,
-                        $now,
-                        $worker->interval,
-                        $worker_status->{'timestamp'})
-                    );
-                    $errors_found += 1; 
+
+            # Worker status reading is wrapped in try/catch for i/o exceptions.
+            # Both the master and worker procs will access the files without locking.
+            # JSON is decoded from the file contents as well.
+            try {
+                my $res = open(my $fh, "<", "$files{$filename}");
+                if ( $res ) {
+                    my $worker_status = readline($fh);
+                    $worker_status = decode_json($worker_status);
+                    # Check that status file has a clear error flag i.e. 0
+                    if ( $worker_status->{'error'} ne 0 ) {
+                        $self->logger->error(sprintf(
+                            "Error: Non-zero error flag from %s: %s",
+                            $worker->worker_name,
+                            $worker_status->{'error_text'}
+                        ));
+                        $errors_found += 1;
+                    }
+                    # Check that timestamp is fresh (timestamp within 2 * interval of current time)
+                    if ( $worker_status->{'timestamp'} < ($now - $worker->interval * 2) ) {
+                        $self->logger->error(sprintf(
+                            "Error: Stale status file from %s [Interval = %ss, Now = %s, Status = %s]",
+                            $worker->worker_name,
+                            $worker->interval,
+                            $now,
+                            $worker_status->{'timestamp'})
+                        );
+                        $errors_found += 1;
+                    }
                 }
-            # Any missing file or unreadable file needs to be investigated as an error
-            } else {
-                $self->logger->error(sprintf("Could not open status file for worker %s. Error: %s", $worker->worker_name, $!));
-                $errors_found += 1;
+                # Any missing file or unreadable file needs to be investigated as an error
+                else {
+                    $self->logger->error(sprintf("Error: Could not open status file for worker %s: %s", $worker->worker_name, $!));
+                    $errors_found += 1;
+                }
             }
-        } else {
-            $self->logger->error(sprintf("Could not find a status file for worker %s", $worker->worker_name));
+            catch ($e) {
+                $self->logger->error(sprintf("Error: Exception occurred while reading worker status %s: %s", $filename, $e));
+                $errors_found += 1;
+            };
+        }
+        else {
+            $self->logger->error(sprintf("Error: Could not find a status file for worker %s", $worker->worker_name));
             $errors_found += 1;
         }
     }
@@ -584,14 +601,22 @@ sub _check_worker_health() {
          $self->worker_status_dir
     );
     $self->logger->debug($status_message);
-    my $res = write_service_status(
-        service_name    => 'simp-tsds',
-        error           => ($errors_found > 0) + 0,
-        error_txt       => ($errors_found > 0 ? $status_message : "")
-    );
-    if (!$res) {
-        $self->logger->error("Problem writing master status file! Result: $res");
+
+    # Wrap the status file write in try/catch.
+    # The GRNOC::Monitoring::Service::Status module does not handle write exceptions.
+    try {
+        my $res = write_service_status(
+            service_name    => 'simp-tsds',
+            error           => ($errors_found > 0) + 0,
+            error_txt       => ($errors_found > 0 ? $status_message : "")
+        );
+        if (!$res) {
+            $self->logger->error("Error: Problem writing master status file: $res");
+        }
     }
+    catch ($e) {
+        $self->logger->error(sprintf("Error: Exception occurred while writing simp-tsds status: %s", $e));
+    };
 }
 
 1;
