@@ -432,7 +432,7 @@ sub _push_data {
     my $res;
     while (my @block = $iterator->()) {
         $res = $self->tsds_pusher->push(\@block);
-        if ( defined($res) && $res->{'error'} ) { 
+        if (!defined($res) || (ref($res) eq 'HASH' && exists($res->{'error'}) && $res->{'error'})) {
             $last_failure = $res;
         }
     }
@@ -448,8 +448,9 @@ sub _write_push_status {
     my $res = shift;
 
     my $path = $self->status_filepath;
+    
     my $error = (defined($res) && $res->{'error'}) ? 1 : 0;
-    my $error_txt = ($error eq 1) ? $res->{'error'} : "";
+    my $error_txt = ($error eq 1) ? $res->{'error_text'} : "";
  
     my $write_res = write_service_status(
         path => $path,
