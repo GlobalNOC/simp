@@ -406,7 +406,11 @@ sub _create_workers
         # Will cause an effective 'restart' of master.
         $self->running->send;
     };
-
+    # Handler for unexpected errors or exceptions that result in process termination
+    $SIG{'__DIE__'} = sub {
+        my $error = shift;
+        $self->logger->error(sprintf("Error: %s (PID %s) died unexpectedly: %s", $0, $$, $error));
+    };
 }
 
 # Creates workers for a single collection

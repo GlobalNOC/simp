@@ -131,6 +131,12 @@ sub start {
     # Create and set the logger
     $self->_set_logger(Log::Log4perl->get_logger('GRNOC.Simp.TSDS.Worker'));
 
+    # Handler for unexpected errors or exceptions that result in process termination
+    $SIG{'__DIE__'} = sub {
+        my $error = shift;
+        $self->logger->error(sprintf("Error: %s (PID %s) died unexpectedly: %s", $0, $$, $error));
+    };
+
     # Add worker PID to the path passed in by master
     $self->_set_status_filepath(sprintf("%s/%s-%s-", $self->status_filepath, $$, $self->worker_name));
     # Initialize status file
