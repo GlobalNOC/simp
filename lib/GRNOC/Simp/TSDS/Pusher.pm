@@ -155,7 +155,7 @@ sub push {
     }
     # Handle abnormal response formats
     elsif (ref($res) ne 'HASH') {
-        $error = sprintf("[%s] Error: Abnormal response of type %s from push.cgi", self->worker_name, ref($res));
+        $error = sprintf("[%s] Error: Abnormal response of type %s from push.cgi", $self->worker_name, ref($res));
         $self->logger->error($error);
         return {'error' => 1, 'error_text' => $error};
     }
