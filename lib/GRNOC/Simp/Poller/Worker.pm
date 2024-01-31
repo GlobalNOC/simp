@@ -419,16 +419,16 @@ sub _poll_cb {
         # Select DB[0] of Redis so we can insert value data
         # Specifying the callback causes Redis piplining to reduce RTTs
 
-        # Always write defined value data to Redis
+        # Always write defined value data to Redis and set its expiration
         $redis->select(0, sub{});
-        $redis->sadd($host_keys{db0}, @values, sub{}) if (@values);
+        if (@values) {
+            $redis->sadd($host_keys{db0}, @values, sub{});
+            $redis->expire($host_keys{db0}, $expire, sub{});
+        }
 
         # Write lookup key data to Redis
         # Only write if there are no pending replies left
         unless (keys($status->{pending_replies})) {
-
-            # Set the expiration time for the master key once all replies are received
-            $redis->expire($host_keys{db0}, $expire, sub{});
 
             # Create keys for the Host, IP and Time
             my $time_key = sprintf("%s,%s", $poll_id, $time);
@@ -455,6 +455,7 @@ sub _poll_cb {
                 while(my ($var, $value) = each(%$vars)) {
                     $var = ($var =~ s/,//gr);
                     $redis->sadd($host_keys{db0}, sprintf("vars.%s,%s", $var, $value->{value}), sub{});
+                    $redis->expire($host_keys{db0}, $expire, sub{});
                 }
 
                 # Set the host variable's interval lookup 
