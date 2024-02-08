@@ -3,6 +3,8 @@ package GRNOC::Simp::Poller::Worker;
 use strict;
 use warnings;
 
+use lib '/opt/grnoc/venv/simp/lib/perl5';
+
 use AnyEvent;
 use AnyEvent::SNMP;
 use Data::Dumper;

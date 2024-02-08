@@ -3,6 +3,8 @@ package GRNOC::Simp::TSDS::Pusher;
 use strict;
 use warnings;
 
+use lib '/opt/grnoc/venv/simp/lib/perl5';
+
 # Messages pushed with invalid chars have their contents dumped to the error log
 # For this reason, we set Dumper to use a more compact output format
 use Data::Dumper;

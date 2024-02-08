@@ -112,6 +112,9 @@ rm -rf %{buildroot}
 %{__install} lib/GRNOC/Simp/TSDS/Worker.pm %{buildroot}/%{perl_vendorlib}/GRNOC/Simp/TSDS/
 %{__install} lib/GRNOC/Simp/TSDS/Pusher.pm %{buildroot}/%{perl_vendorlib}/GRNOC/Simp/TSDS/
 
+%{__install} -d -p %{buildroot}/opt/grnoc/venv/%{name}/lib/perl5
+cp -r venv/lib/perl5/* -t %{buildroot}/opt/grnoc/venv/%{name}/lib/perl5
+
 # clean up buildroot
 find %{buildroot} -name .packlist -exec %{__rm} {} \;
 
@@ -174,3 +177,6 @@ rm -rf %{buildroot}
 %dir /var/lib/simp/poller/
 %dir /var/lib/grnoc/simp-tsds
 %dir /var/lib/grnoc/simp-tsds/workers
+
+%defattr(-, simp, simp, 755)
+/opt/grnoc/venv/%{name}/lib/perl5/*
