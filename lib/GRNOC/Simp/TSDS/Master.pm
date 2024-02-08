@@ -476,7 +476,7 @@ sub _create_worker
                 defined($_->{'var'})
             && defined($_->{'pattern'})
             && (length($_->{'var'}) > 0)
-    } @$excludes;
+    } @{$excludes};
     @excludes = map { "$_->{'var'}=$_->{'pattern'}" } @excludes;
 
     $self->logger->info("Creating Collector for " . $params{'name'});

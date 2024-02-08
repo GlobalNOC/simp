@@ -67,7 +67,7 @@ for my $composite (@composites) {
     my $expected = load_expected($composite);
 
     # Get the nodes we want data for from the expected data
-    my @nodes = keys %$expected;
+    my @nodes = keys %{$expected};
 
     # Create a new test instance
     my $test = SimpTesting->new(
@@ -97,7 +97,7 @@ for my $composite (@composites) {
                 my $expect = $expected->{$node};  
 
                 # Compare the data returned from Simp.Comp with the expected data
-                ($ok, $stack) = cmp_details($got, bag(@$expect));
+                ($ok, $stack) = cmp_details($got, bag(@{$expect}));
 
                 # Test that the result of the comparison is good
                 ok($ok, "Data returned by Simp.Comp for \"$composite\" and \"$node\" does not match the expected output");

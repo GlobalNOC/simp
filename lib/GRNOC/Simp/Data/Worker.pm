@@ -303,7 +303,7 @@ sub _best_host_groups {
     my $reverse = shift;
 
     # If there's only one group, return it wrapped in an array ref
-    if (scalar(@$groups) == 1) {
+    if (scalar(@{$groups}) == 1) {
         return [$groups->[0]]
     }
 
@@ -312,12 +312,12 @@ sub _best_host_groups {
 
     # Sorts with base OID in descending order
     unless ($reverse) {
-        @sorted = sort {-(length($a->{'base_oid'}) <=> length($b->{'base_oid'})) or ($a->{'interval'} <=> $b->{'interval'})} @$groups;
+        @sorted = sort {-(length($a->{'base_oid'}) <=> length($b->{'base_oid'})) or ($a->{'interval'} <=> $b->{'interval'})} @{$groups};
         return [$sorted[0]];
     }
     # Sorts with base OID in ascending order
     else {
-        @sorted = sort {(length($a->{'base_oid'}) <=> length($b->{'base_oid'})) or ($a->{'interval'} <=> $b->{'interval'})} @$groups;
+        @sorted = sort {(length($a->{'base_oid'}) <=> length($b->{'base_oid'})) or ($a->{'interval'} <=> $b->{'interval'})} @{$groups};
         
         # Array with redundant groups removed from @sorted
         my @filtered = ();
@@ -362,7 +362,7 @@ sub _find_groups {
                 COUNT => 2000
             );
 
-            for my $key (@$keys) {
+            for my $key (@{$keys}) {
                 # Redis returns a hash as an array ref
                 # We convert the array ref to a hash when adding it to our own hash under the host/ip key
                 %{$host_oid_map{$key}} = $redis->hgetall($key);
@@ -386,7 +386,7 @@ sub _find_groups {
         my @host_groups;
         my @host_groups_rev;
 
-        while (my ($base_oid, $group_key) = each(%$oid_group_map)) {
+        while (my ($base_oid, $group_key) = each(%{$oid_group_map})) {
 
             # Parse the group name and interval from the value string for the OID
             my ($group, $interval) = split(',', $group_key);
@@ -507,7 +507,7 @@ sub _find_keys {
     );
 
     # Ensure that groups were found for the host and OID
-    if (!defined($host_groups) || (none {defined($host_groups->{$_})} keys(%$host_groups))) {
+    if (!defined($host_groups) || (none {defined($host_groups->{$_})} keys(%{$host_groups}))) {
         $self->logger->error("[_find_keys] Unable to find groups for $host -> $oid");
         return;
     }
@@ -521,10 +521,10 @@ sub _find_keys {
     # Array of keys for the data to scan through for the host+group
     my $keys = [];
 
-    while (my ($host_key, $groups) = each(%$host_groups)) {
+    while (my ($host_key, $groups) = each(%{$host_groups})) {
 
         # Try to find keys by iterating over the array of possible groups from _find_groups()
-        for my $group (@$groups) {
+        for my $group (@{$groups}) {
 
             # Skip undefined groups
             next if !defined($group);
@@ -556,7 +556,7 @@ sub _find_keys {
     $redis->select(1, sub{});
 
     # Lookup the returned hostgroup keys from earlier in the keys DB of redis
-    while (my ($host_key, $group_data) =  each(%$hostgroup_keys)) {
+    while (my ($host_key, $group_data) =  each(%{$hostgroup_keys})) {
 
         # Pull the hostgroup key and group name from the reply
         my $res   = $group_data->{result};
@@ -591,7 +591,7 @@ sub _find_keys {
                 $lookup,
                 sub {
                     my ($reply, $err) = @_;
-                    push(@$keys, $reply) if (defined ($reply));
+                    push(@{$keys}, $reply) if (defined ($reply));
                 }
             );
         }
@@ -632,8 +632,8 @@ sub _get {
     my $prev_time;
 
     # Process every requested OID individually for each host
-    for my $oid (@$oidmatch) {
-        for my $host (@$hosts) {
+    for my $oid (@{$oidmatch}) {
+        for my $host (@{$hosts}) {
 
             # Get all of the keys for the host and OID for the requested time period
             my $keys = $self->_find_keys(
@@ -645,13 +645,13 @@ sub _get {
             $redis->select(0, sub{});
 
             # Skip the host for this OID if no keys for it were found
-            if (!defined($keys) || (none {defined($_)} @$keys)) {
+            if (!defined($keys) || (none {defined($_)} @{$keys})) {
                 $self->logger->error("[_get] Unable to find keys for $host -> $oid");
                 next;
             }
 
             # Pull the SNMP data from Redis using each key
-            for my $key (@$keys) {
+            for my $key (@{$keys}) {
 
                 # Skip undefined keys
                 next unless (defined($key));
@@ -684,7 +684,7 @@ sub _get {
                         );
 
                         # Process each hash entry
-                        for my $entry (@$entries) {
+                        for my $entry (@{$entries}) {
 
                             # Capture the OID and its polled Value from the entry string
                             my ($oid, $value) = $entry =~ /^([^,]*),(.*)/;
@@ -788,9 +788,9 @@ sub _get_rate {
     return \%results unless (defined($p_data));
 
     # Iterate over current and previous data to calculate rate values
-    while (my ($host, $ports) = each(%$c_data)) {
-        while (my ($port, $oids) = each(%$ports)) {
-            while (my ($oid, $data) = each(%$oids)) {
+    while (my ($host, $ports) = each(%{$c_data})) {
+        while (my ($port, $oids) = each(%{$ports})) {
+            while (my ($oid, $data) = each(%{$oids})) {
             
                 my $c_val  = $data->{value};
                 my $c_time = $data->{time};

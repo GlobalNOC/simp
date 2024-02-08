@@ -289,8 +289,8 @@ sub _make_composites {
                 my $match_conf = $config->get(sprintf("/composite/variables/scan[%s]/match", $i+1));
                     
                 my %match_index;
-                my %match_names = map {$_->{name} => 1} @$match_conf;
-                my @match_order = map {$_->{name}}      @$match_conf;
+                my %match_names = map {$_->{name} => 1} @{$match_conf};
+                my @match_order = map {$_->{name}}      @{$match_conf};
                 my $match_count = scalar(@match_order);
 
                 # TODO: Not all of these metadata pieces are necessary.
@@ -388,7 +388,7 @@ sub _make_composites {
         }
 
         # Combine metadata and value elements for a single data entry for the composite
-        %{$composite{'data'}} = (%$metadata, %$values);
+        %{$composite{'data'}} = (%{$metadata}, %{$values});
          
         # Begin processing the given parameters for "conversions"
         # These are parsed using get * to preserve ordering
@@ -399,7 +399,7 @@ sub _make_composites {
         $composite{'conversions'} = [];
 
         # Assign the conversion type and parameters based on XML element attributes
-        for my $c (@$conversions) {
+        for my $c (@{$conversions}) {
 
             # Set the array of data targets the conversion is applied to
             my $targets = [keys %{$c->{'data'}}];
@@ -408,7 +408,7 @@ sub _make_composites {
             my $conversion = { data => $targets };
 
             # Add all of the attributes from the config to the conversion
-            for my $attr (keys %$c) {
+            for my $attr (keys %{$c}) {
                 $conversion->{$attr} = $c->{$attr} if ($attr ne 'data');
             }
 

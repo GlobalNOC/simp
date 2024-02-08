@@ -74,7 +74,7 @@ sub _clean_comments {
     my $hash = shift;
     return if (! ref $hash);
 
-    foreach my $key (keys %$hash){
+    foreach my $key (keys %{$hash}){
 	if ($key =~ /^#/){
 	    delete $hash->{$key};
 	    next;

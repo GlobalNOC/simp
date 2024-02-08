@@ -539,7 +539,7 @@ sub _cache_data {
 
     # Cache data for host+port combinations returned from simp-data
     for my $host (@{$request->{hosts}}) {
-        for my $port (keys(%$data)) {
+        for my $port (keys(%{$data})) {
 
             # Skip the host when there's no data for it
             if (!exists($data->{$port}{$host}) || !defined($data->{$port}{$host})) {
@@ -655,7 +655,7 @@ sub _parse_data {
     # Once recursion hits a leaf, build data for the current environment
     if ($i > $#$scans) {
         my $output = $self->_build_data($request, $port, $host, $env);
-        push(@$acc, $output) if ($output);
+        push(@{$acc}, $output) if ($output);
         return;
     }
 
@@ -673,7 +673,7 @@ sub _parse_data {
         my $oid   = $datum->{oid};
 
         # Create a copy of $env each time an OID changes
-        my %env_copy = %$env;
+        my %env_copy = %{$env};
 
         # Set the value name in $env to the value assigned to the OID
         $env_copy{$value_name} = $datum->{value};
@@ -748,8 +748,8 @@ sub _build_data {
 
             # Replace all vars in the source with the values from $env
             # This is a non-destructive replacement
-            if (keys %$env) {
-                $source = $source =~ s/(@{[join("|", keys %$env)]})/$env->{$1}/gr;
+            if (keys %{$env}) {
+                $source = $source =~ s/(@{[join("|", keys %{$env})]})/$env->{$1}/gr;
             }
 
             # Does our generated OID have a key in the raw data?
@@ -859,13 +859,13 @@ sub _convert_data {
         next unless ($conversions);
 
         # Apply each function included in conversions
-        for my $conversion (@$conversions) {
+        for my $conversion (@{$conversions}) {
 
             # Get the target data for the conversion
             my $targets = $conversion->{'data'};
 
             # Apply the conversion to each data target
-            for my $target (@$targets) {
+            for my $target (@{$targets}) {
 
                 # Make a hash of all var names mentioned in the conversion
                 # (avoids dupes)
@@ -1129,7 +1129,7 @@ sub _convert_data {
 sub _rpn_calc {
     my ($self, $vals, $operand, $fctn_elem, $val_set, $request, $host) = @_;
 
-    for my $val (@$vals) {
+    for my $val (@{$vals}) {
 
         # As a convenience, we initialize the stack with a copy of $val on it already
         my @stack = ($val);
@@ -1214,291 +1214,291 @@ sub _bool_to_int {
     # addend1 addend2 => sum
     '+' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
-        push @$stack, (defined($a) && defined($b)) ? $a + $b : undef;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
+        push @{$stack}, (defined($a) && defined($b)) ? $a + $b : undef;
     },
     # minuend subtrahend => difference
     '-' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
-        push @$stack, (defined($a) && defined($b)) ? $a - $b : undef;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
+        push @{$stack}, (defined($a) && defined($b)) ? $a - $b : undef;
     },
     # multiplicand1 multiplicand2 => product
     '*' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
-        push @$stack, (defined($a) && defined($b)) ? $a * $b : undef;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
+        push @{$stack}, (defined($a) && defined($b)) ? $a * $b : undef;
     },
     # dividend divisor => quotient
     '/' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
-        push @$stack, (defined($a) && defined($b)) ? eval{$a / $b;} : undef;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
+        push @{$stack}, (defined($a) && defined($b)) ? eval{$a / $b;} : undef;
     },
     # dividend divisor => remainder
     '%' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
-        push @$stack, (defined($a) && defined($b)) ? eval{$a % $b;} : undef;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
+        push @{$stack}, (defined($a) && defined($b)) ? eval{$a % $b;} : undef;
     },
     # number => logarithm_base_e
     'ln' => sub {
         my $stack = shift;
-        my $x     = pop @$stack;
+        my $x     = pop @{$stack};
         $x = eval{ log($x); }; # make ln(0) yield undef
-        push @$stack, $x;
+        push @{$stack}, $x;
     },
     # number => logarithm_base_10
     'log10' => sub {
         my $stack = shift;
-        my $x     = pop @$stack;
+        my $x     = pop @{$stack};
         $x = eval { log($x); }; # make ln(0) yield undef
         $x /= log(10) if defined($x);
-        push @$stack, $x;
+        push @{$stack}, $x;
     },
     # number => power
     'exp' => sub {
         my $stack = shift;
-        my $x     = pop @$stack;
+        my $x     = pop @{$stack};
         $x = eval{ exp($x); } if defined($x);
-        push @$stack, $x;
+        push @{$stack}, $x;
     },
     # base exponent => power
     'pow' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
-        push @$stack, (defined($a) && defined($b)) ? eval{$a ** $b;} : undef;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
+        push @{$stack}, (defined($a) && defined($b)) ? eval{$a ** $b;} : undef;
     },
     # => undef
     '_' => sub {
         my $stack = shift;
-        push @$stack, undef;
+        push @{$stack}, undef;
     },
     # a => (is a not undef?)
     'defined?' => sub {
         my $stack = shift;
-        my $a     = pop @$stack;
-        push @$stack, _bool_to_int(defined($a));
+        my $a     = pop @{$stack};
+        push @{$stack}, _bool_to_int(defined($a));
     },
     # a b => (is a numerically equal to b? (or both undef))
     '==' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res =
             (defined($a)  && defined($b))  ? ($a == $b)
           : (!defined($a) && !defined($b)) ? 1
           :                                  0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (is a numerically unequal to b?)
     '!=' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res =
             (defined($a)  && defined($b))  ? ($a != $b)
           : (!defined($a) && !defined($b)) ? 0
           :                                  1;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (is a numerically less than b?)
     '<' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res   = (defined($a) && defined($b)) ? ($a < $b) : 0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (is a numerically less than or equal to b?)
     '<=' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res   = (defined($a) && defined($b)) ? ($a <= $b) : 0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (is a numerically greater than b?)
     '>' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res   = (defined($a) && defined($b)) ? ($a > $b) : 0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (is a numerically greater than or equal to b?)
     '>=' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res   = (defined($a) && defined($b)) ? ($a >= $b) : 0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (Is string A equal to string B? (or both undef))
     'eq' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res =
             (defined($a)  && defined($b))  ? ($a eq $b)
           : (!defined($a) && !defined($b)) ? 1
           :                                  0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (Is string A unequal to string B?)
     'ne' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res =
             (defined($a)  && defined($b))  ? ($a ne $b)
           : (!defined($a) && !defined($b)) ? 0
           :                                  1;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (Is string A less than string B?)
     'lt' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res   = (defined($a) && defined($b)) ? ($a lt $b) : 0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (Is string A less than or equal to string B?)
     'le' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res   = (defined($a) && defined($b)) ? ($a le $b) : 0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (Is string A greater than string B?)
     'gt' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res   = (defined($a) && defined($b)) ? ($a gt $b) : 0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (Is string A greater than or equal to string B?)
     'ge' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         my $res   = (defined($a) && defined($b)) ? ($a ge $b) : 0;
-        push @$stack, _bool_to_int($res);
+        push @{$stack}, _bool_to_int($res);
     },
     # a b => (a AND b)
     'and' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
-        push @$stack, _bool_to_int($a && $b);
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
+        push @{$stack}, _bool_to_int($a && $b);
     },
     # a b => (a OR b)
     'or' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
         #my $a_str = defined $a ? $a : 'undef';
         #my $b_str = defined $b ? $b : 'undef';
         #warn("RPN OPERATION: $a_str || $b_str");
-        push @$stack, _bool_to_int($a || $b);
+        push @{$stack}, _bool_to_int($a || $b);
     },
     # a => (NOT a)
     'not' => sub {
         my $stack = shift;
-        my $a     = pop @$stack;
+        my $a     = pop @{$stack};
         #my $a_str = defined($a) ? $a : 'undef';
         #warn("RPN OPERATION: !$a");
-        push @$stack, _bool_to_int(!$a);
+        push @{$stack}, _bool_to_int(!$a);
     },
     # pred a b => (a if pred is true, b if pred is false)
     'ifelse' => sub {
         my $stack = shift;
-        my $b     = pop @$stack;
-        my $a     = pop @$stack;
-        my $pred  = pop @$stack;
+        my $b     = pop @{$stack};
+        my $a     = pop @{$stack};
+        my $pred  = pop @{$stack};
         #my $a_str = defined $a ? $a : 'undef';
         #my $b_str = defined $b ? $b : 'undef';
         #my $p_str = defined $pred ? $pred : 'undef';
         #warn("RPN OPERATION: ($p_str) ? $a_str : $b_str");
-        push @$stack, (($pred) ? $a : $b);
+        push @{$stack}, (($pred) ? $a : $b);
     },
     # string pattern => match_group_1
     'match' => sub {
         my $stack   = shift;
-        my $pattern = pop @$stack;
-        my $string  = pop @$stack;
+        my $pattern = pop @{$stack};
+        my $string  = pop @{$stack};
         if ($string =~ /$pattern/)
         {
-            push @$stack, $1;
+            push @{$stack}, $1;
         }
         else
         {
-            push @$stack, undef;
+            push @{$stack}, undef;
         }
     },
     # string match_pattern replacement_pattern => transformed_string
     'replace' => sub {
         my $stack       = shift;
-        my $replacement = pop @$stack;
-        my $pattern     = pop @$stack;
-        my $string      = pop @$stack;
+        my $replacement = pop @{$stack};
+        my $pattern     = pop @{$stack};
+        my $string      = pop @{$stack};
 
         if (!defined($string) || !defined($pattern) || !defined($replacement))
         {
-            push @$stack, undef;
+            push @{$stack}, undef;
             return;
         }
 
         $string = Data::Munge::replace($string, $pattern, $replacement);
-        push @$stack, $string;
+        push @{$stack}, $string;
     },
     # string1 string2 => string1string2
     'concat' => sub {
         my $stack   = shift;
-        my $string2 = pop @$stack;
-        my $string1 = pop @$stack;
+        my $string2 = pop @{$stack};
+        my $string1 = pop @{$stack};
         $string1 = '' if !defined($string1);
         $string2 = '' if !defined($string2);
-        push @$stack, ($string1 . $string2);
+        push @{$stack}, ($string1 . $string2);
     },
     # a => --
     'pop' => sub {
         my $stack = shift;
-        pop @$stack;
+        pop @{$stack};
     },
     # a b => b a
     'exch' => sub {
         my $stack = shift;
-        return if scalar(@$stack) < 2;
-        my $b = pop @$stack;
-        my $a = pop @$stack;
-        push @$stack, $b, $a;
+        return if scalar(@{$stack}) < 2;
+        my $b = pop @{$stack};
+        my $a = pop @{$stack};
+        push @{$stack}, $b, $a;
     },
     # a => a a
     'dup' => sub {
         my $stack = shift;
-        return if scalar(@$stack) < 1;
-        my $a = pop @$stack;
-        push @$stack, $a, $a;
+        return if scalar(@{$stack}) < 1;
+        my $a = pop @{$stack};
+        push @{$stack}, $a, $a;
     },
     # obj_n ... obj_2 obj_1 n => obj_n ... obj_2 obj_1 obj_n
     'index' => sub {
         my $stack = shift;
-        my $a     = pop @$stack;
+        my $a     = pop @{$stack};
         if (!defined($a) || ($a + 0) < 1) {
-            push @$stack, undef;
+            push @{$stack}, undef;
             return;
         }
-        push @$stack, $stack->[-($a + 0)];
+        push @{$stack}, $stack->[-($a + 0)];
         # This pushes undef if $a is greater than the stack size, which is OK
     },
 );

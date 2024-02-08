@@ -376,7 +376,7 @@ sub _process_data {
         my $data = $res->{'results'}->{$node_name};
 
         # Process every data object/hash for the node
-        for my $datum (@$data) {
+        for my $datum (@{$data}) {
 
             my %vals;
             my %meta;
