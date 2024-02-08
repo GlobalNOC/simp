@@ -5,7 +5,6 @@ use warnings;
 
 use lib '/opt/grnoc/venv/simp/lib/perl5';
 
-#use AnyEvent::Loop;
 use Getopt::Long;
 use GRNOC::Simp::Comp;
 
