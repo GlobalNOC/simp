@@ -3,8 +3,8 @@ VERSION=1.11.3
 
 .PHONY: all
 
-test:
-	/usr/bin/perl -I ./lib t/TEST $(TEST_VERBOSE)
+test: venv
+	/usr/bin/perl -I ./lib -I ./venv/lib/perl5 t/TEST $(TEST_VERBOSE)
 
 rpm: dist
 	cd dist; tar -czvf $(NAME)-$(VERSION).tar.gz $(NAME)-$(VERSION)

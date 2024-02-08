@@ -1340,6 +1340,15 @@ DISTRIBUTIONS
     requirements:
       Exporter 5.57
       perl 5.006
+  SUPER-1.20190531
+    pathname: C/CH/CHROMATIC/SUPER-1.20190531.tar.gz
+    provides:
+      SUPER 1.20190531
+    requirements:
+      Scalar::Util 1.20
+      Sub::Identify 0.03
+      Test::Simple 0.61
+      perl v5.6.2
   Scalar-List-Utils-1.63
     pathname: P/PE/PEVANS/Scalar-List-Utils-1.63.tar.gz
     provides:
@@ -1443,6 +1452,67 @@ DISTRIBUTIONS
       XS::Parse::Keyword 0.06
       XS::Parse::Keyword::Builder 0.06
       perl 5.014
+  Test-Deep-1.204
+    pathname: R/RJ/RJBS/Test-Deep-1.204.tar.gz
+    provides:
+      Test::Deep 1.204
+      Test::Deep::All 1.204
+      Test::Deep::Any 1.204
+      Test::Deep::Array 1.204
+      Test::Deep::ArrayEach 1.204
+      Test::Deep::ArrayElementsOnly 1.204
+      Test::Deep::ArrayLength 1.204
+      Test::Deep::ArrayLengthOnly 1.204
+      Test::Deep::Blessed 1.204
+      Test::Deep::Boolean 1.204
+      Test::Deep::Cache 1.204
+      Test::Deep::Cache::Simple 1.204
+      Test::Deep::Class 1.204
+      Test::Deep::Cmp 1.204
+      Test::Deep::Code 1.204
+      Test::Deep::Hash 1.204
+      Test::Deep::HashEach 1.204
+      Test::Deep::HashElements 1.204
+      Test::Deep::HashKeys 1.204
+      Test::Deep::HashKeysOnly 1.204
+      Test::Deep::Ignore 1.204
+      Test::Deep::Isa 1.204
+      Test::Deep::ListMethods 1.204
+      Test::Deep::MM 1.204
+      Test::Deep::Methods 1.204
+      Test::Deep::NoTest 1.204
+      Test::Deep::None 1.204
+      Test::Deep::Number 1.204
+      Test::Deep::Obj 1.204
+      Test::Deep::Ref 1.204
+      Test::Deep::RefType 1.204
+      Test::Deep::Regexp 1.204
+      Test::Deep::RegexpMatches 1.204
+      Test::Deep::RegexpOnly 1.204
+      Test::Deep::RegexpRef 1.204
+      Test::Deep::RegexpRefOnly 1.204
+      Test::Deep::RegexpVersion 1.204
+      Test::Deep::ScalarRef 1.204
+      Test::Deep::ScalarRefOnly 1.204
+      Test::Deep::Set 1.204
+      Test::Deep::Shallow 1.204
+      Test::Deep::Stack 1.204
+      Test::Deep::String 1.204
+      Test::Deep::SubHash 1.204
+      Test::Deep::SubHashElements 1.204
+      Test::Deep::SubHashKeys 1.204
+      Test::Deep::SubHashKeysOnly 1.204
+      Test::Deep::SuperHash 1.204
+      Test::Deep::SuperHashElements 1.204
+      Test::Deep::SuperHashKeys 1.204
+      Test::Deep::SuperHashKeysOnly 1.204
+    requirements:
+      ExtUtils::MakeMaker 6.78
+      List::Util 1.09
+      Scalar::Util 1.09
+      Test::Builder 0
+      Test::More 0.96
+      perl 5.012
   Test-Exception-0.43
     pathname: E/EX/EXODIST/Test-Exception-0.43.tar.gz
     provides:
@@ -1459,6 +1529,44 @@ DISTRIBUTIONS
       perl 5.006001
       strict 0
       warnings 0
+  Test-MockModule-v0.177.0
+    pathname: G/GF/GFRANKS/Test-MockModule-v0.177.0.tar.gz
+    provides:
+      Test::MockModule v0.177.0
+    requirements:
+      Carp 0
+      Module::Build 0.38
+      SUPER 1.20
+      Scalar::Util 0
+      perl 5.006
+  Test-MockObject-1.20200122
+    pathname: C/CH/CHROMATIC/Test-MockObject-1.20200122.tar.gz
+    provides:
+      Test::MockObject 1.20200122
+      Test::MockObject::Extends 1.20200122
+    requirements:
+      Carp 0
+      Devel::Peek 0
+      ExtUtils::MakeMaker 0
+      Scalar::Util 0
+      Test::Builder 0
+      UNIVERSAL::can 1.20110617
+      UNIVERSAL::isa 1.20110614
+      constant 0
+      perl 5.008
+      strict 0
+      warnings 0
+  Test-Pod-1.52
+    pathname: E/ET/ETHER/Test-Pod-1.52.tar.gz
+    provides:
+      Test::Pod 1.52
+    requirements:
+      ExtUtils::MakeMaker 0
+      File::Find 0
+      Pod::Simple 3.05
+      Test::Builder::Tester 1.02
+      Test::More 0.62
+      perl 5.008
   Tie-ToObject-0.03
     pathname: N/NU/NUFFIN/Tie-ToObject-0.03.tar.gz
     provides:
@@ -1549,6 +1657,28 @@ DISTRIBUTIONS
     requirements:
       ExtUtils::MakeMaker 0
       common::sense 0
+  UNIVERSAL-can-1.20140328
+    pathname: C/CH/CHROMATIC/UNIVERSAL-can-1.20140328.tar.gz
+    provides:
+      UNIVERSAL::can 1.20140328
+    requirements:
+      ExtUtils::MakeMaker 6.30
+      Scalar::Util 0
+      strict 0
+      vars 0
+      warnings 0
+      warnings::register 0
+  UNIVERSAL-isa-1.20171012
+    pathname: E/ET/ETHER/UNIVERSAL-isa-1.20171012.tar.gz
+    provides:
+      UNIVERSAL::isa 1.20171012
+    requirements:
+      ExtUtils::MakeMaker 0
+      Scalar::Util 0
+      perl 5.006002
+      strict 0
+      warnings 0
+      warnings::register 0
   Variable-Magic-0.63
     pathname: V/VP/VPIT/Variable-Magic-0.63.tar.gz
     provides:

@@ -3,6 +3,8 @@ package GRNOC::Simp::Comp;
 use strict;
 use warnings;
 
+use lib '/opt/grnoc/venv/simp/lib/perl5';
+
 ### REQUIRED IMPORTS ###
 use Data::Dumper;
 use Moo;

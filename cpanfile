@@ -24,3 +24,5 @@ requires 'Crypt::Rijndael', '1.12';
 requires 'Test::Deep';
 requires 'Test::More';
 requires 'Test::Pod';
+requires 'Test::MockModule';
+requires 'Test::MockObject';

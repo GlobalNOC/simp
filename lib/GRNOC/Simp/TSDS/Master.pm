@@ -3,6 +3,8 @@ package GRNOC::Simp::TSDS::Master;
 use strict;
 use warnings;
 
+use lib '/opt/grnoc/venv/simp/lib/perl5';
+
 use AnyEvent::Subprocess;
 use Data::Dumper;
 use File::Basename;

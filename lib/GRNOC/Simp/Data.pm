@@ -3,6 +3,8 @@ package GRNOC::Simp::Data;
 use strict;
 use warnings;
 
+use lib '/opt/grnoc/venv/simp/lib/perl5';
+
 use Moo;
 use Parallel::ForkManager;
 use POSIX qw( setuid setgid );

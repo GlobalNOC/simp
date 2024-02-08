@@ -8,6 +8,8 @@
 use strict;
 use warnings;
 
+use lib '/opt/grnoc/venv/simp/lib/perl5';
+
 use Getopt::Long;
 use Log::Log4perl;
 
