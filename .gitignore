@@ -1,3 +1,6 @@
+# Local Virtual Environment
+venv/*
+
 # Files generated in build process
 dist/*
 /MYMETA.json
