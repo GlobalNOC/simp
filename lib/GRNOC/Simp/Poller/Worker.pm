@@ -360,7 +360,7 @@ sub _poll_cb {
     my $data = $snmp->var_bind_list;
 
     # Parse the values from the data for Redis as an array of "oid,value" strings
-    my @values = map {sprintf("%s,%s", $_, $data->{$_})} keys(%$data) if ($data);
+    my @values = map {sprintf("%s,%s", $_, $data->{$_})} keys(%{$data}) if ($data);
 
     # Handle errors where there was no value data for the OID 
     unless (@values) {
@@ -454,7 +454,7 @@ sub _poll_cb {
                 $redis->select(0, sub{});
 
                 # Add each host variable and its value (remove commas from var name)
-                while(my ($var, $value) = each(%$vars)) {
+                while(my ($var, $value) = each(%{$vars})) {
                     $var = ($var =~ s/,//gr);
                     $redis->sadd($host_keys{db0}, sprintf("vars.%s,%s", $var, $value->{value}), sub{});
                 }
@@ -561,7 +561,7 @@ sub _connect_to_snmp {
         }
 
         # Create the SNMP session
-        my ($session, $session_error) = Net::SNMP->session(%$args);
+        my ($session, $session_error) = Net::SNMP->session(%{$args});
 
         # Keep the SNMP session object with the host config
         $host->{snmp_session} = $session;
@@ -600,10 +600,10 @@ sub _update_status {
     my $snmp_errors = $host->{status}{snmp_errors};
 
     # Add the host config's errors to its global status data
-    for my $error (@$failed_oids) {
+    for my $error (@{$failed_oids}) {
         push(@{$self->status_data->{$host->{name}}{failed_oids}}, $error);
     }
-    for my $error (@$snmp_errors) {
+    for my $error (@{$snmp_errors}) {
         push(@{$self->status_data->{$host->{name}}{snmp_errors}}, $error);
     }
 }
@@ -650,10 +650,10 @@ sub _write_status_data {
         }
 
         my $snmp_errors = $status_data->{snmp_errors};
-        push(@{$status{$hostname}{snmp_errors}{session}}, @$snmp_errors);
+        push(@{$status{$hostname}{snmp_errors}{session}}, @{$snmp_errors});
       
         my $failed_oids = $status_data->{failed_oids};
-        for my $oid_err (@$failed_oids) {
+        for my $oid_err (@{$failed_oids}) {
             $status{$hostname}{failed_oids}{$oid_err->{oid}} = $oid_err;
         }
     }
@@ -699,14 +699,14 @@ sub _collect_data {
     $self->logger->debug(sprintf(
         "%s - %s hosts and %s oids per host, max outstanding scaled to %s and queue is %s to %s",
         $self->worker_name,
-        scalar(@$hosts),
-        scalar(@$oids),
+        scalar(@{$hosts}),
+        scalar(@{$oids}),
         $AnyEvent::SNMP::MAX_OUTSTANDING,
         $AnyEvent::SNMP::MIN_RECVQUEUE,
         $AnyEvent::SNMP::MAX_RECVQUEUE
     ));
     
-    for my $host (@$hosts) {
+    for my $host (@{$hosts}) {
 
         my $ip           = $host->{ip};
         my $name         = $host->{name};
@@ -764,7 +764,7 @@ sub _collect_data {
         my $failures = 0;
 
         # Initiate an SNMP request for each OID
-        for my $oid_attr (@$oids) {
+        for my $oid_attr (@{$oids}) {
 
             my $oid = $oid_attr->{oid};
 
@@ -838,7 +838,7 @@ sub _collect_data {
                 $name,
                 $port,
                 $failures,
-                scalar(@$oids),
+                scalar(@{$oids}),
             );
             $self->logger->error($error);
         }

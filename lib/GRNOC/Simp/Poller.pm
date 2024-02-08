@@ -344,7 +344,7 @@ sub _process_host_configs {
     my $hosts_objects = $self->_get_config_objects($hosts_dir, $hosts_xsd);
 
     # Process each hosts config object
-    for my $hosts_object (@$hosts_objects) {
+    for my $hosts_object (@{$hosts_objects}) {
 
         my $file   = $hosts_object->{file};
         my $config = $hosts_object->{config};
@@ -386,7 +386,7 @@ sub _process_host_configs {
             delete $host->{group};
 
             # Add the host config for each group
-            while (my ($group_name, $group) = each(%$groups)) {
+            while (my ($group_name, $group) = each(%{$groups})) {
 
                 # Initialize the group's host array if needed
                 $hosts{$group_name} = [] unless (exists($hosts{$group_name}));
@@ -404,10 +404,10 @@ sub _process_host_configs {
                 my $ports = ($group_ports) ? $group_ports : $host_ports;
 
                 # Create a host config for each port that needs to be polled
-                for my $port (@$ports) {                
+                for my $port (@{$ports}) {                
 
                     # Copy the initial host config
-                    my $host_copy = {%$host};
+                    my $host_copy = {%{$host}};
 
                     # Set the port and remove the array of ports in the copy
                     $host_copy->{port} = $port;
@@ -419,7 +419,7 @@ sub _process_host_configs {
                         for my $context (@{$group->{context_id}}) {
                             
                             # Create another copy of the host config hash
-                            my $host_context_copy = {%$host_copy};            
+                            my $host_context_copy = {%{$host_copy}};            
 
                             # Add the context ID
                             $host_context_copy->{context} = $context;           
@@ -483,7 +483,7 @@ sub _process_groups_config {
         load_avg => 0,
     };
 
-    for my $group_object (@$group_objects) {   
+    for my $group_object (@{$group_objects}) {   
  
         my $file  = $group_object->{file};
         my $group = $group_object->{config}->get('/group')->[0];
@@ -520,7 +520,7 @@ sub _process_groups_config {
 
         # Get the array of host configs for the group
         my $hosts = $self->hosts->{$name};
-        for my $host (@$hosts) {
+        for my $host (@{$hosts}) {
             $agg_stats->{hosts}{$host->{name}} = 1 unless exists($agg_stats->{hosts}{$host->{name}});
         }
 
@@ -531,7 +531,7 @@ sub _process_groups_config {
         # Determine the load of the hosts configured for the group
         # Load represents the total requests per second of each worker for the group
         # Load = ((Hosts * OIDs) / Interval) / Workers
-        $group->{load} = (scalar(@$hosts) * scalar(@{$group->{oids}})) / $group->{workers};
+        $group->{load} = (scalar(@{$hosts}) * scalar(@{$group->{oids}})) / $group->{workers};
 
         # Add the groups' workers to the total number of forks to create
         $total_workers += $group->{workers};
@@ -540,7 +540,7 @@ sub _process_groups_config {
         $groups{$name} = $group;
 
         # Record stats related to configuration load
-        my $total_hosts   = scalar(@$hosts);
+        my $total_hosts   = scalar(@{$hosts});
         my $total_oids    = scalar(@{$group->{oids}});
         my $total_workers = $group->{workers};
         my $worker_hosts  = $total_hosts / $total_workers;
@@ -864,7 +864,7 @@ sub _create_workers {
                     $group_name,
                     $worker_id,
                     $pid,
-                    scalar(@$hosts)
+                    scalar(@{$hosts})
                 );
                 $self->logger->info($msg);
                 push(@{$self->children}, $pid);

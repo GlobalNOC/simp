@@ -92,7 +92,7 @@ sub push {
     my $error;
 
     # Return the default success response if there are no messages.
-    if (scalar(@$msg_list) < 1) {
+    if (scalar(@{$msg_list}) < 1) {
         $self->logger->info(sprintf("[%s] Nothing to push to TSDS", $self->worker_name));
         return {'error' => 0, 'error_text' => ''};
     };
@@ -132,7 +132,7 @@ sub push {
 
                 my @bad_messages;
 
-                for my $msg (@$msg_list) {
+                for my $msg (@{$msg_list}) {
                     try {
                         $res = $self->tsds_svc->add_data(data => encode_json([$msg]));
                     }
@@ -149,7 +149,7 @@ sub push {
 
                 # Update the error message
                 $error .= ": %s out of %s total messages contained invalid characters";
-                $error = sprintf($error, scalar(@bad_messages), scalar(@$msg_list));
+                $error = sprintf($error, scalar(@bad_messages), scalar(@{$msg_list}));
             }
         }
         $self->logger->error($error);
