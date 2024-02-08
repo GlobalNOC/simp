@@ -7,8 +7,8 @@ use lib '/opt/grnoc/venv/simp/lib/perl5';
 
 use Moo 2.003000;
 use Parallel::ForkManager 1.18;
-use POSIX qw( setuid setgid );
 use POSIX 1.30 qw( setuid setgid );
+use Proc::Daemon 0.19;
 use Types::Standard 1.004002 qw( Str Bool );
 
 use GRNOC::Config;
