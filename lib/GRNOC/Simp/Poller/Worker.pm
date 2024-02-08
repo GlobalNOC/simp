@@ -5,13 +5,13 @@ use warnings;
 
 use lib '/opt/grnoc/venv/simp/lib/perl5';
 
-use AnyEvent;
-use AnyEvent::SNMP;
-use Data::Dumper;
-use JSON;
-use Moo;
-use Net::SNMP::XS;    # Faster than non-XS
-use Redis::Fast;
+use AnyEvent 7.07;
+use AnyEvent::SNMP 6.0;
+use Data::Dumper 2.145;
+use JSON 2.59;
+use Moo 2.003000;
+use Net::SNMP::XS 1.32;    # Faster than non-XS
+use Redis::Fast 0.28;
 use Syntax::Keyword::Try;
 
 # Raised from 64, Default value

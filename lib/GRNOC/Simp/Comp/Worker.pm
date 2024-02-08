@@ -6,12 +6,12 @@ use warnings;
 use lib '/opt/grnoc/venv/simp/lib/perl5';
 
 ### REQUIRED IMPORTS ###
-use Moo;
-use AnyEvent;
-use Data::Dumper;
-use Data::Munge;
-use Time::HiRes qw(gettimeofday tv_interval);
-use Safe;
+use Moo 2.003000;
+use AnyEvent 7.07;
+use Data::Dumper 2.145;
+use Data::Munge 0.093;
+use Time::HiRes 1.9725 qw(gettimeofday tv_interval);
+use Safe 2.31_01;
 
 use GRNOC::Log;
 use GRNOC::RabbitMQ::Client;

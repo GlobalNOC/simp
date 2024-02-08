@@ -5,11 +5,11 @@ use warnings;
 
 use lib '/opt/grnoc/venv/simp/lib/perl5';
 
-use Moo;
-use Parallel::ForkManager;
+use Moo 2.003000;
+use Parallel::ForkManager 1.18;
 use POSIX qw( setuid setgid );
-use Proc::Daemon;
-use Types::Standard qw( Str Bool );
+use POSIX 1.30 qw( setuid setgid );
+use Types::Standard 1.004002 qw( Str Bool );
 
 use GRNOC::Config;
 use GRNOC::Log;

@@ -5,16 +5,16 @@ use warnings;
 
 use lib '/opt/grnoc/venv/simp/lib/perl5';
 
-use AnyEvent::Subprocess;
-use Data::Dumper;
-use File::Basename;
-use Log::Log4perl;
-use Moo;
-use JSON::XS qw(decode_json);
-use POSIX qw(setuid setgid);
-use Proc::Daemon;
+use AnyEvent::Subprocess 1.102912;
+use Data::Dumper 2.145;
+use File::Basename 2.84;
+use Log::Log4perl 1.42;
+use Moo 2.003000;
+use JSON::XS 3.01 qw(decode_json);
+use POSIX 1.30 qw(setuid setgid);
+use Proc::Daemon 0.19;
 use Syntax::Keyword::Try;
-use Types::Standard qw(Str Bool Int);
+use Types::Standard 1.004002 qw(Str Bool Int);
 
 use GRNOC::Monitoring::Service::Status;
 use GRNOC::Config;
