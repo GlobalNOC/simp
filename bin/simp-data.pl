@@ -5,7 +5,7 @@ use warnings;
 
 use lib '/opt/grnoc/venv/simp/lib/perl5';
 
-use Getopt::Long;
+use Getopt::Long 2.4;
 use GRNOC::Simp::Data;
 
 sub usage

@@ -10,8 +10,8 @@ use warnings;
 
 use lib '/opt/grnoc/venv/simp/lib/perl5';
 
-use Getopt::Long;
-use Log::Log4perl;
+use Getopt::Long 2.4;
+use Log::Log4perl 1.42;
 
 use GRNOC::Simp::TSDS::Master;
 
