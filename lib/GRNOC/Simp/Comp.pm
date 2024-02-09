@@ -430,7 +430,7 @@ sub _make_composites {
 		$conversion->{'with'} = $new_with;
 	    }
 
-            push($composite{'conversions'}, $conversion);
+            push(@{$composite{'conversions'}}, $conversion);
         }
 
         # We want to get the config hash here so it isn't reparsed by the worker
