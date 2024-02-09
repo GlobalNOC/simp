@@ -427,7 +427,7 @@ sub _poll_cb {
 
         # Write lookup key data to Redis
         # Only write if there are no pending replies left
-        unless (keys($status->{pending_replies})) {
+        unless (keys(%{$status->{pending_replies}})) {
 
             # Set the expiration time for the master key once all replies are received
             $redis->expire($host_keys{db0}, $expire, sub{});
@@ -724,7 +724,7 @@ sub _collect_data {
         $self->_clear_status($host);
 
         # Log error and skip collections if there are still pending replies
-        if (keys($status->{'pending_replies'})) {
+        if (keys(%{$status->{'pending_replies'}})) {
             $self->logger->error(sprintf(
                 "%s - Unable to query device %s:%s in poll cycle, %s pending oid requests",
                 $self->worker_name,
