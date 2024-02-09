@@ -471,7 +471,7 @@ sub _process_groups_config {
     my $total_workers = 0;
     
     # Variables used to show configuration statistics 
-    my $conf_info = "%s - Configuration: [workers: %s | hosts: %s | sessions: %s | oids: %s | interval: %ss | timeout: %ss | retention %ss]";
+    my $conf_info = "%s - Configuration: [workers: %s | hosts: %s | sessions: %s | oids: %s | interval: %ss | timeout: %ss | request_size: %s | retention %ss]";
     my $load_info = "%s - Load: %s requests every %ss (%s average requests/sec)";
     my @conf_strs;
     my @load_strs;
@@ -573,8 +573,8 @@ sub _process_groups_config {
 
     # Log the configuration statistics in order
     for (my $i=0; $i < scalar(@conf_strs); $i++) {
-        $self->logger->error(@conf_strs->[$i]);
-        $self->logger->error(@load_strs->[$i]);
+        $self->logger->error($conf_strs[$i]);
+        $self->logger->error($load_strs[$i]);
     }
     # Log the aggregated statistics for all configs
     $self->logger->error(sprintf(
