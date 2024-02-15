@@ -1,9 +1,9 @@
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
+
 package GRNOC::Simp::Comp::Worker;
 
 use strict;
 use warnings;
-
-use lib '/opt/grnoc/venv/simp/lib/perl5';
 
 ### REQUIRED IMPORTS ###
 use Moo 2.003000;
@@ -11,7 +11,7 @@ use AnyEvent 7.07;
 use Data::Dumper 2.145;
 use Data::Munge 0.093;
 use Time::HiRes 1.9725 qw(gettimeofday tv_interval);
-use Safe 2.31_01;
+use Safe 2.40;
 
 use GRNOC::Log;
 use GRNOC::RabbitMQ::Client;

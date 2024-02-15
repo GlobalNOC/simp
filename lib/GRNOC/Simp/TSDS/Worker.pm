@@ -1,9 +1,9 @@
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
+
 package GRNOC::Simp::TSDS::Worker;
 
 use strict;
 use warnings;
-
-use lib '/opt/grnoc/venv/simp/lib/perl5';
 
 use Data::Dumper;
 use Time::HiRes qw(gettimeofday tv_interval usleep);

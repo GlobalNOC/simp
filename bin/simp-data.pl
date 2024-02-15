@@ -1,11 +1,9 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
 
 use strict;
 use warnings;
 
-use lib '/opt/grnoc/venv/simp/lib/perl5';
-
-use Getopt::Long 2.4;
+use Getopt::Long;
 use GRNOC::Simp::Data;
 
 sub usage

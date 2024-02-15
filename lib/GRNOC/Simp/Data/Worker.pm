@@ -1,19 +1,19 @@
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
+
 package GRNOC::Simp::Data::Worker;
 
 use strict;
 use warnings;
 
-use lib '/opt/grnoc/venv/simp/lib/perl5';
-
 #use Data::Dumper;
 
-use Carp 1.26;
-use List::MoreUtils 0.33 qw(none);
-use Moo 2.003000;
-use POSIX 1.30;
-use Redis::Fast 0.28;
-use Scalar::Util 1.54 qw(looks_like_number);
-use Time::HiRes 1.9725 qw(gettimeofday tv_interval);
+use Carp;
+use List::MoreUtils qw(none);
+use Moo;
+use POSIX;
+use Redis::Fast;
+use Scalar::Util qw(looks_like_number);
+use Time::HiRes qw(gettimeofday tv_interval);
 use Syntax::Keyword::Try;
 
 use GRNOC::RabbitMQ::Method;

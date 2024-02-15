@@ -1,15 +1,14 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
+
 ##--- A test script to help troubleshoot Simp Data or Simp Comp
 
 use strict;
 use warnings;
 
-use lib '/opt/grnoc/venv/simp/lib/perl5';
-
-use Getopt::Long 2.4;
-use Data::Dumper 2.145;
+use Getopt::Long;
+use Data::Dumper;
 use GRNOC::RabbitMQ::Client;
-use Time::HiRes 1.9725 qw(usleep gettimeofday tv_interval);
+use Time::HiRes qw(usleep gettimeofday tv_interval);
 
 my $USAGE = "$0 -n|--node [node name]";
 $USAGE .= "One of the following must also be specific\n";

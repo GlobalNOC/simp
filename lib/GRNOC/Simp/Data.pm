@@ -1,15 +1,15 @@
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
+
 package GRNOC::Simp::Data;
 
 use strict;
 use warnings;
 
-use lib '/opt/grnoc/venv/simp/lib/perl5';
-
-use Moo 2.003000;
-use Parallel::ForkManager 1.18;
-use POSIX 1.30 qw( setuid setgid );
-use Proc::Daemon 0.19;
-use Types::Standard 1.004002 qw( Str Bool );
+use Moo;
+use Parallel::ForkManager;
+use POSIX qw( setuid setgid );
+use Proc::Daemon;
+use Types::Standard qw( Str Bool );
 
 use GRNOC::Config;
 use GRNOC::Log;
