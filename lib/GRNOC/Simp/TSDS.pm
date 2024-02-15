@@ -1,9 +1,9 @@
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
+
 package GRNOC::Simp::TSDS;
 
 use strict;
 use warnings;
-
-use lib '/opt/grnoc/venv/simp/lib/perl5';
 
 our $VERSION = '1.11.3';
 

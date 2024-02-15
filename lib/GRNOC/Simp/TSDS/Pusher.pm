@@ -1,18 +1,18 @@
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
+
 package GRNOC::Simp::TSDS::Pusher;
 
 use strict;
 use warnings;
 
-use lib '/opt/grnoc/venv/simp/lib/perl5';
-
 # Messages pushed with invalid chars have their contents dumped to the error log
 # For this reason, we set Dumper to use a more compact output format
-use Data::Dumper 2.145;
+use Data::Dumper;
 $Data::Dumper::Terse = 1;
 $Data::Dumper::Indent = 0;
 
-use Moo 2.003000;
-use JSON::XS 3.01 qw(encode_json);
+use Moo;
+use JSON::XS qw(encode_json);
 use Syntax::Keyword::Try;
 
 use GRNOC::Simp::TSDS;

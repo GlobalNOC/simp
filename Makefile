@@ -20,4 +20,4 @@ dist: clean venv
 	cd dist; tar -czvf $(NAME)-$(VERSION).tar.gz $(NAME)-$(VERSION)/
 
 venv:
-	carton install --path=venv
+	carton install --deployment --path=venv

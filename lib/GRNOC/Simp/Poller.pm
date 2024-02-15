@@ -1,17 +1,17 @@
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
+
 package GRNOC::Simp::Poller;
 
 use strict;
 use warnings;
 
-use lib '/opt/grnoc/venv/simp/lib/perl5';
-
-use Moo 2.003000;
-use Proc::Daemon 0.19;
-use Data::Dumper 2.145;
-use File::Path 2.09 'rmtree';
-use Parallel::ForkManager 1.18;
-use POSIX 1.30 qw( setuid setgid );
-use Types::Standard 1.004002 qw( Str Bool );
+use Moo;
+use Proc::Daemon;
+use Data::Dumper;
+use File::Path 'rmtree';
+use Parallel::ForkManager;
+use POSIX qw( setuid setgid );
+use Types::Standard qw( Str Bool );
 
 use GRNOC::Config;
 use GRNOC::Log;

@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
 
 #--- SNMP data collector
 #---   config file is used to define which parts of mib tree to collect
@@ -8,9 +8,7 @@
 use strict;
 use warnings;
 
-use lib '/opt/grnoc/venv/simp/lib/perl5';
-
-use Getopt::Long 2.4;
+use Getopt::Long;
 use GRNOC::Simp::Poller;
 
 sub usage
