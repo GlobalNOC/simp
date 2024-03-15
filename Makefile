@@ -13,6 +13,7 @@ rpm: dist
 clean:
 	rm -rf dist/$(NAME)-$(VERSION)/
 	rm -rf dist
+	rm -rf venv
 
 dist: clean venv
 	mkdir -p dist/$(NAME)-$(VERSION)/
