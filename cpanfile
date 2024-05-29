@@ -2,6 +2,7 @@ requires 'AnyEvent', '== 7.17';
 requires 'AnyEvent::SNMP', '== 6.0';
 requires 'AnyEvent::Subprocess', '== 1.102912';
 requires 'Canary::Stability';
+requires 'Net::SNMP::Util';
 requires 'Carp', '== 1.26', '== 1.42';
 requires 'Class::Accessor::Fast', '== 0.34';
 requires 'Crypt::Rijndael', '== 1.12';
