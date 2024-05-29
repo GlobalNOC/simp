@@ -1,7 +1,7 @@
 Summary: SIMP TSDS Collector
 Name: simp-tsds
 Version: 1.11.3
-Release: 1%{dist}
+Release: 2%{dist}
 License: APL 2.0
 Group: Network
 URL: http://globalnoc.iu.edu
@@ -31,7 +31,7 @@ Requires: perl-Syntax-Keyword-Try
 %endif
 Requires: perl(GRNOC::Config)
 Requires: perl(GRNOC::WebService::Client)
-Requires: perl(GRNOC::RabbitMQ) >= 1.2.2
+Requires: perl-GRNOC-RabbitMQ
 Requires: perl(GRNOC::Log)
 Requires: perl(GRNOC::Monitoring::Service::Status)
 %if 0%{?rhel} >= 8

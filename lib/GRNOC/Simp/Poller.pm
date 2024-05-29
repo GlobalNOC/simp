@@ -777,7 +777,7 @@ sub _balance_workers {
             $group->{workers}
         ));
         $group->{workers} = $host_count;
-        $self->total_workers -= ($group->{workers} - $host_count);
+        $self->_set_total_workers($self->total_workers() - ($group->{workers} - $host_count));
     }
 
     # Get the worker IDs, and track their load and assigned host configs
