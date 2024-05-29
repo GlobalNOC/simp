@@ -138,6 +138,37 @@ DISTRIBUTIONS
       perl 5.006001
       strict 0
       warnings 0
+  CPAN-Meta-Requirements-2.143
+    pathname: R/RJ/RJBS/CPAN-Meta-Requirements-2.143.tar.gz
+    provides:
+      CPAN::Meta::Requirements 2.143
+      CPAN::Meta::Requirements::Range 2.143
+    requirements:
+      B 0
+      Carp 0
+      ExtUtils::MakeMaker 6.17
+      perl 5.010000
+      strict 0
+      version 0.88
+      warnings 0
+  CPAN-Requirements-Dynamic-0.001
+    pathname: L/LE/LEONT/CPAN-Requirements-Dynamic-0.001.tar.gz
+    provides:
+      CPAN::Requirements::Dynamic 0.001
+    requirements:
+      CPAN::Meta::Prereqs 0
+      CPAN::Meta::Requirements::Range 0
+      Carp 0
+      ExtUtils::Config 0
+      ExtUtils::HasCompiler 0
+      ExtUtils::MakeMaker 0
+      IPC::Cmd 0
+      Module::Metadata 0
+      Parse::CPAN::Meta 0
+      Perl::OSType 0
+      perl 5.006
+      strict 0
+      warnings 0
   Canary-Stability-2013
     pathname: M/ML/MLEHMANN/Canary-Stability-2013.tar.gz
     provides:
@@ -371,13 +402,33 @@ DISTRIBUTIONS
       ExtUtils::CBuilder 0
       Module::Build 0.4004
       perl 5.014
-  ExtUtils-Config-0.008
-    pathname: L/LE/LEONT/ExtUtils-Config-0.008.tar.gz
+  ExtUtils-Config-0.009
+    pathname: L/LE/LEONT/ExtUtils-Config-0.009.tar.gz
     provides:
-      ExtUtils::Config 0.008
+      ExtUtils::Config 0.009
+      ExtUtils::Config::MakeMaker 0.009
     requirements:
       Data::Dumper 0
-      ExtUtils::MakeMaker 6.30
+      ExtUtils::MakeMaker 0
+      ExtUtils::MakeMaker::Config 0
+      perl 5.006
+      strict 0
+      warnings 0
+  ExtUtils-HasCompiler-0.025
+    pathname: L/LE/LEONT/ExtUtils-HasCompiler-0.025.tar.gz
+    provides:
+      ExtUtils::HasCompiler 0.025
+    requirements:
+      Carp 0
+      DynaLoader 0
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      ExtUtils::Mksymlists 0
+      File::Basename 0
+      File::Spec::Functions 0
+      File::Temp 0
+      base 0
+      perl 5.006
       strict 0
       warnings 0
   ExtUtils-Helpers-0.026
@@ -398,10 +449,10 @@ DISTRIBUTIONS
       perl 5.006
       strict 0
       warnings 0
-  ExtUtils-InstallPaths-0.012
-    pathname: L/LE/LEONT/ExtUtils-InstallPaths-0.012.tar.gz
+  ExtUtils-InstallPaths-0.013
+    pathname: L/LE/LEONT/ExtUtils-InstallPaths-0.013.tar.gz
     provides:
-      ExtUtils::InstallPaths 0.012
+      ExtUtils::InstallPaths 0.013
     requirements:
       Carp 0
       ExtUtils::Config 0.002
@@ -616,12 +667,13 @@ DISTRIBUTIONS
       Text::ParseWords 0
       perl 5.006001
       version 0.87
-  Module-Build-Tiny-0.047
-    pathname: L/LE/LEONT/Module-Build-Tiny-0.047.tar.gz
+  Module-Build-Tiny-0.048
+    pathname: L/LE/LEONT/Module-Build-Tiny-0.048.tar.gz
     provides:
-      Module::Build::Tiny 0.047
+      Module::Build::Tiny 0.048
     requirements:
       CPAN::Meta 0
+      CPAN::Requirements::Dynamic 0
       DynaLoader 0
       Exporter 5.57
       ExtUtils::CBuilder 0
@@ -1288,6 +1340,18 @@ DISTRIBUTIONS
       Scalar::Util 0
       Test::Exception 0
       Test::More 0
+  Net-SNMP-Util-1.04
+    pathname: T/TO/TONODERA/Net-SNMP-Util-1.04.tar.gz
+    provides:
+      Net::SNMP::Util undef
+    requirements:
+      Carp 0
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      List::Util 0
+      Net::SNMP 0
+      Scalar::Util 0
+      Test::More 0
   Net-SNMP-XS-1.32
     pathname: M/ML/MLEHMANN/Net-SNMP-XS-1.32.tar.gz
     provides:
@@ -1627,10 +1691,10 @@ DISTRIBUTIONS
       File::Spec::Functions 0
       Test::Harness 0
       perl 5.008
-  Test-MockModule-v0.177.0
-    pathname: G/GF/GFRANKS/Test-MockModule-v0.177.0.tar.gz
+  Test-MockModule-v0.178.0
+    pathname: G/GF/GFRANKS/Test-MockModule-v0.178.0.tar.gz
     provides:
-      Test::MockModule v0.177.0
+      Test::MockModule v0.178.0
     requirements:
       Carp 0
       Module::Build 0.38
@@ -1763,10 +1827,10 @@ DISTRIBUTIONS
       strict 0
       warnings 0
       warnings::register 0
-  Variable-Magic-0.63
-    pathname: V/VP/VPIT/Variable-Magic-0.63.tar.gz
+  Variable-Magic-0.64
+    pathname: V/VP/VPIT/Variable-Magic-0.64.tar.gz
     provides:
-      Variable::Magic 0.63
+      Variable::Magic 0.64
     requirements:
       Carp 0
       Config 0
@@ -1782,13 +1846,13 @@ DISTRIBUTIONS
       base 0
       lib 0
       perl 5.008
-  XS-Parse-Keyword-0.39
-    pathname: P/PE/PEVANS/XS-Parse-Keyword-0.39.tar.gz
+  XS-Parse-Keyword-0.42
+    pathname: P/PE/PEVANS/XS-Parse-Keyword-0.42.tar.gz
     provides:
-      XS::Parse::Infix 0.39
-      XS::Parse::Infix::Builder 0.39
-      XS::Parse::Keyword 0.39
-      XS::Parse::Keyword::Builder 0.39
+      XS::Parse::Infix 0.42
+      XS::Parse::Infix::Builder 0.42
+      XS::Parse::Keyword 0.42
+      XS::Parse::Keyword::Builder 0.42
     requirements:
       ExtUtils::CBuilder 0
       ExtUtils::CChecker 0.11
