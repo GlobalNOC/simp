@@ -1,7 +1,7 @@
 Summary: A small system for gathering large amounts of SNMP data and pushing them into redis
 Name: simp-poller
 Version: 1.11.3
-Release: 1%{dist}
+Release: 2%{dist}
 License: GRNOC
 Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
