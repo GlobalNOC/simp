@@ -8,7 +8,7 @@ test: venv
 
 rpm: dist
 	cd dist;
-	#rpmbuild -ta dist/simp-poller-$(VERSION).tar.gz
+	rpmbuild -ta dist/simp-poller-$(VERSION).tar.gz
 	rpmbuild -ta dist/simp-data-$(VERSION).tar.gz
 	rpmbuild -ta dist/simp-comp-$(VERSION).tar.gz
 	rpmbuild -ta dist/simp-tsds-$(VERSION).tar.gz
