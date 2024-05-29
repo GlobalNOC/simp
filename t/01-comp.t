@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -I /opt/grnoc/venv/simp/lib/perl5
 
 use strict;
 use warnings;
