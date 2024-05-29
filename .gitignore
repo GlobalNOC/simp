@@ -1,6 +1,6 @@
 # Local Virtual Environment
 venv/*
-
+.vscode/*
 # Files generated in build process
 dist/*
 /MYMETA.json
