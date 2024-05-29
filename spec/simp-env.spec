@@ -1,7 +1,7 @@
 Summary: A system for fetching data from simp and compiling the data into a composite
 Name: simp-env
 Version: 1.11.3
-Release: 1%{dist}
+Release: 2%{dist}
 License: GRNOC
 Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
@@ -17,6 +17,12 @@ Requires: perl-GRNOC-Config
 Requires: perl-GRNOC-RabbitMQ >= 1.2.1
 Requires: perl-GRNOC-WebService-Client
 Requires: perl-GRNOC-Monitoring-Service-Status
+
+Provides: perl-Redis-Fast = 0.28
+Provides: perl(Data::Munge)
+Provides: perl-Syntax-Keyword-Try
+Provides: perl(AnyEvent::Subprocess)
+Provides: perl(MooseX::Clone)
 
 %description
 This program pulls SNMP-derived data from Simp and publishes it to TSDS.
