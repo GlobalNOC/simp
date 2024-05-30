@@ -1,7 +1,7 @@
 Summary: A system for fetching data from simp and compiling the data into a composite
 Name: simp-env
 Version: 1.11.3
-Release: 4%{dist}
+Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
 URL: http://globalnoc.iu.edu/simp
