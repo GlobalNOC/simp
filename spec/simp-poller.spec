@@ -1,6 +1,6 @@
 Summary: A small system for gathering large amounts of SNMP data and pushing them into redis
 Name: simp-poller
-Version: 1.11.3
+Version: 1.12.0
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -35,7 +35,7 @@ Requires: perl-Crypt-Rijndael
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 %if 0%{?rhel} >= 8
-Requires: simp-env
+Requires: simp-env == 1.12.0
 %endif
 
 Provides: perl(GRNOC::Simp::Poller)

@@ -1,6 +1,6 @@
 Summary: SIMP TSDS Collector
 Name: simp-tsds
-Version: 1.11.3
+Version: 1.12.0
 Release: 1%{dist}
 License: APL 2.0
 Group: Network
@@ -35,7 +35,7 @@ Requires: perl-GRNOC-RabbitMQ
 Requires: perl(GRNOC::Log)
 Requires: perl(GRNOC::Monitoring::Service::Status)
 %if 0%{?rhel} >= 8
-Requires: simp-env
+Requires: simp-env == 1.12.0
 %endif
 
 %define execdir /usr/bin
