@@ -1,6 +1,6 @@
 Summary: A small system for fetching SNMP data from redis and returning it via RabbitMQ
 Name: simp-data
-Version: 1.11.3
+Version: 1.12.0
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -34,7 +34,7 @@ Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 Requires: perl-GRNOC-RabbitMQ >= 1.2.1
 %if 0%{?rhel} >= 8
-Requires: simp-env
+Requires: simp-env == 1.12.0
 %endif
 
 Provides: perl(GRNOC::Simp::Data)
