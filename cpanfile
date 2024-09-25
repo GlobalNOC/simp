@@ -12,6 +12,7 @@ requires 'ExtUtils::MakeMaker', '>= 6.68';
 requires 'File::Basename', '== 2.84', '== 2.85';
 requires 'File::Path', '== 2.09';
 requires 'Getopt::Long', '== 2.4';
+requires 'IO::Socket';
 requires 'JSON', '== 2.59';
 requires 'JSON::XS', '== 3.01';
 requires 'List::MoreUtils', '== 0.428';
