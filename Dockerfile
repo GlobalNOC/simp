@@ -34,6 +34,8 @@ FROM oraclelinux:8
 
 COPY --from=rpmbuild /root/rpmbuild/RPMS/noarch/simp-*.rpm /root/
 
+RUN dnf install -y net-snmp net-snmp-devel net-snmp-libs net-snmp-utils
+
 RUN dnf install -y \
     https://build.grnoc.iu.edu/repo/rhel/8/x86_64/globalnoc-release-8-1.el8.noarch.rpm \
     oracle-epel-release-el8
@@ -43,10 +45,13 @@ RUN yum-config-manager --enable \
     ol8_appstream ol8_baseos_latest ol8_codeready_builder \
     ol8_developer_EPEL  ol8_developer_EPEL_modular
 
-RUN dnf install -y net-snmp net-snmp-devel net-snmp-libs net-snmp-utils
+RUN dnf install /root/*.rpm
 
 # run makecache
 RUN dnf makecache
+
+RUN rm -rf /etc/simp/comp/composites.d
+COPY composites.d /etc/simp/comp/composites.d
 
 # set entrypoint
 ENTRYPOINT ["/bin/echo", "'Welcome to SIMP!'"]
