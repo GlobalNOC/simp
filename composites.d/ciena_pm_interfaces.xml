@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="ifName" oid="1.3.6.1.4.1.1271.2.3.1.2.2.1.1.2.**">
+            <match name="ifIdx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf" source="ifName" />
+        <value name="input" source="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.2.ifIdx" type="rate" />
+        <value name="output" source="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.17.ifIdx" type="rate" />
+        <value name="inerror" source="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.4.ifIdx" type="rate" />
+        <value name="outerror" source="1.3.6.1.4.1.1271.2.3.1.2.3.1.5.1.24.ifIdx" type="rate" />
+        <value name="indiscard" source="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.33.ifIdx" type="rate" />
+        <value name="inUcast" source="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.3.ifIdx" type="rate" />
+        <value name="outUcast" source="1.3.6.1.4.1.1271.2.3.1.2.3.1.7.1.19.ifIdx" type="rate" />
+        <value name="status" source="1.3.6.1.4.1.1271.2.3.1.2.2.1.1.15.ifIdx" />
+    </data>
+
+    <conversions>
+        <function definition='${} 8 *'>
+            <data name="input" />
+            <data name="output" />
+        </function>
+    </conversions>
+</composite>

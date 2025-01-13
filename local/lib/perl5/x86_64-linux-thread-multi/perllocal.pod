@@ -1,0 +1,572 @@
+=head2 Thu Jan  9 19:00:56 2025: C<Module> L<Test::Deep|Test::Deep>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 1.204>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:00:57 2025: C<Module> L<Class::Accessor|Class::Accessor>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.34>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:00:58 2025: C<Module> L<Canary::Stability|Canary::Stability>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 2013>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:00:59 2025: C<Module> L<AnyEvent|AnyEvent>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 7.17>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:01 2025: C<Module> L<Class::Method::Modifiers|Class::Method::Modifiers>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 2.15>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:02 2025: C<Module> L<Sub::Quote|Sub::Quote>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 2.006008>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:03 2025: C<Module> L<Moo|Moo>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 2.005005>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:04 2025: C<Module> L<ExtUtils::Config|ExtUtils::Config>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.009>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:06 2025: C<Module> L<ExtUtils::Helpers|ExtUtils::Helpers>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.026>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:08 2025: C<Module> L<Getopt::Long|Getopt::Long>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 2.40>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:10 2025: C<Module> L<ExtUtils::HasCompiler|ExtUtils::HasCompiler>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.025>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:11 2025: C<Module> L<CPAN::Meta::Requirements|CPAN::Meta::Requirements>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 2.143>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:12 2025: C<Module> L<CPAN::Requirements::Dynamic|CPAN::Requirements::Dynamic>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.001>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:13 2025: C<Module> L<ExtUtils::InstallPaths|ExtUtils::InstallPaths>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.013>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:13 2025: C<Module> L<File::Path|File::Path>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 2.09>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:27 2025: C<Module> L<Variable::Magic|Variable::Magic>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.64>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:28 2025: C<Module> L<Sub::Exporter::Progressive|Sub::Exporter::Progressive>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.001013>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:29 2025: C<Module> L<Try::Tiny|Try::Tiny>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.30>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:37 2025: C<Module> L<Module::Implementation|Module::Implementation>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.09>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:40 2025: C<Module> L<B::Hooks::EndOfScope|B::Hooks::EndOfScope>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.28>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:41 2025: C<Module> L<Dist::CheckConflicts|Dist::CheckConflicts>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.11>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:45 2025: C<Module> L<Package::Stash::XS|Package::Stash::XS>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.30>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:46 2025: C<Module> L<Package::Stash|Package::Stash>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.40>
+
+=item *
+
+C<EXE_FILES: bin/package-stash-conflicts>
+
+=back
+
+=head2 Thu Jan  9 19:01:46 2025: C<Module> L<namespace::clean|namespace::clean>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.27>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:51 2025: C<Module> L<Sub::Install|Sub::Install>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.929>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  9 19:01:54 2025: C<Module> L<Params::Util|Params::Util>
+
+=over 4
+
+=item *
+
+C<installed into: /home/aragusa/simp/local/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 1.102>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+

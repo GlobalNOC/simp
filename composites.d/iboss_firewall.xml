@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <constant name="hardware_name" value="7" />
+        <scan value="fw_output" oid="1.3.6.1.4.1.8072.1.3.2.4.1.2.15.103.101.116.45.99.111.110.110.101.99.116.105.111.110.115.*">
+            <match name="fw_suffix"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="hardware_name" />
+        <value name="firewall_connection" source="1.3.6.1.4.1.8072.1.3.2.4.1.2.15.103.101.116.45.99.111.110.110.101.99.116.105.111.110.115.fw_suffix" />
+    </data>
+
+    <conversions>
+        <match pattern='^sysctl' exclude="1">
+            <data name="firewall_connection" />
+        </match>
+    </conversions>
+</composite>

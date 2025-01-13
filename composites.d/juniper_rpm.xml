@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="none" oid="1.3.6.1.4.1.2636.3.50.1.2.1.4.**.2">
+            <match name="encoded_test"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="test_name" source="encoded_test" />
+        <value name="avg_latency" source="1.3.6.1.4.1.2636.3.50.1.3.1.5.encoded_test.2.1" />
+        <value name="jitter" source="1.3.6.1.4.1.2636.3.50.1.3.1.6.encoded_test.2.1" />
+        <value name="loss" source="1.3.6.1.4.1.2636.3.50.1.2.1.4.encoded_test.2" />
+    </data>
+
+    <conversions>
+        <replace this='^(.+)$' with='
+            sub {
+                my $oid_string = $_[1];
+                my @pieces     = split(/\./, $oid_string);
+                my $owner_len  = $pieces[0];
+                my $owner      = join("", map { chr($_); } @pieces[1..$owner_len]);
+                my $start      = 1 + $owner_len;
+                my $test_len   = $pieces[$start];
+                my $test = join("", map {chr($_);} @pieces[$start+1..($start+$test_len)]);
+
+                return "$owner $test";
+            }'>
+            <data name="test_name" />
+        </replace>
+
+        <function definition='${} 1000 /'>
+            <data name="avg_latency" />
+            <data name="jitter" />
+        </function>
+
+        <function definition='${} 1000000 /'>
+            <data name="loss" />
+        </function>
+    </conversions>
+</composite>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="test" oid="1.3.6.1.4.1.12356.101.4.9.2.1.2.*">
+            <match name="id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="test_name" source="test" />
+        <value name="latency" source="1.3.6.1.4.1.12356.101.4.9.2.1.5.id" />
+        <value name="jitter" source="1.3.6.1.4.1.12356.101.4.9.2.1.6.id" />
+    </data>
+</composite>

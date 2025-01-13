@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="vdom" oid="1.3.6.1.4.1.12356.101.3.2.1.1.1.*">
+            <match name="vdom_id"/>
+        </scan>
+        <scan value="policer" oid="1.3.6.1.4.1.12356.101.5.1.2.1.1.1.vdom_id.*">
+            <match name="policer_id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="policer_id" source="policer" />
+        <meta name="vdom_name" source="1.3.6.1.4.1.12356.101.3.2.1.1.2.vdom_id" />
+        <value name="packets" source="1.3.6.1.4.1.12356.101.5.1.2.1.1.2.vdom_id.policer_id" type="rate" />
+        <value name="bits" source="1.3.6.1.4.1.12356.101.5.1.2.1.1.3.vdom_id.policer_id" type="rate" />
+    </data>
+
+    <conversions>
+        <function definition='${} 8 *'>
+            <data name="bits" />
+        </function>
+
+        <replace this='${}' with='${} (IPv4)'>
+            <data name="vdom_name" />
+        </replace>
+    </conversions>
+</composite>

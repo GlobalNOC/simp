@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="intf_name" oid="1.3.6.1.4.1.2636.3.1.13.1.5.**">
+            <match name="intf_id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="intf_name" />
+        <value name="memory" source="1.3.6.1.4.1.2636.3.1.13.1.11.intf_id" />
+    </data>
+
+    <conversions>
+        <match pattern='^(FPC:.*|Routing Engine.*)$' >
+            <data name="name" />
+        </match>
+    </conversions>
+</composite>

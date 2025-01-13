@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="sensor_name" oid=".1.3.6.1.2.1.47.1.1.1.1.7.*">
+            <match name="sensor_id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf" source="sensor_name" require_match="(Rx)" />
+        <value name="lane" source="sensor_name" />
+        <value name="type" source=".1.3.6.1.4.1.9.9.91.1.1.1.1.1.sensor_id" />
+        <value name="scale" source=".1.3.6.1.4.1.9.9.91.1.1.1.1.2.sensor_id" />
+        <value name="precision" source=".1.3.6.1.4.1.9.9.91.1.1.1.1.3.sensor_id" />
+        <value name="rxpower" source=".1.3.6.1.4.1.9.9.91.1.1.1.1.4.sensor_id" />
+    </data>
+
+    <conversions>
+        <match pattern='(14)' exclude="1" drop="node">
+            <data name="type" />
+        </match>
+
+        <function definition='${} 1000 ${scale} 9 - pow * 10 -${precision} pow *'>
+            <data name="rxpower" />
+        </function>
+
+        <match pattern='([\d]+ )' >
+            <data name="lane" />
+        </match>
+
+        <match pattern='^([^- ]*[-]*)' >
+            <data name="intf" />
+        </match>
+
+        <replace this='${}' with='${}lane${lane}'>
+            <data name="intf" />
+        </replace>
+
+        <match pattern='^([\S]*)' >
+            <data name="intf" />
+        </match>
+
+        <drop>
+            <data name="lane" />
+            <data name="precision" />
+            <data name="scale" />
+            <data name="type" />
+        </drop>
+    </conversions>
+</composite>

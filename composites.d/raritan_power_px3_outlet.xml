@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="outlet_name" oid="1.3.6.1.4.1.13742.6.3.5.3.1.3.1.*">
+            <match name="outlet_id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf" source="outlet_name" />
+        <meta name="alt_intf" source="outlet_id" />
+        <value name="status" source="1.3.6.1.4.1.13742.6.5.4.3.1.4.1.outlet_id.14" />
+        <value name="current" source="1.3.6.1.4.1.13742.6.5.4.3.1.4.1.outlet_id.1" />
+        <value name="voltage" source="1.3.6.1.4.1.13742.6.5.4.3.1.4.1.outlet_id.4" />
+        <value name="actpower" source="1.3.6.1.4.1.13742.6.5.4.3.1.4.1.outlet_id.5" />
+        <value name="apppower" source="1.3.6.1.4.1.13742.6.5.4.3.1.4.1.outlet_id.6" />
+        <value name="pf" source="1.3.6.1.4.1.13742.6.5.4.3.1.4.1.outlet_id.7" />
+    </data>
+
+    <conversions>
+        <function definition='${} 1000 /'>
+            <data name="current" />
+        </function>
+
+        <replace this='${}' with='Outlet ${}'>
+            <data name="alt_intf" />
+        </replace>
+
+        <function definition='"" eq "${alt_intf}" "${}" ifelse'>
+            <data name="intf" />
+        </function>
+
+        <drop>
+            <data name="alt_intf" />
+        </drop>
+    </conversions>
+</composite>

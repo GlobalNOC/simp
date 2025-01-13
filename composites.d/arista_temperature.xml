@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <constant name="temp_id" value="CPU 0 Temperature" />
+    </variables>
+
+    <data>
+        <meta name="name" source="temp_id" />
+        <value name="temp" source="1.3.6.1.2.1.99.1.1.1.4.100006001" />
+    </data>
+
+    <conversions>
+        <function definition='${} 10 /'>
+            <data name="temp" />
+        </function>
+    </conversions>
+</composite>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="vdom_name" oid="1.3.6.1.4.1.12356.101.3.2.1.1.2.*">
+            <match name="vdom_id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="vdom" source="vdom_name" />
+        <value name="cpu" source="1.3.6.1.4.1.12356.101.3.2.1.1.5.vdom_id" />
+        <value name="mem" source="1.3.6.1.4.1.12356.101.3.2.1.1.6.vdom_id" />
+        <value name="session_total" source="1.3.6.1.4.1.12356.101.3.2.1.1.7.vdom_id" />
+        <value name="session_rate" source="1.3.6.1.4.1.12356.101.3.2.1.1.8.vdom_id" type="rate" />
+    </data>
+</composite>

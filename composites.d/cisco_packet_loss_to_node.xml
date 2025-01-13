@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="endpoint_name" oid="1.3.6.1.4.1.9.9.42.1.2.1.1.12.*">
+            <match name="id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="endpoint" source="NODE" />
+        <meta name="tmp_node" source="endpoint_name" />
+        <value name="sent" source="1.3.6.1.4.1.9.9.42.1.5.2.1.1.id" />
+        <value name="lost" source="1.3.6.1.4.1.9.9.42.1.5.2.1.27.id" />
+        <value name="loss" source="1.3.6.1.4.1.9.9.42.1.5.2.1.27.id" />
+    </data>
+
+    <conversions>
+        <function definition='${} ${sent} 100 * /'>
+            <data name="loss" />
+        </function>
+
+        <replace this='${}' with='${tmp_node}'>
+            <data name="node" />
+        </replace>
+
+        <drop>
+            <data name="tmp_node" />
+        </drop>
+    </conversions>
+</composite>

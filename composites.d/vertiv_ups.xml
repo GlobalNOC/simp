@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <data>
+        <value name="batCap" source="1.3.6.1.2.1.33.1.2.4.0" />
+        <value name="batRemain" source="1.3.6.1.2.1.33.1.2.3.0" />
+        <value name="outputVolt" source="1.3.6.1.2.1.33.1.4.4.1.2" />
+        <value name="outputCurrent" source="1.3.6.1.2.1.33.1.4.4.1.3" />
+        <value name="outputWatt" source="1.3.6.1.2.1.33.1.4.4.1.4" />
+        <value name="outputLoad" source="1.3.6.1.2.1.33.1.4.4.1.5" />
+    </data>
+
+    <conversions>
+        <function definition='${} 60 /'>
+            <data name="batRemain" />
+        </function>
+    </conversions>
+</composite>

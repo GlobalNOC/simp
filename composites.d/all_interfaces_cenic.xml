@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="ifName" oid="1.3.6.1.2.1.31.1.1.1.1.*">
+            <match name="ifIdx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf" source="ifName" />
+        <meta name="ifAlias" source="1.3.6.1.2.1.31.1.1.1.18.ifIdx" require_match="^.*\[ns-exp\].+$" />
+        <value name="input" source="1.3.6.1.2.1.31.1.1.1.6.ifIdx" type="rate" />
+        <value name="output" source="1.3.6.1.2.1.31.1.1.1.10.ifIdx" type="rate" />
+        <value name="inerror" source="1.3.6.1.2.1.2.2.1.14.ifIdx" type="rate" />
+        <value name="outerror" source="1.3.6.1.2.1.2.2.1.20.ifIdx" type="rate" />
+        <value name="inUcast" source="1.3.6.1.2.1.2.2.1.11.ifIdx" type="rate" />
+        <value name="outUcast" source="1.3.6.1.2.1.2.2.1.17.ifIdx" type="rate" />
+        <value name="indiscard" source="1.3.6.1.2.1.2.2.1.13.ifIdx" type="rate" />
+        <value name="outdiscard" source="1.3.6.1.2.1.2.2.1.19.ifIdx" type="rate" />
+        <value name="status" source="1.3.6.1.2.1.2.2.1.8.ifIdx" />
+        <value name="limit" source="1.3.6.1.2.1.31.1.1.1.15.ifIdx" />
+    </data>
+
+    <conversions>
+        <function definition='${} 8 *'>
+            <data name="input" />
+            <data name="output" />
+        </function>
+
+        <function definition='not 1000000 ${} ifelse'>
+            <data name="limit" />
+        </function>
+
+        <function definition='${} 1100000 *'>
+            <data name="limit" />
+        </function>
+
+        <function definition='${limit} &lt; ${} _ ifelse'>
+            <data name="input" />
+            <data name="output" />
+        </function>
+
+        <drop>
+            <data name="limit" />
+            <data name="adminStatus" />
+            <data name="ifAlias" />
+        </drop>
+    </conversions>
+</composite>

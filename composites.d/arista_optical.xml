@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="intf_name" oid="1.3.6.1.2.1.31.1.1.1.1.**">
+            <match name="encoded_intf"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="optical_intf" source="encoded_intf" />
+        <value name="rxpower" source="1.3.6.1.2.1.99.1.1.1.4.encoded_intf" />
+        <value name="txpower" source="1.3.6.1.2.1.99.1.1.1.4.encoded_intf" />
+    </data>
+
+    <conversions>
+        <replace this='^(.+)$' with='sub {
+  my $oid_string = $_[1];
+
+}'>
+            <data name="optical_intf" />
+        </replace>
+
+        <function definition='${} 100 /'>
+            <data name="rxpower" />
+            <data name="txpower" />
+        </function>
+    </conversions>
+</composite>

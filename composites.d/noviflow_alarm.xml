@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="ip_addr" oid="1.3.6.1.4.1.55951.13.1.*.*.*.*">
+            <match name="ip1"/>
+            <match name="ip2"/>
+            <match name="ip3"/>
+            <match name="ip4"/>
+        </scan>
+        <scan value="intf_idx" oid="1.3.6.1.4.1.55951.13.1.ip1.ip2.ip3.ip4.1.*">
+            <match name="ifIdx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf_index" source="intf_idx" />
+        <meta name="admin_status" source="1.3.6.1.4.1.55951.13.1.ip1.ip2.ip3.ip4.7.ifIdx" require_match="^1$" />
+        <meta name="descr" source="1.3.6.1.4.1.55951.13.1.ip1.ip2.ip3.ip4.2.ifIdx" />
+        <value name="oper_status" source="1.3.6.1.4.1.55951.13.1.ip1.ip2.ip3.ip4.8.ifIdx" />
+    </data>
+
+    <conversions>
+        <drop>
+            <data name="ifAdminStatus" />
+        </drop>
+    </conversions>
+</composite>

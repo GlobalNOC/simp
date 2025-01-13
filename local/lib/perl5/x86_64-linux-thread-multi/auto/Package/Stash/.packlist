@@ -1,0 +1,10 @@
+/home/aragusa/simp/local/bin/package-stash-conflicts
+/home/aragusa/simp/local/lib/perl5/Package/Stash.pm
+/home/aragusa/simp/local/lib/perl5/Package/Stash/Conflicts.pm
+/home/aragusa/simp/local/lib/perl5/Package/Stash/PP.pm
+/usr/local/bin/package-stash-conflicts
+/usr/local/share/man/man3/Package::Stash.3pm
+/usr/local/share/man/man3/Package::Stash::PP.3pm
+/usr/local/share/perl5/Package/Stash.pm
+/usr/local/share/perl5/Package/Stash/Conflicts.pm
+/usr/local/share/perl5/Package/Stash/PP.pm

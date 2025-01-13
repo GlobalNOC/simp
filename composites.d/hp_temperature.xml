@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="temperature" oid="1.3.6.1.2.1.99.1.1.1.4.*">
+            <match name="temp_idx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="temp_idx" />
+        <value name="temp" source="temperature" />
+    </data>
+
+    <conversions>
+        <function definition='0 == _ ${} ifelse'>
+            <data name="temp" />
+        </function>
+    </conversions>
+</composite>

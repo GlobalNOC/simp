@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="endpoint_name" oid="1.3.6.1.4.1.9.9.42.1.2.1.1.12.*">
+            <match name="id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="endpoint" source="endpoint_name" />
+        <meta name="test" source="1.3.6.1.4.1.9.9.42.1.2.1.1.4.id" />
+        <value name="latency" source="1.3.6.1.4.1.9.9.42.1.2.10.1.1.id" />
+    </data>
+
+    <conversions>
+        <replace this='^(\d+)$' with='        sub {
+            my $type_code = $_[1];
+            my $types = {
+                    "1" => "echo",
+                    "2" => "pathEcho",
+                    "3" => "fileIO",
+                    "4" => "script",
+                    "5" => "udpEcho",
+                    "6" => "tcpConnect",
+                    "7" => "http",
+                    "8" => "dns",
+                    "9" => "jitter",
+                    "10" => "dlsw",
+                    "11" => "dhcp",
+                    "12" => "ftp",
+                    "13" => "voip",
+                    "14" => "rtp",
+                    "15" => "lspGroup",
+                    "16" => "icmpjitter",
+                    "17" => "lspPing",
+                    "18" => "lspTrace",
+                    "19" => "ethernetPing",
+                    "20" => "ethernetJitter",
+                    "21" => "lspPingPseudowire",
+                    "22" => "video",
+                    "23" => "y1731Delay",
+                    "24" => "y1731Loss",
+                    "25" => "mcastJitter",
+                    "26" => "fabricPathEcho"
+                };
+                if (exists($types->{$type_code})) {
+                    return $types->{$type_code};
+                }
+                return;
+            } '>
+            <data name="test" />
+        </replace>
+    </conversions>
+</composite>

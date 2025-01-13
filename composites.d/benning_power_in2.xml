@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <constant name="intf_id" value="2" />
+    </variables>
+
+    <data>
+        <meta name="intf" source="intf_id" />
+        <value name="voltage" source="1.3.6.1.4.1.1356.1.7.1.2.1.6.1" />
+    </data>
+
+    <conversions>
+        <replace this='${}' with='Inlet ${}'>
+            <data name="intf" />
+        </replace>
+    </conversions>
+</composite>

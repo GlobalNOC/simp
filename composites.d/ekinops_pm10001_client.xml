@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="ifNameClient" oid="1.3.6.1.4.1.20044.60.7.1.1.1.2.*">
+            <match name="ifIdx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf" source="ifNameClient" />
+        <value name="txpower" source="1.3.6.1.4.1.20044.60.3.2.48.1.2.ifIdx" />
+        <value name="rxpower" source="1.3.6.1.4.1.20044.60.3.2.64.1.2.ifIdx" />
+        <value name="input_bits" source="1.3.6.1.4.1.20044.60.11.2.4.16.1.2.ifIdx" type="rate" />
+        <value name="output_bits" source="1.3.6.1.4.1.20044.60.11.2.4.208.1.2.ifIdx" type="rate" />
+        <value name="input_packets" source="1.3.6.1.4.1.20044.60.11.2.4.48.1.2.ifIdx" type="rate" />
+        <value name="output_packets" source="1.3.6.1.4.1.20044.60.11.2.4.240.1.2.ifIdx" type="rate" />
+        <value name="input_errors" source="1.3.6.1.4.1.20044.60.11.2.4.32.1.2.ifIdx" type="rate" />
+        <value name="output_errors" source="1.3.6.1.4.1.20044.60.11.2.4.224.1.2.ifIdx" type="rate" />
+    </data>
+
+    <conversions>
+        <function definition='${} log10'>
+            <data name="txpower" />
+            <data name="rxpower" />
+        </function>
+
+        <function definition='${} 10 * 40 -'>
+            <data name="txpower" />
+            <data name="rxpower" />
+        </function>
+
+        <match pattern='^([^_]*)_.*$' exclude="1">
+            <data name="node" />
+        </match>
+
+        <match pattern='^([^(]+)\(.*$' >
+            <data name="intf" />
+        </match>
+
+        <replace this='${}' with='1/${}'>
+            <data name="intf" />
+        </replace>
+    </conversions>
+</composite>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="discards" oid="1.3.6.1.4.1.1271.2.3.1.2.3.8.7.1.5.*.*">
+            <match name="ifIdx"/>
+            <match name="groupNum"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="index" source="ifIdx" />
+        <meta name="group" source="groupNum" />
+        <value name="outdiscard" source="discards" type="rate" />
+    </data>
+</composite>
