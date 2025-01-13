@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<group workers="1" interval="60" timeout="15">
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.220.3.1" /> <!-- Noviflow ifIndex tabke for ATL-LUM-SW01 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.220.3.7" /> <!-- Noviflow ifAdminStatus table for ATL-LUM-SW01 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.220.3.2" /> <!-- Noviflow ifDescr Table for ATL-LUM-SW01 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.220.3.8" /> <!-- Noviflow ifOperStatus table for ATL-LUM-SW01 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.220.4.1" /> <!-- Noviflow ifIndex tabke for ATL-LUM-SW02 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.220.4.7" /> <!-- Noviflow ifAdminStatus table for ATL-LUM-SW02 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.220.4.2" /> <!-- Noviflow ifDescr Table for ATL-LUM-SW02 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.220.4.8" /> <!-- Noviflow ifOperStatus table for ATL-LUM-SW02 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.204.3.1" /> <!-- Noviflow ifIndex tabke for JAX-LUM-SW01 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.204.3.7" /> <!-- Noviflow ifAdminStatus table for JAX-LUM-SW01 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.204.3.2" /> <!-- Noviflow ifDescr Table for JAX-LUM-SW01 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.204.3.8" /> <!-- Noviflow ifOperStatus table for JAX-LUM-SW01 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.204.4.1" /> <!-- Noviflow ifIndex tabke for JAX-LUM-SW02 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.204.4.7" /> <!-- Noviflow ifAdminStatus table for JAX-LUM-SW02 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.204.4.2" /> <!-- Noviflow ifDescr Table for JAX-LUM-SW02 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.192.168.204.4.8" /> <!-- Noviflow ifOperStatus table for JAX-LUM-SW02 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.156.1" /> <!-- Noviflow ifIndex tabke for MIA-MI1-SW14 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.156.7" /> <!-- Noviflow ifAdminStatus table for MIA-MI1-SW14 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.156.2" /> <!-- Noviflow ifDescr Table for MIA-MI1-SW14 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.156.8" /> <!-- Noviflow ifOperStatus table for MIA-MI1-SW14 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.157.1" /> <!-- Noviflow ifIndex tabke for MIA-MI1-SW15 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.157.7" /> <!-- Noviflow ifAdminStatus table for MIA-MI1-SW15 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.157.2" /> <!-- Noviflow ifDescr Table for MIA-MI1-SW15 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.157.8" /> <!-- Noviflow ifOperStatus table for MIA-MI1-SW15 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.159.1" /> <!-- Noviflow ifIndex tabke for MIA-MI1-SW18 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.159.7" /> <!-- Noviflow ifAdminStatus table for MIA-MI1-SW18 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.159.2" /> <!-- Noviflow ifDescr Table for MIA-MI1-SW18 -->
+  <mib oid="1.3.6.1.4.1.55951.13.1.190.103.186.159.8" /> <!-- Noviflow ifOperStatus table for MIA-MI1-SW18 -->
+</group>

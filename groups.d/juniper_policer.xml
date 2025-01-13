@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<group workers="4" interval="300" timeout="15">
+  <mib oid="1.3.6.1.4.1.2636.3.5.2.1.7" /> <!-- Policer Names -->
+  <mib oid="1.3.6.1.4.1.2636.3.5.2.1.6" /> <!-- Filter Names -->
+  <mib oid="1.3.6.1.4.1.2636.3.5.2.1.4" /> <!-- Policer Packets -->
+  <mib oid="1.3.6.1.4.1.2636.3.5.2.1.5" /> <!-- Policer Bytes -->
+</group>

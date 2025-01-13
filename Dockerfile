@@ -52,6 +52,8 @@ RUN dnf makecache
 
 RUN rm -rf /etc/simp/comp/composites.d
 COPY composites.d /etc/simp/comp/composites.d
+RUN rm -rf /etc/simp/poller/groups.dev
+COPY groups.d /etc/simp/poller/groups.d
 
 # set entrypoint
 ENTRYPOINT ["/bin/echo", "'Welcome to SIMP!'"]

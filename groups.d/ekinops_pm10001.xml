@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<group workers="1" interval="120" timeout="20" request_size="10" retention="3000">
+  <mib oid="1.3.6.1.4.1.20044.60.7.1.1.1.2" /> <!-- PM_10001 card: client interfaces -->
+  <mib oid="1.3.6.1.4.1.20044.60.11.2.4.16.1.2" /> <!-- client input octets -->
+  <mib oid="1.3.6.1.4.1.20044.60.11.2.4.208.1.2" /> <!-- client output octets -->
+  <mib oid="1.3.6.1.4.1.20044.60.11.2.4.32.1.2" /> <!-- client input B1/CRC errors -->
+  <mib oid="1.3.6.1.4.1.20044.60.11.2.4.224.1.2" /> <!-- client input B1/CRC errors -->
+  <mib oid="1.3.6.1.4.1.20044.60.11.2.4.48.1.2" /> <!-- client input packets -->
+  <mib oid="1.3.6.1.4.1.20044.60.11.2.4.240.1.2" /> <!-- client output packets -->
+  <mib oid="1.3.6.1.4.1.20044.60.3.2.48.1.2" /> <!-- client tx power -->
+  <mib oid="1.3.6.1.4.1.20044.60.3.2.64.1.2" /> <!-- client rx power -->
+  <mib oid="1.3.6.1.4.1.20044.60.7.1.2.1" /> <!-- PM_10001 card: line interface -->
+  <mib oid="1.3.6.1.4.1.20044.60.4.3.192.1.2" /> <!-- line input pre-Soft Decision FEC errors -->
+  <mib oid="1.3.6.1.4.1.20044.60.4.3.196.1.2" /> <!-- line output post-FEC errors -->
+  <mib oid="1.3.6.1.4.1.20044.60.3.3.80.1.2" /> <!-- line tx power -->
+  <mib oid="1.3.6.1.4.1.20044.60.3.3.128.1.2" /> <!-- line rx power -->
+</group>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<group workers="2" interval="60" timeout="15">
+  <mib oid="1.3.6.1.4.1.9.9.10.1.1.4.1.1.10" /> <!-- Partition Name -->
+  <mib oid="1.3.6.1.4.1.9.9.10.1.1.4.1.1.4" /> <!-- Partition Size -->
+  <mib oid="1.3.6.1.4.1.9.9.10.1.1.4.1.1.5" /> <!-- Partition Free Space -->
+</group>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<group workers="1" interval="900" timeout="60">
+  <mib oid="1.3.6.1.4.1.211.1.24.12.800.8.1.3" /> <!-- Fujitsu FSS-PM.mib Data Values -->
+</group>
