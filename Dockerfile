@@ -16,7 +16,7 @@ RUN yum-config-manager --enable \
 RUN dnf install -y \
     openssl-devel perl-App-cpanminus expat-devel
 
-RUN dnf install -y rpm-build perl-List-MoreUtils perl-AnyEvent net-snmp net-snmp-devel net-snmp-libs net-snmp-utils perl-Test-Deep perl-Test-Pod perl-Net-SNMP
+RUN dnf install -y rpm-build perl-List-MoreUtils perl-AnyEvent net-snmp net-snmp-devel net-snmp-libs net-snmp-utils perl-Test-Deep perl-Test-Pod perl-Net-SNMP perl-IO-AIO
 
 # run makecache
 RUN dnf makecache
@@ -44,6 +44,8 @@ RUN dnf install -y \
 RUN yum-config-manager --enable \
     ol8_appstream ol8_baseos_latest ol8_codeready_builder \
     ol8_developer_EPEL  ol8_developer_EPEL_modular
+
+RUN dnf install perl-IO-AIO
 
 RUN dnf install /root/*.rpm
 
