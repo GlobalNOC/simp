@@ -11,7 +11,7 @@ use AnyEvent 7.07;
 use Data::Dumper 2.145;
 use Data::Munge 0.093;
 use Time::HiRes 1.9725 qw(gettimeofday tv_interval);
-use Safe 2.40;
+use Safe 2.31;
 
 use GRNOC::Log;
 use GRNOC::RabbitMQ::Client;
@@ -402,7 +402,7 @@ sub _init_request {
         composite => $composite,
         hosts     => $args->{node}{value},
         interval  => $args->{period}{value} || 60,
-	time      => $args->{time}{value} || time(),
+        time      => $args->{time}{value} || time(),
         constants => {},
         raw       => {scan => {}, data => {}},
         data      => {},
@@ -491,7 +491,7 @@ sub _request_data {
         $self->rmq_client->get_rate(
             node           => $request->{hosts},
             period         => $request->{interval},
-	    time           => $request->{time},
+            time           => $request->{time},
             oidmatch       => [$oid],
             async_callback => sub {
                 my $data = shift;
@@ -505,7 +505,7 @@ sub _request_data {
         $self->rmq_client->get(
             node           => $request->{hosts},
             oidmatch       => [$oid],
-	    time           => $request->{time},
+            time           => $request->{time},
             async_callback => sub {
                 my $data = shift;
                 $self->_cache_data($request, $name, $attr, $data->{results});
@@ -921,7 +921,11 @@ sub _convert_data {
                 }
 
                 # Apply the conversion for the target to each data object for the host
-                for my $data (@{$request->{'data'}{$host}}) {
+                # Data hashes are iterated in reverse to allow deletion of hashes during processing
+                for (my $i = $#{$request->{'data'}{$host}}; $i >= 0; $i--) {
+
+                    # Grab a ref to the data hash
+                    my $data = $request->{'data'}{$host}[$i];
 
                     # Initialize all temporary conversion attributes for the data object
                     my $temp_def     = $target_def;
@@ -1062,7 +1066,7 @@ sub _convert_data {
 			            my $drop_targets = exists($conversion->{'drop'}) ? $conversion->{'drop'} : '';
                         my $update       = exists($conversion->{'update'}) ? $conversion->{update} : 1;                     
                         $self->logger->debug(Dumper($data->{$target}));
-                        
+
                         # Keep the original value for matches that shouldn't update it
                         my $original_value = $data->{$target};
 
@@ -1081,7 +1085,14 @@ sub _convert_data {
                         # Defined values mean a positive match or exclusion
                         if (defined($new_value)) {
 
-                            # Drop any fields in the CSV string
+                            # Drop the entire data hash and move to the next if dropping ALL
+                            if ($drop_targets eq 'ALL') {
+                                $self->logger->debug("Dropping entire data object with ALL condition");
+                                splice(@{$request->{'data'}{$host}}, $i, 1);
+                                next;
+                            }
+
+                            # Drop all fields given in the CSV string
                             for my $drop_target (split(/,/, $drop_targets)) {
                                 $self->logger->debug(sprintf("Dropping %s", $drop_target));
                                 delete($data->{$drop_target}) if exists($data->{$drop_target});
