@@ -25,7 +25,7 @@ requires 'Parallel::ForkManager', '== 1.18';
 requires 'POSIX', '>= 1.30';
 requires 'Proc::Daemon', '== 0.19';
 requires 'Redis::Fast', '== 0.28';
-requires 'Safe', '>= 2.31_01';
+requires 'Safe', '>= 2.31';
 requires 'Scalar::Util';
 requires 'Syntax::Keyword::Try';
 requires 'Test::Deep';
