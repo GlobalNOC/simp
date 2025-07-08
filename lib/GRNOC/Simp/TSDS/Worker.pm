@@ -77,6 +77,8 @@ has composite => (
     required => 1
 );
 
+has exporter => (is => 'rwp')
+
 has filter_name  => (is => 'rwp');
 has filter_value => (is => 'rwp');
 
@@ -94,6 +96,8 @@ has status_filepath => (
     is          => 'rwp',
     required    => 1
 );
+
+
 
 has stagger_offset => (
     is      => 'rwp',
@@ -259,6 +263,7 @@ sub _setup_pusher {
         logger      => $self->logger,
         worker_name => $self->worker_name,
         tsds_config => $self->tsds_config,
+        exporter    => $self->exporter
     );
 
     if (!$pusher) {
@@ -469,6 +474,7 @@ sub _write_push_status {
     }
     catch ($e) {
         $self->logger->error(sprintf("%s Error: Exception while trying to write %s", $self->worker_name, $path));
+        $self->exporter->export("TSDS", "critical", "status", sprintf("%s Error: Exception while trying to write %s", $self->worker_name, $path));
     }
 }
 

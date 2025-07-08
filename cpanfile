@@ -13,6 +13,7 @@ requires 'File::Basename', '== 2.84', '== 2.85';
 requires 'File::Path', '== 2.09';
 requires 'Getopt::Long', '== 2.4';
 requires 'JSON';
+requires 'Net::AMQP::RabbitMQ';
 requires 'JSON::XS';
 requires 'List::MoreUtils', '== 0.428';
 requires 'Log::Log4perl', '== 1.42';

@@ -20,6 +20,7 @@ use GRNOC::Monitoring::Service::Status;
 use GRNOC::Config;
 use GRNOC::RabbitMQ::Client;
 use GRNOC::Simp::TSDS::Worker;
+use GRNOC::Simp::Exporter;
 
 =head2 public attributes
 
@@ -131,6 +132,9 @@ has logger => (is => 'rwp');
 has rabbitmq => (is => 'rwp');
 
 has tsds_instance => (is => 'rwp');
+
+has exporter_config => (is => 'rwp');
+has exporter => (is => 'rwp');
 
 has collections => (
     is      => 'rwp',
@@ -306,15 +310,25 @@ sub _load_config
     # TSDS services instance, and stagger time
     my $config = $self->_get_conf($self->config);
 
+    #Prometheus Exporter
+    my $exporter = GRNOC::Simp::Exporter->new(
+        config_file     => $self->exporter_config,
+        logging_file    => $self->logging,
+        validation_file => $self->exporter_valid
+    );
+
     # Get the validation file for config.xml
     my $config_xsd = $self->validation_dir . 'config.xsd';
 
     # Validate the config file or exit
     $self->_validate_config($self->config, $config, $config_xsd);
 
+
+
     # Set parameters from the config
     $self->_set_rabbitmq($config->get('/config/rabbitmq')->[0]);
-    $self->_set_tsds_instance($config->get('/config/tsds')->[0]);
+    $self->_set_tsds_instance($config->get('/config/tsds')->[0]);  
+    $self->_set_exporter($exporter);
     $self->_set_stagger_interval($config->get('/config/stagger/@seconds')->[0]);
 
     # Read all collections XML files from the collections.d directory
@@ -486,6 +500,7 @@ sub _create_worker
         logger           => $self->logger,
         rabbitmq         => $self->rabbitmq,
         tsds_config      => $self->tsds_instance,
+        exporter         => $self->exporter,
         composite        => $collection->{'composite'},
         measurement_type => $collection->{'measurement_type'},
         interval         => $collection->{'interval'},
@@ -571,12 +586,15 @@ sub _check_worker_health() {
                 }
                 # Any missing file or unreadable file needs to be investigated as an error
                 else {
-                    $self->logger->error(sprintf("Error: Could not open status file for worker %s: %s", $worker->worker_name, $!));
+                    my $error = sprintf("Error: Could not open status file for worker %s: %s", $worker->worker_name, $!)
+                    $self->logger->error($error);                    
                     $errors_found += 1;
                 }
             }
             catch ($e) {
-                $self->logger->error(sprintf("Error: Exception occurred while reading worker status %s: %s", $filename, $e));
+                my $error = sprintf("Error: Exception occurred while reading worker status %s: %s", $filename, $e);
+                $self->logger->error($error);
+                $self->exporter->export("TSDS", "critical", "status", $error);
                 $errors_found += 1;
             };
         }
@@ -605,7 +623,9 @@ sub _check_worker_health() {
         }
     }
     catch ($e) {
-        $self->logger->error(sprintf("Error: Exception occurred while writing simp-tsds status: %s", $e));
+        my $error = sprintf("Error: Exception occurred while writing simp-tsds status: %s", $e);
+        $self->logger->error($error);
+        $self->exporter->export("TSDS", "critical", "status", $error);
     };
 }
 

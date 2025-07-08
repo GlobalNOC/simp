@@ -56,6 +56,8 @@ has tsds_config => (
 
 has tsds_svc => (is => 'rwp');
 
+has exporter => (is => 'rwp');
+
 =head2 BUILD
 
 =cut
@@ -103,8 +105,9 @@ sub push {
     }
     catch ($e) {
         $error = sprintf("[%s] Error: Exception while pushing data to TSDS: %s", $self->worker_name, $e);
-        $self->logger->error($error);
 
+        $self->logger->error($error);
+        $self->exporter->export("TSDS", "critical", "push", $error);
         # Return a response hashref with the error.
         return {'error' => 1, 'error_text' => $error};
     };
@@ -137,7 +140,9 @@ sub push {
                         $res = $self->tsds_svc->add_data(data => encode_json([$msg]));
                     }
                     catch ($e) {
-                        $self->logger->error(sprintf("[%s] Error: Exception while retrying individual message push to TSDS: %s", $self->worker_name, $e));
+                        my $error = sprintf("[%s] Error: Exception while retrying individual message push to TSDS: %s", $self->worker_name, $e);
+                        $self->logger->error($error);
+                        $self->exporter->export("TSDS", "critical", "push", $error);
                     };
 
                     # A message is bad unless it gets a normal response without errors.

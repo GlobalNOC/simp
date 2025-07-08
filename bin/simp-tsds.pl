@@ -14,6 +14,8 @@ use Log::Log4perl;
 use GRNOC::Simp::TSDS::Master;
 
 my $config          = '/etc/simp/tsds/config.xml';
+my $exporter_config = '/etc/simp/tsds/exporter.xml';
+my $exporter_valid = '/etc/simp/exporter/validation.d/config.xsd';
 my $logging         = '/etc/simp/tsds/logging.conf';
 my $collections_dir = '/etc/simp/tsds/collections.d/';
 my $validation_dir  = '/etc/simp/tsds/validation.d/';
@@ -24,15 +26,17 @@ my $run_user;
 my $help;
 
 GetOptions(
-    'config=s'      => \$config,
-    'logging=s'     => \$logging,
-    'collections=s' => \$collections_dir,
-    'validation=s'  => \$validation_dir,
-    'pidfile=s'     => \$pidfile,
-    'nofork'        => \$nofork,
-    'group=s'       => \$run_group,
-    'user=s'        => \$run_user,
-    'help|h|?'      => \$help
+    'config=s'          => \$config,
+    'exporter_config=s' => \$exporter_config,
+    'exporter_valid=s'  => \$exporter_valid
+    'logging=s'         => \$logging,
+    'collections=s'     => \$collections_dir,
+    'validation=s'      => \$validation_dir,
+    'pidfile=s'         => \$pidfile,
+    'nofork'            => \$nofork,
+    'group=s'           => \$run_group,
+    'user=s'            => \$run_user,
+    'help|h|?'          => \$help
 );
 
 usage() if ($help);
