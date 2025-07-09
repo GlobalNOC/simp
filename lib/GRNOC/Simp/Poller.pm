@@ -41,6 +41,16 @@ has config_file => (
     isa      => Str,
     required => 1
 );
+has exporter_file => (
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
+has exporter_val => (
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
 has logging_file => (
     is       => 'ro',
     isa      => Str,
@@ -100,6 +110,7 @@ has run_group => (
 =cut
 
 has config      => (is => 'rwp');
+has exporter    => (is => 'rwp');
 has logger      => (is => 'rwp');
 has hosts       => (is => 'rwp');
 has groups      => (is => 'rwp');
@@ -141,6 +152,12 @@ sub BUILD {
         force_array => 1
     );
 
+    my $exporter = GRNOC::Simp::Exporter->new(
+        config_file     => $self->exporter_file,
+        logging_file    => $self->logger,
+        validation_file => $self->exporter_val
+    );
+
     # Get the validation file for config.xml
     my $xsd = $self->validation_dir . 'config.xsd';
 
@@ -150,6 +167,7 @@ sub BUILD {
 
     # Set the config if it validated
     $self->_set_config($config);
+    $self->_set_exporter($exporter);
     $self->logger->debug("Finished configuring the main Poller process");
 
     # Set status_dir to path in the configs, if defined and is a dir
@@ -877,6 +895,7 @@ sub _create_workers {
             my $worker = GRNOC::Simp::Poller::Worker->new(
                 instance     => $worker_id,
                 config       => $self->config,
+                exporter     => $self->exporter,
                 logger       => $self->logger,
                 status_dir   => $self->status_dir,
                 group_name   => $group_name,

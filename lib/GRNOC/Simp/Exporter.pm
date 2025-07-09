@@ -31,7 +31,6 @@ has config_file => (
 );
 has logger => (
     is       => 'ro',
-    isa      => Str,
     required => 1
 );
 has validation_file => (
@@ -72,9 +71,7 @@ has logger => (is => 'rwp');
 sub BUILD {
     my ($self) = @_;
 
-    # Create and store logger object
-    $self->_set_logger($self->logger);
-
+    
     # Create the config object
     my $config = GRNOC::Config->new(
         config_file => $self->config_file,

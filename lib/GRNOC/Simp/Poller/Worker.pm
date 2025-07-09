@@ -45,6 +45,10 @@ has config => (
     is       => 'ro',
     required => 1
 );
+has exporter => (
+    is       => 'ro',
+    required => 1
+);
 has logger => (
     is       => 'rwp',
     required => 1
@@ -274,7 +278,9 @@ sub _connect_to_redis {
             $redis_connected = 1;
         }
         catch ($e) {
-            $self->logger->error(sprintf("%s - Error connecting to Redis: %s", $worker, $e));
+            my $error = sprintf("%s - Error connecting to Redis: %s", $worker, $e);
+            $self->logger->error($error);
+            $exporter->export("Poller", "critical", "redis", $error);
             sleep(1);
         };
     }
@@ -324,12 +330,14 @@ sub _poll_cb {
             ($poll_id, $poll_time) = split(',', $poll_cycle) if (defined($poll_cycle));
         }
         catch {
-            $self->logger->error(sprintf(
+            my $error = sprintf(
                 "%s - Error fetching the current poll cycle ID from Redis for %s: %s",
                 $worker,
                 $name,
                 $_
-            ));
+            );
+            $self->logger->error($error);
+            $exporter->export("Poller", "critical", "redis", $error);
             $self->redis->wait_all_responses();
             $self->redis->select(0);
         };
@@ -475,7 +483,9 @@ sub _poll_cb {
         $redis->hset($ip_id,   $oid, $group_interval, sub{});
     }
     catch ($e) {
-        $self->logger->error(sprintf('%s - ERROR: could not hset Redis data: %s', $worker, $e));
+        my $error = sprintf('%s - ERROR: could not hset Redis data: %s', $worker, $e);
+        $self->logger->error($error);
+        $exporter->export("Poller", "critical", "redis", $error);
     };
 
     # Ensure we're done with the pipeline
@@ -581,12 +591,13 @@ sub _connect_to_snmp {
             $self->logger->error($error);
 
             my $error_data = {
-                type        => 'session', 
+                type        => 'session',
                 description => $error,
                 error       => $error,
                 timestamp   => time()
             };
             push(@{$status->{snmp_errors}}, $error_data);
+            $exporter->export("Poller", "critical", "snmp", $error);
         }
     }
 }
@@ -602,9 +613,11 @@ sub _update_status {
     # Add the host config's errors to its global status data
     for my $error (@{$failed_oids}) {
         push(@{$self->status_data->{$host->{name}}{failed_oids}}, $error);
+        $exporter->export("Poller", "critical", "failed_oids", $error);
     }
     for my $error (@{$snmp_errors}) {
         push(@{$self->status_data->{$host->{name}}{snmp_errors}}, $error);
+        $exporter->export("Poller", "critical", "snmp", $error);
     }
 }
 

@@ -25,6 +25,8 @@ EOM
 use constant {
     DEFAULT_CONFIG_FILE    => '/etc/simp/poller/config.xml',
     DEFAULT_LOGGING_FILE   => '/etc/simp/poller/logging.conf',
+    DEFAULT_EXPORT_FILE    => '/etc/simp/exporter/config.xml',
+    DEFAULT_EXPORT_VALIDATION_FILE    => '/etc/simp/exporter/validation.d/config.xsd',
     DEFAULT_HOSTS_DIR      => '/etc/simp/poller/hosts.d/',
     DEFAULT_GROUPS_DIR     => '/etc/simp/poller/groups.d/',
     DEFAULT_VALIDATION_DIR => '/etc/simp/poller/validation.d/',
@@ -47,6 +49,8 @@ GetOptions(
     'logging=s'    => \$logging,
     'hosts=s'      => \$hosts_dir,
     'groups=s'     => \$groups_dir,
+    'exporter=s'   => \$exporter_file,
+    'exporter_validation=s' => \$exporter_val
     'validation=s' => \$validation_dir,
     'status=s'     => \$status_dir,
     'nofork'       => \$nofork,
@@ -59,6 +63,8 @@ usage() if $help;
 
 my $poller = GRNOC::Simp::Poller->new(
     config_file    => $config_file,
+    exporter_file  => $exporter_file,
+    exporter_val   => $exporter_val,
     logging_file   => $logging,
     hosts_dir      => $hosts_dir,
     groups_dir     => $groups_dir,
