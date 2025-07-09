@@ -34,6 +34,16 @@ has config_file => (
     isa      => Str,
     required => 1
 );
+has exporter_file => (
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
+has exporter_val => (
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
 has logging_file => (
     is       => 'ro',
     isa      => Str,
@@ -71,6 +81,7 @@ has run_group => (
 =cut
 
 has config => (is => 'rwp');
+has exporter => (is => 'rwp');
 has logger => (is => 'rwp');
 has children => (
     is      => 'rwp',
@@ -110,10 +121,16 @@ sub BUILD {
         }
         exit(1);
     }
+    
+    my $exporter = GRNOC::Simp::Exporter->new(
+        config_file     => $self->exporter_file,
+        logging_file    => $self->logger,
+        validation_file => $self->exporter_val
+    );
 
     # Store the config object once it's been validated
     $self->_set_config($config);
-
+    $self->_set_exporter($exporter);
     return $self;
 }
 
@@ -264,6 +281,7 @@ sub _create_workers {
         # Create the worker object for the process
         my $worker = GRNOC::Simp::Data::Worker->new(
             config    => $self->config,
+            exporter  => $self->exporter
             logger    => $self->logger,
             worker_id => $worker_id
         );

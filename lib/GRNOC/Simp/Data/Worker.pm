@@ -40,6 +40,10 @@ has config => (
     is       => 'ro',
     required => 1
 );
+has exporter => (
+    is       => 'ro',
+    required => 1
+);
 has logger => (
     is       => 'ro',
     required => 1
@@ -373,7 +377,9 @@ sub _find_groups {
         }
     }
     catch ($e) {
-        $self->logger->error("[_find_groups] Error fetching polling groups with data for $host: $e");
+        my $error = "[_find_groups] Error fetching polling groups with data for $host: $e"
+        $self->logger->error($error);
+        $exporter->export("Data", "critical", "redis", $error);
         return;
     };
 
@@ -479,7 +485,9 @@ sub _connect_to_redis {
             $redis_connected = 1;
         }
         catch($e) {
-            $self->logger->error(sprintf("Error connecting to Redis: %s. Trying Again...", $e));
+            my $error = sprintf("Error connecting to Redis: %s. Trying Again...", $e);
+            $self->logger->error();
+            $exporter->export("Data", "critical", "redis", $error);
         }
     }
 
@@ -543,7 +551,9 @@ sub _find_keys {
                 );
             }
             catch ($e) {
-                $self->logger->error("[_find_keys] Could not retrieve Poll ID/Timestamp data for $host -> $group->{group}: $e");
+                my $error = "[_find_keys] Could not retrieve Poll ID/Timestamp data for $host -> $group->{group}: $e";
+                $self->logger->error($error);
+                $exporter->export("Data", "critical", "redis", $error);
                 next;
             };
         }
@@ -596,7 +606,9 @@ sub _find_keys {
             );
         }
         catch ($e) {
-            $self->logger->error("[_find_keys] Could not retrieve a set for $host from Redis: $_");
+            my $error = "[_find_keys] Could not retrieve a set for $host from Redis: $_";
+            $self->logger->error($error);
+            $exporter->export("Data", "critical", "redis", $error);
         };
     }
 
@@ -646,7 +658,9 @@ sub _get {
 
             # Skip the host for this OID if no keys for it were found
             if (!defined($keys) || (none {defined($_)} @{$keys})) {
-                $self->logger->error("[_get] Unable to find keys for $host -> $oid");
+                my $error = "[_get] Unable to find keys for $host -> $oid";
+                $self->logger->error($error);
+                $exporter->export("Data", "critical", "oid", $error);
                 next;
             }
 
@@ -699,7 +713,9 @@ sub _get {
                     }
                 }
                 catch ($e) {
-                    $self->logger->error("Error scanning Redis data for \"$key\": $e");
+                    my $error = "Error scanning Redis data for \"$key\": $e";
+                    $self->logger->error($error);
+                    $exporter->export("Data", "critical", "redis", $error);
                 };
             }
         }
