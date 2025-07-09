@@ -42,6 +42,18 @@ has config_file => (
     required => 1
 );
 
+has exporter_file => (
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
+
+has exporter_val => (
+    is       => 'ro',
+    isa      => Str,
+    required => 1
+);
+
 has logging_file => (
     is       => 'ro',
     isa      => Str,
@@ -102,6 +114,8 @@ has run_group => (
 
 has config => (is => 'rwp');
 
+has exporter => (is => 'rwp');
+
 has rmq_config => (is => 'rwp');
 
 has logger => (is => 'rwp');
@@ -127,6 +141,15 @@ sub BUILD {
     $self->_make_logger();
     $self->_make_config();
     $self->_make_composites();
+
+
+    my $exporter = GRNOC::Simp::Exporter->new(
+        config_file     => $self->exporter_file,
+        logging_file    => $self->logger,
+        validation_file => $self->exporter_val
+    );
+    $self->set_exporter($exporter);
+
 
     return $self;
 }
@@ -641,6 +664,7 @@ sub start
         my $worker = GRNOC::Simp::Comp::Worker->new(
             config     => $self->config,
             rmq_config => $self->rmq_config,
+            exporter   => $self->exporter,
             logger     => $self->logger,
             composites => $self->composites,
             worker_id  => 'foreground'

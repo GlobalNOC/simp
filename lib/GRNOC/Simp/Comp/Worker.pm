@@ -40,6 +40,11 @@ has config => (
     required => 1
 );
 
+has exporter => (
+    is       => 'ro',
+    required => 1
+);
+
 has rmq_config => (
     is       => 'ro',
     required => 1
@@ -280,7 +285,9 @@ sub _setup_rabbitmq {
         $self->rmq_dispatcher->start_consuming();
     }
     else {
-        $self->logger->error('ERROR: Simp.Comp worker could not connect to RabbitMQ, retrying...');
+        my $error = 'ERROR: Simp.Comp worker could not connect to RabbitMQ, retrying...';
+        $self->logger->error($error);
+        $self->exporter->export("Comp", "critical", "rabbitmq", $error);
     }
 
     # If a handler calls "stop_consuming()" it removes
@@ -787,7 +794,9 @@ sub _build_data {
         # If we still couldn't set the time, the data is invalid
         else {
             $valid = 0;
-            $self->logger->error("[".$request->{composite}{name}."] Produced data without a time value!");
+            my $error = "[".$request->{composite}{name}."] Produced data without a time value!";
+            $self->logger->error($error);
+            $self->exporter->export("Comp", "critical", "time", $error);
         }
     }
 
@@ -1197,7 +1206,9 @@ sub _rpn_calc {
             else {
                 if (!defined($_RPN_FUNCS{$token})) {
                     if (!$func_errors{$token}) {
-                        $self->logger->error("[".$request->{composite}{name}."] RPN function $token not defined!");
+                        my $error = "[".$request->{composite}{name}."] RPN function $token not defined!";
+                        $self->logger->error($error);
+                        $self->exporter->export("Comp", "critical", "rpn_function", $error);
                     }
                     $func_errors{$token} = 1;
                     next;

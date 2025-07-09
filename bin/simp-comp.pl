@@ -36,6 +36,8 @@ my $groupname;
 
 GetOptions(
     'config_file=s'    => \$config,
+    'exporter_file=s'  => \$exporter,
+    'exporter_val=s'   => \$exporter_val,
     'logging_file=s'   => \$logging,
     'composites_dir=s' => \$composites,
     'nofork'           => \$nofork,
@@ -48,6 +50,8 @@ usage() if $help;
 
 my $data_services = GRNOC::Simp::Comp->new(
     config_file    => $config,
+    exporter_file  => $exporter,
+    exporter_val   => $expoter_val,
     logging_file   => $logging,
     composites_dir => $composites,
     run_user       => $username,
