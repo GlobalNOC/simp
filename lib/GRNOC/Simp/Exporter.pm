@@ -62,7 +62,6 @@ has json => ( is => 'rwp' );
 =cut
 
 has config => (is => 'rwp');
-has logger => (is => 'rwp');
 
 
 =head2 BUILD

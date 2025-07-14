@@ -153,7 +153,9 @@ sub _mock_comp {
         composites_dir => $FindBin::Bin . "/conf/composites/",
         config_file    => 'asdf', 
         config_xsd     => 'adf',
-        logging_file   => $FindBin::Bin . $logging
+        logging_file   => $FindBin::Bin . $logging,
+        exporter_file => $FindBin::Bin . "/conf/exporter_config.xml",
+        exporter_val => $FindBin::Bin . "/conf/exporter_val.xsd"
     );
     
     my $comp_worker = GRNOC::Simp::Comp::Worker->new(
@@ -162,7 +164,8 @@ sub _mock_comp {
         logger     => $comp_master->logger,
         composites => $comp_master->composites,
         daemonize  => 0,
-        worker_id  => 'testing'
+        worker_id  => 'testing',
+        exporter   => $comp_master->exporter
     );
 
     $self->comp($comp_worker);

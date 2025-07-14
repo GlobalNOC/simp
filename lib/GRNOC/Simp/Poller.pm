@@ -16,6 +16,7 @@ use Types::Standard qw( Str Bool );
 use GRNOC::Config;
 use GRNOC::Log;
 use GRNOC::Simp::Poller::Worker;
+use GRNOC::Simp::Exporter;
 
 our $VERSION = '1.12.0';
 
@@ -154,7 +155,7 @@ sub BUILD {
 
     my $exporter = GRNOC::Simp::Exporter->new(
         config_file     => $self->exporter_file,
-        logging_file    => $self->logger,
+        logger          => $self->logger,
         validation_file => $self->exporter_val
     );
 

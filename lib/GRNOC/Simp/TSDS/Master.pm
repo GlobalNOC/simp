@@ -313,7 +313,7 @@ sub _load_config
     #Prometheus Exporter
     my $exporter = GRNOC::Simp::Exporter->new(
         config_file     => $self->exporter_config,
-        logging_file    => $self->logging,
+        logger          => $self->logging,
         validation_file => $self->exporter_valid
     );
 
