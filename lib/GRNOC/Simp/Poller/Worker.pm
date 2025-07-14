@@ -597,7 +597,6 @@ sub _connect_to_snmp {
                 timestamp   => time()
             };
             push(@{$status->{snmp_errors}}, $error_data);
-            $exporter->export("Poller", "critical", "snmp", $error);
         }
     }
 }
@@ -613,11 +612,18 @@ sub _update_status {
     # Add the host config's errors to its global status data
     for my $error (@{$failed_oids}) {
         push(@{$self->status_data->{$host->{name}}{failed_oids}}, $error);
-        $exporter->export("Poller", "critical", "failed_oids", $error);
+
+        my $error_obj = sprintf('{
+            "host": "%s",
+            "oids": "%s"
+        }', $host->{"name"}, $error->{"oid"});
+        $exporter->export("Poller", "critical", "oids", $error->{"description"}, $error_obj);
     }
     for my $error (@{$snmp_errors}) {
-        push(@{$self->status_data->{$host->{name}}{snmp_errors}}, $error);
-        $exporter->export("Poller", "critical", "snmp", $error);
+        my $error_obj = sprintf('{
+            "host": "%s"
+        }', $host->{"name"});
+        $exporter->export("Poller", "critical", "snmp", $error->{"description"}, $error_obj);
     }
 }
 

@@ -244,7 +244,9 @@ sub _setup_client {
     $self->_set_simp_client($client);
 
     unless ($client && $client->connected) {
-        $self->logger->error($self->worker_name.' Could not connect to RabbitMQ');
+        my $error = $self->worker_name.' Could not connect to RabbitMQ';
+        $self->logger->error($error);
+        $exporter->export("TSDS", "critical", "rabbitmq", $error);
     }
     else {
         $self->logger->debug($self->worker_name.' RabbitMQ Client connected successfully');

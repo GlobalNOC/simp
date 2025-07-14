@@ -158,7 +158,7 @@ sub _rabbit_connect {
     Sends output to configured rabbit host
 =cut
 sub export {
-    my ($self, $simp_part, $error_level, $error_type, $error_message) = @_;
+    my ($self, $simp_part, $error_level, $error_type, $error_message, $error_obj) = @_;
 
     my %message = (
         simp_part     => $simp_part,
@@ -166,7 +166,7 @@ sub export {
 	    error_level   => $error_level,
         error_message => $error_message
     );
-
+    $message{error_obj} = $error_obj if defined $error_obj;
     my @messages = (\%message);  # wrap in arrayref for encoding
 
     try {

@@ -261,7 +261,9 @@ sub _start {
         $dispatcher->start_consuming();
     }
     else {
+        my $error = "ERROR: Simp.Data could not connect the RabbitMQ dispatcher!";
         $self->logger->error('ERROR: Simp.Data could not connect the RabbitMQ dispatcher!');
+        $exporter->export("Data", "critical", "rabbitmq", $error);
     }
 
     # Return when a handler calls stop_consuming after issues reaching Redis require a re-init
@@ -660,7 +662,11 @@ sub _get {
             if (!defined($keys) || (none {defined($_)} @{$keys})) {
                 my $error = "[_get] Unable to find keys for $host -> $oid";
                 $self->logger->error($error);
-                $exporter->export("Data", "critical", "oid", $error);
+                my $error_obj = sprintf('{
+                    "host": "%s",
+                    "oids": "%s"
+                }', $host, $oid);
+                $exporter->export("Data", "critical", "oid", $error,);
                 next;
             }
 
