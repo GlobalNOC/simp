@@ -77,7 +77,7 @@ has composite => (
     required => 1
 );
 
-has exporter => (is => 'rwp')
+has exporter => (is => 'rwp');
 
 has filter_name  => (is => 'rwp');
 has filter_value => (is => 'rwp');
@@ -246,7 +246,7 @@ sub _setup_client {
     unless ($client && $client->connected) {
         my $error = $self->worker_name.' Could not connect to RabbitMQ';
         $self->logger->error($error);
-        $exporter->export("TSDS", "critical", "rabbitmq", $error);
+        $self->exporter->export("TSDS", "critical", "rabbitmq", $error);
     }
     else {
         $self->logger->debug($self->worker_name.' RabbitMQ Client connected successfully');

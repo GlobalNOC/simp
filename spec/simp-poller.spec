@@ -58,6 +58,7 @@ systemctl daemon-reload
 %install
 rm -rf $RPM_BUILD_ROOT
 %{__install} -d -p %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller
+
 %{__install} -d -p %{buildroot}/etc/simp/poller/
 %{__install} -d -p %{buildroot}/etc/simp/poller/hosts.d/
 %{__install} -d -p %{buildroot}/etc/simp/poller/groups.d/
@@ -78,6 +79,24 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} conf/poller/hosts.xsd %{buildroot}/etc/simp/poller/validation.d/hosts.xsd
 %{__install} conf/poller/group.xsd %{buildroot}/etc/simp/poller/validation.d/group.xsd
 
+
+%{__install} -d -p %{buildroot}/etc/simp/exporter/
+%{__install} -d -p %{buildroot}/etc/simp/exporter/validation.d/
+%{__install} -d -p %{buildroot}/var/lib/simp/exporter/
+
+# Only install files if they don't already exist
+[ ! -e %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Exporter.pm ] && \
+  %{__install} lib/GRNOC/Simp/Exporter.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Exporter.pm
+
+[ ! -e %{buildroot}/etc/simp/exporter/config.xml ] && \
+  %{__install} conf/exporter/config.xml %{buildroot}/etc/simp/exporter/config.xml
+
+[ ! -e %{buildroot}/etc/simp/exporter/validation.d/config.xsd ] && \
+  %{__install} conf/exporter/config.xsd %{buildroot}/etc/simp/exporter/validation.d/config.xsd
+
+[ ! -e %{buildroot}/etc/simp/exporter/validation.d/config.xsd ] && \
+  %{__install} conf/exporter/config.xsd %{buildroot}/etc/simp/exporter/validation.d/config.xsd
+
 %if 0%{?rhel} >= 7
 %{__install} conf/poller/simp-poller.systemd %{buildroot}/etc/systemd/system/simp-poller.service
 %else
@@ -91,11 +110,14 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %{perl_vendorlib}/GRNOC/Simp/Poller.pm
 %{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
+%{perl_vendorlib}/GRNOC/Simp/Exporter.pm
 
 %defattr(644,root,root,644)
 /etc/simp/poller/validation.d/config.xsd
 /etc/simp/poller/validation.d/hosts.xsd
 /etc/simp/poller/validation.d/group.xsd
+/etc/simp/exporter/validation.d/config.xsd
+
 
 %defattr(755,root,root,755)
 /usr/bin/simp-poller.pl
@@ -111,6 +133,8 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) /etc/simp/poller/hosts.d/*
 %config(noreplace) /etc/simp/poller/groups.d/*
 %config(noreplace) /etc/simp/poller/logging.conf
+%config(noreplace) /etc/simp/exporter/config.xml
+
 
 %defattr(755,simp,simp,755)
 %dir /var/lib/simp/

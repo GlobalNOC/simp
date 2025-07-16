@@ -22,6 +22,8 @@ use constant {
     DEFAULT_COMPOSITES_DIR => '/etc/simp/comp/composites.d/',
     DEFAULT_CONFIG_XSD     => '/etc/simp/comp/validation.d/config.xsd',
     DEFAULT_COMPOSITE_XSD  => '/etc/simp/comp/validation.d/composite.xsd',
+    DEFAULT_EXPORTER_FILE  => '/etc/simp/exporter/config.xml',
+    DEFAULT_EXPORTER_XSD  =>  '/etc/simp/exporter/validation.d/config.xml'
 };
 
 my $config        = DEFAULT_CONFIG_FILE;
@@ -29,6 +31,8 @@ my $logging       = DEFAULT_LOG_FILE;
 my $composites    = DEFAULT_COMPOSITES_DIR;
 my $config_xsd    = DEFAULT_CONFIG_XSD;
 my $composite_xsd = DEFAULT_COMPOSITE_XSD;
+my $exporter      = DEFAULT_EXPORTER_FILE;
+my $exporter_val  = DEFAULT_EXPORTER_XSD;
 my $nofork;
 my $help;
 my $username;

@@ -263,7 +263,7 @@ sub _start {
     else {
         my $error = "ERROR: Simp.Data could not connect the RabbitMQ dispatcher!";
         $self->logger->error('ERROR: Simp.Data could not connect the RabbitMQ dispatcher!');
-        $exporter->export("Data", "critical", "rabbitmq", $error);
+        $self->exporter->export("Data", "critical", "rabbitmq", $error);
     }
 
     # Return when a handler calls stop_consuming after issues reaching Redis require a re-init
@@ -379,9 +379,9 @@ sub _find_groups {
         }
     }
     catch ($e) {
-        my $error = "[_find_groups] Error fetching polling groups with data for $host: $e"
+        my $error = "[_find_groups] Error fetching polling groups with data for $host: $e";
         $self->logger->error($error);
-        $exporter->export("Data", "critical", "redis", $error);
+        $self->exporter->export("Data", "critical", "redis", $error);
         return;
     };
 
@@ -489,7 +489,7 @@ sub _connect_to_redis {
         catch($e) {
             my $error = sprintf("Error connecting to Redis: %s. Trying Again...", $e);
             $self->logger->error();
-            $exporter->export("Data", "critical", "redis", $error);
+            $self->exporter->export("Data", "critical", "redis", $error);
         }
     }
 
@@ -555,7 +555,7 @@ sub _find_keys {
             catch ($e) {
                 my $error = "[_find_keys] Could not retrieve Poll ID/Timestamp data for $host -> $group->{group}: $e";
                 $self->logger->error($error);
-                $exporter->export("Data", "critical", "redis", $error);
+                $self->exporter->export("Data", "critical", "redis", $error);
                 next;
             };
         }
@@ -610,7 +610,7 @@ sub _find_keys {
         catch ($e) {
             my $error = "[_find_keys] Could not retrieve a set for $host from Redis: $_";
             $self->logger->error($error);
-            $exporter->export("Data", "critical", "redis", $error);
+            $self->exporter->export("Data", "critical", "redis", $error);
         };
     }
 
@@ -666,7 +666,7 @@ sub _get {
                     "host": "%s",
                     "oids": "%s"
                 }', $host, $oid);
-                $exporter->export("Data", "critical", "oid", $error,);
+                $self->exporter->export("Data", "critical", "oid", $error,);
                 next;
             }
 
@@ -721,7 +721,7 @@ sub _get {
                 catch ($e) {
                     my $error = "Error scanning Redis data for \"$key\": $e";
                     $self->logger->error($error);
-                    $exporter->export("Data", "critical", "redis", $error);
+                    $self->exporter->export("Data", "critical", "redis", $error);
                 };
             }
         }

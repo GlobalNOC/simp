@@ -280,7 +280,7 @@ sub _connect_to_redis {
         catch ($e) {
             my $error = sprintf("%s - Error connecting to Redis: %s", $worker, $e);
             $self->logger->error($error);
-            $exporter->export("Poller", "critical", "redis", $error);
+            $self->exporter->export("Poller", "critical", "redis", $error);
             sleep(1);
         };
     }
@@ -337,7 +337,7 @@ sub _poll_cb {
                 $_
             );
             $self->logger->error($error);
-            $exporter->export("Poller", "critical", "redis", $error);
+            $self->exporter->export("Poller", "critical", "redis", $error);
             $self->redis->wait_all_responses();
             $self->redis->select(0);
         };
@@ -485,7 +485,7 @@ sub _poll_cb {
     catch ($e) {
         my $error = sprintf('%s - ERROR: could not hset Redis data: %s', $worker, $e);
         $self->logger->error($error);
-        $exporter->export("Poller", "critical", "redis", $error);
+        $self->exporter->export("Poller", "critical", "redis", $error);
     };
 
     # Ensure we're done with the pipeline
@@ -617,13 +617,13 @@ sub _update_status {
             "host": "%s",
             "oids": "%s"
         }', $host->{"name"}, $error->{"oid"});
-        $exporter->export("Poller", "critical", "oids", $error->{"description"}, $error_obj);
+        $self->exporter->export("Poller", "critical", "oids", $error->{"description"}, $error_obj);
     }
     for my $error (@{$snmp_errors}) {
         my $error_obj = sprintf('{
             "host": "%s"
         }', $host->{"name"});
-        $exporter->export("Poller", "critical", "snmp", $error->{"description"}, $error_obj);
+        $self->exporter->export("Poller", "critical", "snmp", $error->{"description"}, $error_obj);
     }
 }
 

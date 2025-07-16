@@ -31,7 +31,6 @@ Requires: perl-Type-Tiny
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 Requires: perl-GRNOC-RabbitMQ >= 1.2.1
-
 %if 0%{?rhel} >= 8
 Requires: simp-env == 1.12.0
 %endif
@@ -76,6 +75,22 @@ rm -rf $RPM_BUILD_ROOT
 
 %{__install} scripts/simp-test.pl %{buildroot}/usr/bin/simp-test.pl
 
+
+
+%{__install} -d -p %{buildroot}/etc/simp/exporter/
+%{__install} -d -p %{buildroot}/etc/simp/exporter/validation.d/
+%{__install} -d -p %{buildroot}/var/lib/simp/exporter/
+
+# Only install files if they don't already exist
+[ ! -e %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Exporter.pm ] && \
+  %{__install} lib/GRNOC/Simp/Exporter.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Exporter.pm
+
+[ ! -e %{buildroot}/etc/simp/exporter/config.xml ] && \
+  %{__install} conf/exporter/config.xml %{buildroot}/etc/simp/exporter/config.xml
+
+[ ! -e %{buildroot}/etc/simp/exporter/validation.d/config.xsd ] && \
+  %{__install} conf/exporter/config.xsd %{buildroot}/etc/simp/exporter/validation.d/config.xsd
+
 %if 0%{?rhel} >= 7
 %{__install} conf/comp/simp-comp.systemd %{buildroot}/etc/systemd/system/simp-comp.service
 %else
@@ -89,7 +104,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %{perl_vendorlib}/GRNOC/Simp/Comp.pm
 %{perl_vendorlib}/GRNOC/Simp/Comp/Worker.pm
-
+%{perl_vendorlib}/GRNOC/Simp/Exporter.pm
 %defattr(755,root,root,755)
 /usr/bin/simp-comp.pl
 /usr/bin/simp-test.pl
@@ -97,7 +112,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,644)
 /etc/simp/comp/validation.d/config.xsd
 /etc/simp/comp/validation.d/composite.xsd
-
+/etc/simp/exporter/validation.d/config.xsd
 %if 0%{?rhel} >= 7
 /etc/systemd/system/simp-comp.service
 %else
@@ -108,5 +123,6 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) /etc/simp/comp/logging.conf
 %config(noreplace) /etc/simp/comp/config.xml
 %config(noreplace) /etc/simp/comp/composites.d/*
+%config(noreplace) /etc/simp/exporter/config.xml
 
 %doc

@@ -45,8 +45,11 @@ RUN yum-config-manager --enable \
 
 RUN dnf install -y net-snmp net-snmp-devel net-snmp-libs net-snmp-utils
 
+RUN dnf install -y /root/*
+
+RUN yes '' | cpan Net::AMQP::RabbitMQ
 # run makecache
 RUN dnf makecache
 
 # set entrypoint
-ENTRYPOINT ["/bin/echo", "'Welcome to SIMP!'"]
+ENTRYPOINT ["tail", "-f", "/dev/null"]

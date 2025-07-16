@@ -23,22 +23,31 @@ dist: clean venv
 	mkdir -p dist/simp-data-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-data-$(VERSION)/bin
 	mkdir -p dist/simp-data-$(VERSION)/conf/data
+	mkdir -p dist/simp-data-$(VERSION)/conf/exporter
 	mkdir -p dist/simp-comp-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-comp-$(VERSION)/bin
 	mkdir -p dist/simp-comp-$(VERSION)/scripts
 	mkdir -p dist/simp-comp-$(VERSION)/conf/comp
+	mkdir -p dist/simp-comp-$(VERSION)/conf/exporter
 	mkdir -p dist/simp-poller-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-poller-$(VERSION)/bin
 	mkdir -p dist/simp-poller-$(VERSION)/conf/poller
+	mkdir -p dist/simp-poller-$(VERSION)/conf/exporter
 	mkdir -p dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-tsds-$(VERSION)/bin
 	mkdir -p dist/simp-tsds-$(VERSION)/conf/tsds
+	mkdir -p dist/simp-tsds-$(VERSION)/conf/exporter
 	mkdir -p dist/simp-env-$(VERSION)/
 
 	cp -r lib/GRNOC/Simp/Poller* dist/simp-poller-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/Data* dist/simp-data-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/Comp* dist/simp-comp-$(VERSION)/lib/GRNOC/Simp
 	cp -r lib/GRNOC/Simp/TSDS* dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
+
+	cp -r lib/GRNOC/Simp/Exporter* dist/simp-poller-$(VERSION)/lib/GRNOC/Simp
+	cp -r lib/GRNOC/Simp/Exporter* dist/simp-data-$(VERSION)/lib/GRNOC/Simp
+	cp -r lib/GRNOC/Simp/Exporter* dist/simp-comp-$(VERSION)/lib/GRNOC/Simp
+	cp -r lib/GRNOC/Simp/Exporter* dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
 
 	cp -r bin/simp-poller.pl dist/simp-poller-$(VERSION)/bin/
 	cp -r bin/simp-data.pl dist/simp-data-$(VERSION)/bin/
@@ -54,11 +63,15 @@ dist: clean venv
 	cp -r conf/poller/hosts.xsd dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/group.xml.example dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/group.xsd dist/simp-poller-$(VERSION)/conf/poller
+	cp -r conf/exporter/config.xml dist/simp-poller-$(VERSION)/conf/exporter/
+	cp -r conf/exporter/config.xsd dist/simp-poller-$(VERSION)/conf/exporter/
 
 	cp -r conf/data/config.xml dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/data/config.xsd dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/data/simp-data.systemd dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/data/simp-data.service dist/simp-data-$(VERSION)/conf/data/
+	cp -r conf/exporter/config.xml dist/simp-data-$(VERSION)/conf/exporter/
+	cp -r conf/exporter/config.xsd dist/simp-data-$(VERSION)/conf/exporter/
 
 	cp -r conf/comp/config.xml dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/config.xsd dist/simp-comp-$(VERSION)/conf/comp/
@@ -66,6 +79,8 @@ dist: clean venv
 	cp -r conf/comp/composite.xsd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.systemd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.service dist/simp-comp-$(VERSION)/conf/comp/
+	cp -r conf/exporter/config.xml dist/simp-comp-$(VERSION)/conf/exporter/
+	cp -r conf/exporter/config.xsd dist/simp-comp-$(VERSION)/conf/exporter/
 
 	cp -r conf/tsds/config.xml dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/config.xsd dist/simp-tsds-$(VERSION)/conf/tsds/
@@ -73,6 +88,8 @@ dist: clean venv
 	cp -r conf/tsds/collection.xsd dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/simp-tsds.systemd dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/simp-tsds.service dist/simp-tsds-$(VERSION)/conf/tsds/
+	cp -r conf/exporter/config.xml dist/simp-tsds-$(VERSION)/conf/exporter/
+	cp -r conf/exporter/config.xsd dist/simp-tsds-$(VERSION)/conf/exporter/
 
 	cp -r conf/logging.conf dist/simp-poller-$(VERSION)/conf/
 	cp -r conf/logging.conf dist/simp-data-$(VERSION)/conf/

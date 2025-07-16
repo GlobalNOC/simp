@@ -87,6 +87,19 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} lib/GRNOC/Simp/TSDS/Worker.pm $RPM_BUILD_ROOT/%{perl_vendorlib}/GRNOC/Simp/TSDS/
 %{__install} lib/GRNOC/Simp/TSDS/Pusher.pm $RPM_BUILD_ROOT/%{perl_vendorlib}/GRNOC/Simp/TSDS/
 
+%{__install} -d -p %{buildroot}/etc/simp/exporter/
+%{__install} -d -p %{buildroot}/etc/simp/exporter/validation.d/
+%{__install} -d -p %{buildroot}/var/lib/simp/exporter/
+
+# Only install files if they don't already exist
+[ ! -e %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Exporter.pm ] && \
+  %{__install} lib/GRNOC/Simp/Exporter.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Exporter.pm
+
+[ ! -e %{buildroot}/etc/simp/exporter/config.xml ] && \
+  %{__install} conf/exporter/config.xml %{buildroot}/etc/simp/exporter/config.xml
+
+[ ! -e %{buildroot}/etc/simp/exporter/validation.d/config.xsd ] && \
+  %{__install} conf/exporter/config.xsd %{buildroot}/etc/simp/exporter/validation.d/config.xsd
 # clean up buildroot
 find %{buildroot} -name .packlist -exec %{__rm} {} \;
 
@@ -104,13 +117,16 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) /etc/init.d/simp-tsds
 %config(noreplace) %{sysconfdir}/simp-tsds
 %endif
+%{perl_vendorlib}/GRNOC/Simp/Exporter.pm
 %{perl_vendorlib}/GRNOC/Simp/TSDS.pm
 %{perl_vendorlib}/GRNOC/Simp/TSDS/Master.pm
 %{perl_vendorlib}/GRNOC/Simp/TSDS/Worker.pm
 %{perl_vendorlib}/GRNOC/Simp/TSDS/Pusher.pm
+%{perl_vendorlib}/GRNOC/Simp/Exporter.pm
 %config(noreplace) %{configdir}/config.xml
 %config(noreplace) %{configdir}/logging.conf
 %config(noreplace) %{configdir}/collections.d/*
+%config(noreplace) /etc/simp/exporter/config.xml
 
 %dir %attr(755,simp,simp) %{statusdir}/simp-tsds
 %dir %attr(755,simp,simp) %{statusdir}/simp-tsds/workers
@@ -118,3 +134,4 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,644)
 /etc/simp/tsds/validation.d/config.xsd
 /etc/simp/tsds/validation.d/collection.xsd
+/etc/simp/exporter/validation.d/config.xsd

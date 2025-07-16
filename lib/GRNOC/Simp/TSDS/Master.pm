@@ -134,6 +134,7 @@ has rabbitmq => (is => 'rwp');
 has tsds_instance => (is => 'rwp');
 
 has exporter_config => (is => 'rwp');
+has exporter_val => (is => 'rwp');
 has exporter => (is => 'rwp');
 
 has collections => (
@@ -313,8 +314,8 @@ sub _load_config
     #Prometheus Exporter
     my $exporter = GRNOC::Simp::Exporter->new(
         config_file     => $self->exporter_config,
-        logger          => $self->logging,
-        validation_file => $self->exporter_valid
+        logger          => $self->logger,
+        validation_file => $self->exporter_val
     );
 
     # Get the validation file for config.xml
@@ -586,8 +587,7 @@ sub _check_worker_health() {
                 }
                 # Any missing file or unreadable file needs to be investigated as an error
                 else {
-                    my $error = sprintf("Error: Could not open status file for worker %s: %s", $worker->worker_name, $!)
-                    $self->logger->error($error);                    
+                    $self->logger->error(sprintf("Error: Could not open status file for worker %s: %s", $worker->worker_name, $!));               
                     $errors_found += 1;
                 }
             }

@@ -15,7 +15,7 @@ use GRNOC::Simp::TSDS::Master;
 
 my $config          = '/etc/simp/tsds/config.xml';
 my $exporter_config = '/etc/simp/tsds/exporter.xml';
-my $exporter_valid = '/etc/simp/exporter/validation.d/config.xsd';
+my $exporter_val = '/etc/simp/exporter/validation.d/config.xsd';
 my $logging         = '/etc/simp/tsds/logging.conf';
 my $collections_dir = '/etc/simp/tsds/collections.d/';
 my $validation_dir  = '/etc/simp/tsds/validation.d/';
@@ -28,7 +28,7 @@ my $help;
 GetOptions(
     'config=s'          => \$config,
     'exporter_config=s' => \$exporter_config,
-    'exporter_valid=s'  => \$exporter_valid
+    'exporter_val=s'    => \$exporter_val,
     'logging=s'         => \$logging,
     'collections=s'     => \$collections_dir,
     'validation=s'      => \$validation_dir,
@@ -45,6 +45,7 @@ Log::Log4perl::init($logging);
 
 my $collector = GRNOC::Simp::TSDS::Master->new(
     config          => $config,
+    exporter_file   => $exporter_config
     collections_dir => $collections_dir,
     validation_dir  => $validation_dir,
     pidfile         => $pidfile,
