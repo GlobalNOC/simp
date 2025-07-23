@@ -42,16 +42,7 @@ has config_file => (
     isa      => Str,
     required => 1
 );
-has exporter_file => (
-    is       => 'ro',
-    isa      => Str,
-    required => 1
-);
-has exporter_val => (
-    is       => 'ro',
-    isa      => Str,
-    required => 1
-);
+
 has logging_file => (
     is       => 'ro',
     isa      => Str,
@@ -154,9 +145,8 @@ sub BUILD {
     );
 
     my $exporter = GRNOC::Simp::Exporter->new(
-        config_file     => $self->exporter_file,
-        logger          => $self->logger,
-        validation_file => $self->exporter_val
+        config_file     => $self->config_file,
+        logger          => $self->logger
     );
 
     # Get the validation file for config.xml
@@ -164,11 +154,13 @@ sub BUILD {
 
     # Validate the main config useing the xsd file for it
     my $valid = $self->_validate_config($self->config_file, $config, $xsd);
+    warn("testing valid");
     exit(1) unless ($valid);
-
+    warn("valid config");
     # Set the config if it validated
     $self->_set_config($config);
     $self->_set_exporter($exporter);
+    
     $self->logger->debug("Finished configuring the main Poller process");
 
     # Set status_dir to path in the configs, if defined and is a dir
@@ -181,7 +173,7 @@ sub BUILD {
         $self->_set_status_dir($status_dir);
     }
     $self->logger->debug("Set simp-poller status dir to " . $self->status_dir);
-
+    warn("Finishing Configuration");
     return $self;
 }
 
@@ -616,6 +608,7 @@ sub _process_groups_config {
     Starts all of the simp_poller processes
 =cut
 sub start {
+    warn("starting poller... 1");
     my ($self) = @_;
 
     # Daemonized
@@ -662,6 +655,7 @@ sub start {
     }
     # Foreground
     else {
+        warn("running in foreground");
         $self->logger->info('Starting Poller in foreground mode');
     }
 
@@ -676,11 +670,13 @@ sub start {
         $self->stop();
     # Create and store the host portion of the config
     };
+    warn("setup signals");
     $self->logger->debug("Signal handlers ready");
 
     # Parse configs and create workers from within the reload loop
     # When reloaded, hosts.d and groups.d will be re-parsed
     while (1) {
+        warn("looping...");
         $self->_process_host_configs();
         $self->_process_groups_config();
         $self->_refresh_status_dirs();
@@ -688,7 +684,7 @@ sub start {
 
         # We only arrive here if the loop is running or poller is killed
         $self->logger->info("Poller has exited successfully");
-
+        warn("Poller exited: reload=" .  !$self->do_reload);
         last if (!$self->do_reload);
         $self->_set_do_reload(0);
     }
@@ -768,7 +764,7 @@ sub stop {
     my @pids = @{$self->children};
 
     $self->logger->info('Stopping child worker processes ' . join(' ', @pids) . '.');
-
+    warn("Stopping Poller...");
     # Kill children, then wait for them to finish exiting
     my $res = kill('TERM', @pids);
 }
@@ -849,13 +845,14 @@ sub _balance_workers {
     Delegates hosts to their polling groups' workers.
 =cut
 sub _create_workers {
+    warn("create workers");
     my ($self) = @_;
 
     # Create a fork for each worker that is needed
     my $forker = Parallel::ForkManager->new($self->total_workers);
 
     while (my ($group_name, $group) = each(%{$self->groups})) {
-
+        warn("running worker loop");
         # Tells worker procs to log a message when they die
         $forker->run_on_finish(
             sub {
@@ -869,13 +866,11 @@ sub _create_workers {
 
         # Create workers using the load-balanced worker configuration
         for (my $worker_id = 0; $worker_id <= $#$workers; $worker_id++) {
-
             # Get the array of hosts for the worker ID
             my $hosts = $workers->[$worker_id];
 
             # Jump into the worker process
             my $pid = $forker->start();
-
             # PID == True for the parent process, but not the worker process
             if ($pid) {
                 my $msg = sprintf(
@@ -891,7 +886,6 @@ sub _create_workers {
                 # Parent process continues loop without running the rest of its code
                 next;
             }
-
             # Create the worker within the forked process
             my $worker = GRNOC::Simp::Poller::Worker->new(
                 instance     => $worker_id,
@@ -917,6 +911,7 @@ sub _create_workers {
     }
     
     $self->logger->info('simp-poller startup complete');
+    warn("worker startup done");
     $forker->wait_all_children();
     $self->_set_children([]);
     $self->logger->info('All workers have died');

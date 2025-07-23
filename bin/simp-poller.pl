@@ -35,8 +35,6 @@ use constant {
 
 my $config_file    = DEFAULT_CONFIG_FILE;
 my $logging        = DEFAULT_LOGGING_FILE;
-my $exporter_file  = DEFAULT_EXPORT_FILE;
-my $exporter_val   = DEFAULT_EXPORT_VALIDATION_FILE;
 my $hosts_dir      = DEFAULT_HOSTS_DIR;
 my $groups_dir     = DEFAULT_GROUPS_DIR;
 my $validation_dir = DEFAULT_VALIDATION_DIR;
@@ -51,8 +49,6 @@ GetOptions(
     'logging=s'    => \$logging,
     'hosts=s'      => \$hosts_dir,
     'groups=s'     => \$groups_dir,
-    'exporter=s'   => \$exporter_file,
-    'exporter_validation=s' => \$exporter_val,
     'validation=s' => \$validation_dir,
     'status=s'     => \$status_dir,
     'nofork'       => \$nofork,
@@ -62,11 +58,9 @@ GetOptions(
 ) or usage();
 
 usage() if $help;
-
+warn("creating poller");
 my $poller = GRNOC::Simp::Poller->new(
-    config_file    => $config_file,
-    exporter_file  => $exporter_file,
-    exporter_val   => $exporter_val,
+    config_file    => $config_file,    
     logging_file   => $logging,
     hosts_dir      => $hosts_dir,
     groups_dir     => $groups_dir,
@@ -76,5 +70,9 @@ my $poller = GRNOC::Simp::Poller->new(
     run_user       => $username,
     run_group      => $groupname
 );
-
+warn("runnning poller...");
+warn(`cat /etc/simp/poller/hosts.d/tstlb.xml`);
+warn(`ls /etc/simp/poller`);
+warn(`ls /etc/simp/poller/groups.d`);
 $poller->start();
+warn("wow you completed that shouldn't have happened");

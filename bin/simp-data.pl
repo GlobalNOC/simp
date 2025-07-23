@@ -36,8 +36,6 @@ my $groupname;
 
 GetOptions(
     'config=s'     => \$config,
-    'exporter=s'   => \$exporter,
-    'exporter_val' => \$exporter_val,
     'logging=s'    => \$logging,
     'validation'   => \$validation,
     'nofork'       => \$nofork,
@@ -50,8 +48,6 @@ usage() if $help;
 
 my $data_services = GRNOC::Simp::Data->new(
     config_file     => $config,
-    exporter_file   => $exporter_file,
-    exporter_val    => $exporter_val,
     logging_file    => $logging,
     validation_file => $validation,
     run_user        => $username,

@@ -43,18 +43,6 @@ has config_file => (
     required => 1
 );
 
-has exporter_file => (
-    is       => 'ro',
-    isa      => Str,
-    required => 1
-);
-
-has exporter_val => (
-    is       => 'ro',
-    isa      => Str,
-    required => 1
-);
-
 has logging_file => (
     is       => 'ro',
     isa      => Str,
@@ -145,9 +133,8 @@ sub BUILD {
 
 
     my $exporter = GRNOC::Simp::Exporter->new(
-        config_file     => $self->exporter_file,
+        config_file     => $self->config_file,
         logger          => $self->logger,
-        validation_file => $self->exporter_val
     );
     $self->_set_exporter($exporter);
 

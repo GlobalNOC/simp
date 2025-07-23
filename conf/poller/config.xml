@@ -15,4 +15,7 @@
     <!-- Directory where polling status dirs/files will be made/written -->
     <status dir="/var/lib/simp/poller/"/>
 
+    <!-- RabbitMQ Configuration -->
+    <rabbitmq ip="127.0.0.1" port="5672" user="guest" password="guest" />
+
 </config>

@@ -132,9 +132,9 @@ has status_data => (
 =item start
 =cut
 
-sub start {
+sub start {    
     my ($self) = @_;
-
+    warn("Starting worker...");
     $self->_set_worker_name($self->group_name . ' [' . $self->instance . ']');
 
     my $logger = GRNOC::Log->get_logger($self->worker_name);
@@ -148,29 +148,29 @@ sub start {
 
     # Change our process name
     $0 = "simp_poller($worker)";
-
+    warn("worker 1");
     # Setup signal handlers
     $SIG{'TERM'} = sub {
         $self->logger->info($worker . " - Received SIG TERM.");
         $self->stop();
     };
-
+    warn("worker 2");
     $SIG{'HUP'} = sub {
         $self->logger->info($worker . " - Received SIG HUP.");
     };
-
+    warn("worker 3");
     my $redis = $self->_connect_to_redis($worker);
 
     $self->_set_redis($redis);
     $self->logger->debug(sprintf('%s - Finished connecting to Redis', $worker));
-
+    warn("worker 4");
     $self->_set_need_restart(0);
-
+    warn("worker 5");
     $self->logger->debug(sprintf('%s - Starting SNMP Poll loop', $worker));
 
     # Establish all of the SNMP sessions for every host the worker has
     $self->_connect_to_snmp();
-
+    warn("worker 6");
     unless (scalar(@{$self->hosts})) {
         $self->logger->debug(sprintf("%s - No hosts found!", $worker));
     }
@@ -178,7 +178,7 @@ sub start {
         my $host_names = join(', ', (map {$_->{name}} @{$self->hosts}));
         $self->logger->debug(sprintf("%s - hosts: %s", $worker, $host_names));
     }
-
+    warn("worker 7");
     # Start AnyEvent::SNMP's max outstanding requests window equal to the total
     # number of requests this process will be making. AnyEvent::SNMP
     # will scale from there as it observes bottlenecks
@@ -195,7 +195,7 @@ sub start {
         $self->logger->error(sprintf("%s - No OIDs defined for polling group", $worker));
         return;
     }
-
+    warn("worker 8");
     $self->{'collector_timer'} = AnyEvent->timer(
         after    => 10,
         interval => $self->interval,
@@ -204,11 +204,12 @@ sub start {
             AnyEvent->now_update;
         }
     );
-
+    warn("worker 9");
     # Let the magic happen
     my $cv = AnyEvent->condvar;
     $self->_set_main_cv($cv);
     $cv->recv;
+    warn("worker 10");
     $self->logger->error(sprintf("%s - Exiting", $worker));
 }
 
@@ -280,7 +281,9 @@ sub _connect_to_redis {
         catch ($e) {
             my $error = sprintf("%s - Error connecting to Redis: %s", $worker, $e);
             $self->logger->error($error);
+            warn("Exporting...");
             $self->exporter->export("Poller", "critical", "redis", $error);
+            warn("Exported");
             sleep(1);
         };
     }
@@ -337,7 +340,9 @@ sub _poll_cb {
                 $_
             );
             $self->logger->error($error);
+            warn("Exporting...");
             $self->exporter->export("Poller", "critical", "redis", $error);
+            warn("Exported");
             $self->redis->wait_all_responses();
             $self->redis->select(0);
         };
@@ -485,7 +490,9 @@ sub _poll_cb {
     catch ($e) {
         my $error = sprintf('%s - ERROR: could not hset Redis data: %s', $worker, $e);
         $self->logger->error($error);
+        warn("Exporting...");
         $self->exporter->export("Poller", "critical", "redis", $error);
+        warn("Exported");
     };
 
     # Ensure we're done with the pipeline
@@ -617,13 +624,17 @@ sub _update_status {
             "host": "%s",
             "oids": "%s"
         }', $host->{"name"}, $error->{"oid"});
+        warn("Exporting...");
         $self->exporter->export("Poller", "critical", "oids", $error->{"description"}, $error_obj);
+        warn("Exported");
     }
     for my $error (@{$snmp_errors}) {
         my $error_obj = sprintf('{
             "host": "%s"
         }', $host->{"name"});
+        warn("Exporting...");
         $self->exporter->export("Poller", "critical", "snmp", $error->{"description"}, $error_obj);
+        warn("Exported");
     }
 }
 

@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use Data::Dumper qw(Dumper);
 use lib '/opt/grnoc/venv/simp/lib/perl5';
-
 use Moo 2.003000;
 use Types::Standard 1.004002 qw( Str Bool );
 use Try::Tiny;
@@ -31,11 +30,6 @@ has config_file => (
 );
 has logger => (
     is       => 'ro',
-    required => 1
-);
-has validation_file => (
-    is       => 'ro',
-    isa      => Str,
     required => 1
 );
 
@@ -77,24 +71,6 @@ sub BUILD {
         force_array => 0
     );
 
-    # Validate the config, exiting if there are errors
-    my $validation_code = $config->validate($self->validation_file);
-
-    if ($validation_code == 1) {
-        $self->logger->debug("Successfully validated config file");
-    }
-    else {
-        if ($validation_code == 0) {
-            $self->logger->error("ERROR: Failed to validate $self->config_file!\n" . $config->{error}->{backtrace});
-        }
-        else {
-            $self->logger->error("ERROR: XML schema in $self->validation_file is invalid!\n" . $config->{error}->{backtrace});
-        }
-        exit(1);
-    }
-
-
-
     # Store the config object once it's been validated
     $self->_set_config($config->get('/config'));
 
@@ -111,10 +87,13 @@ sub BUILD {
 
 sub _rabbit_connect {
     my ( $self ) = @_;
+
     my $rbmq_conf = $self->config->{'rabbitmq'};
-   
+    warn(Dumper($rbmq_conf));
     my $rabbit_host = $rbmq_conf->{'ip'};
     my $rabbit_port = $rbmq_conf->{'port'};
+    my $rabbit_user = $rbmq_conf->{'user'};
+    my $rabbit_password = $rbmq_conf->{'password'};
     my $rabbit_error_queue = 'Simp.Error';
     my $max_retries = 3;
 
@@ -128,7 +107,12 @@ sub _rabbit_connect {
 
             my $rabbit = Net::AMQP::RabbitMQ->new();
 
-            $rabbit->connect( $rabbit_host, {'port' => $rabbit_port} );
+            $rabbit->connect( $rabbit_host, {
+                'port'     => $rabbit_port,
+                'user'     => $rabbit_user,
+                'password' => $rabbit_password,
+                'vhost'    => '/'
+            } );
 
 	        
             # open channel to the error queue we'll send to
@@ -138,10 +122,13 @@ sub _rabbit_connect {
             $self->_set_rabbit( $rabbit );
 
             $connected = 1;
+            warn("Connected to rabbitmq!");
         }
         catch {
             my $error = $_;
-            warn("unable to connect to rabbitmq");
+            warn("unable to connect to rabbitmq: " . $rabbit_host . ":" . $rabbit_port);
+            warn($self->config_file);
+            warn(Dumper($self->config));
             warn($error);
             $self->logger->error( "Error connecting to RabbitMQ: $error" );
         };
@@ -158,7 +145,7 @@ sub _rabbit_connect {
 =cut
 sub export {
     my ($self, $simp_part, $error_level, $error_type, $error_message, $error_obj) = @_;
-
+    warn("Trying to export!");
     my %message = (
         simp_part     => $simp_part,
         error_type    => $error_type,

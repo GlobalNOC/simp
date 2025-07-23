@@ -133,8 +133,6 @@ has rabbitmq => (is => 'rwp');
 
 has tsds_instance => (is => 'rwp');
 
-has exporter_config => (is => 'rwp');
-has exporter_val => (is => 'rwp');
 has exporter => (is => 'rwp');
 
 has collections => (
@@ -313,9 +311,8 @@ sub _load_config
 
     #Prometheus Exporter
     my $exporter = GRNOC::Simp::Exporter->new(
-        config_file     => $self->exporter_config,
-        logger          => $self->logger,
-        validation_file => $self->exporter_val
+        config_file     => $self->config,
+        logger          => $self->logger
     );
 
     # Get the validation file for config.xml
