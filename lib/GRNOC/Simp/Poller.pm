@@ -608,7 +608,7 @@ sub _process_groups_config {
     Starts all of the simp_poller processes
 =cut
 sub start {
-    warn("starting poller... 1");
+
     my ($self) = @_;
 
     # Daemonized
@@ -655,7 +655,6 @@ sub start {
     }
     # Foreground
     else {
-        warn("running in foreground");
         $self->logger->info('Starting Poller in foreground mode');
     }
 
@@ -670,13 +669,11 @@ sub start {
         $self->stop();
     # Create and store the host portion of the config
     };
-    warn("setup signals");
     $self->logger->debug("Signal handlers ready");
 
     # Parse configs and create workers from within the reload loop
     # When reloaded, hosts.d and groups.d will be re-parsed
     while (1) {
-        warn("looping...");
         $self->_process_host_configs();
         $self->_process_groups_config();
         $self->_refresh_status_dirs();
@@ -684,7 +681,6 @@ sub start {
 
         # We only arrive here if the loop is running or poller is killed
         $self->logger->info("Poller has exited successfully");
-        warn("Poller exited: reload=" .  !$self->do_reload);
         last if (!$self->do_reload);
         $self->_set_do_reload(0);
     }
@@ -845,14 +841,12 @@ sub _balance_workers {
     Delegates hosts to their polling groups' workers.
 =cut
 sub _create_workers {
-    warn("create workers");
     my ($self) = @_;
 
     # Create a fork for each worker that is needed
     my $forker = Parallel::ForkManager->new($self->total_workers);
 
     while (my ($group_name, $group) = each(%{$self->groups})) {
-        warn("running worker loop");
         # Tells worker procs to log a message when they die
         $forker->run_on_finish(
             sub {
@@ -911,7 +905,6 @@ sub _create_workers {
     }
     
     $self->logger->info('simp-poller startup complete');
-    warn("worker startup done");
     $forker->wait_all_children();
     $self->_set_children([]);
     $self->logger->info('All workers have died');

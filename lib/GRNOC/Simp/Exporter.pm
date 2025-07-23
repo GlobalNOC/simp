@@ -122,14 +122,9 @@ sub _rabbit_connect {
             $self->_set_rabbit( $rabbit );
 
             $connected = 1;
-            warn("Connected to rabbitmq!");
         }
         catch {
             my $error = $_;
-            warn("unable to connect to rabbitmq: " . $rabbit_host . ":" . $rabbit_port);
-            warn($self->config_file);
-            warn(Dumper($self->config));
-            warn($error);
             $self->logger->error( "Error connecting to RabbitMQ: $error" );
         };
 
@@ -145,7 +140,6 @@ sub _rabbit_connect {
 =cut
 sub export {
     my ($self, $simp_part, $error_level, $error_type, $error_message, $error_obj) = @_;
-    warn("Trying to export!");
     my %message = (
         simp_part     => $simp_part,
         error_type    => $error_type,
@@ -166,7 +160,6 @@ sub export {
     }
     catch {
         my $error = $_;
-        warn("error on pushing to rabbitmq" . $error);
         $self->logger->error("Failed to publish message to RabbitMQ: $error");
     };
 }
