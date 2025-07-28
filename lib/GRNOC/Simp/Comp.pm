@@ -131,13 +131,11 @@ sub BUILD {
     $self->_make_config();
     $self->_make_composites();
 
-
     my $exporter = GRNOC::Simp::Exporter->new(
         config_file     => $self->config_file,
         logger          => $self->logger,
     );
     $self->_set_exporter($exporter);
-
 
     return $self;
 }

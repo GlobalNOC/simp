@@ -200,6 +200,7 @@ sub start {
         my $worker = GRNOC::Simp::Data::Worker->new(
             config    => $self->config,
             logger    => $self->logger,
+            exporter  => $self->exporter,
             worker_id => 13
         );
 
@@ -272,7 +273,7 @@ sub _create_workers {
         # Create the worker object for the process
         my $worker = GRNOC::Simp::Data::Worker->new(
             config    => $self->config,
-            exporter  => $self->exporter
+            exporter  => $self->exporter,
             logger    => $self->logger,
             worker_id => $worker_id
         );

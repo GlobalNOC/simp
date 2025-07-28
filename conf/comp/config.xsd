@@ -4,6 +4,7 @@
     <xsd:element name="config">
         <xsd:complexType>
             <xsd:sequence>
+                <xsd:element name="redis" type="REDIS_CONFIG"    minOccurs="1" maxOccurs="1"/>
                 <xsd:element name="rabbitmq" type="RABBITMQ_CONFIG" minOccurs="1" maxOccurs="1"/>
             </xsd:sequence>
             <xsd:attribute name="workers" use="required">
@@ -22,6 +23,18 @@
         <xsd:attribute name="port" type="xsd:integer" use="required" />
         <xsd:attribute name="user" type="xsd:string" use="required" />
         <xsd:attribute name="password" type="xsd:string" use="required" />
+    </xsd:complexType>
+
+    <!-- Required Child Elements -->
+    <xsd:complexType name="REDIS_CONFIG">
+        <xsd:attribute name="ip"              type="xsd:string"     use="optional" />
+        <xsd:attribute name="port"            type="xsd:integer" use="optional" />
+        <xsd:attribute name="reconnect"       type="xsd:integer" use="required" />
+        <xsd:attribute name="reconnect_every" type="xsd:integer" use="required" />
+        <xsd:attribute name="read_timeout"    type="xsd:integer" use="required" />
+        <xsd:attribute name="write_timeout"   type="xsd:integer" use="required" />
+        <xsd:attribute name="use_unix_socket" type="xsd:integer" use="optional" />
+        <xsd:attribute name="unix_socket"     type="xsd:string"  use="optional" />
     </xsd:complexType>
 
 </xsd:schema>

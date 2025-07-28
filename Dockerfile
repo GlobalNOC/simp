@@ -35,6 +35,7 @@ FROM oraclelinux:8
 COPY --from=rpmbuild /root/rpmbuild/RPMS/noarch/simp-*.rpm /root/
 
 COPY conf/poller/groups.d/*.xml /etc/simp/poller/groups.d/
+COPY conf/comp/composites.d/*.xml /etc/simp/comp/composites.d/
 
 RUN dnf install -y \
     https://build.grnoc.iu.edu/repo/rhel/8/x86_64/globalnoc-release-8-1.el8.noarch.rpm \

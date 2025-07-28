@@ -13,7 +13,6 @@ use Moo;
 use Net::SNMP::XS;    # Faster than non-XS
 use Redis::Fast;
 use Syntax::Keyword::Try;
-
 # Raised from 64, Default value
 $AnyEvent::SNMP::MAX_RECVQUEUE = 128;
 
@@ -616,17 +615,17 @@ sub _update_status {
     # Add the host config's errors to its global status data
     for my $error (@{$failed_oids}) {
         push(@{$self->status_data->{$host->{name}}{failed_oids}}, $error);
-
-        my $error_obj = sprintf('{
-            "host": "%s",
-            "oids": "%s"
-        }', $host->{"name"}, $error->{"oid"});
-        $self->exporter->export("Poller", "critical", "oids", $error->{"description"}, $error_obj);
+        my $error_obj = {
+            host => $host->{"name"},
+            oid  => $error->{"oid"}
+        };
+        
+        $self->exporter->export("Poller", "critical", "oid", $error->{"description"}, $error_obj);
     }
     for my $error (@{$snmp_errors}) {
-        my $error_obj = sprintf('{
-            "host": "%s"
-        }', $host->{"name"});
+        my $error_obj = {
+            host => $host->{"name"}
+        };
         $self->exporter->export("Poller", "critical", "snmp", $error->{"description"}, $error_obj);
     }
 }

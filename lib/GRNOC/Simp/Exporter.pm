@@ -33,14 +33,6 @@ has logger => (
     required => 1
 );
 
-has run_user => (
-    is       => 'ro',
-    required => 0
-);
-has run_group => (
-    is       => 'ro',
-    required => 0
-);
 
 has rabbit => ( is => 'rwp' );
 has json => ( is => 'rwp' );
@@ -140,13 +132,24 @@ sub _rabbit_connect {
 =cut
 sub export {
     my ($self, $simp_part, $error_level, $error_type, $error_message, $error_obj) = @_;
+    
     my %message = (
         simp_part     => $simp_part,
         error_type    => $error_type,
-	    error_level   => $error_level,
+        error_level   => $error_level,
         error_message => $error_message
     );
-    $message{error_obj} = $error_obj if defined $error_obj;
+
+    if ($simp_part eq "Poller" || $simp_part eq "TSDS") {
+        if (defined $error_obj) {
+            $error_obj->{"namespace"} = $self->config->{lc($simp_part)}->{"namespace"};
+        } else {
+            $error_obj = { namespace => $self->config->{lc($simp_part)}->{"namespace"} };
+        }
+    }
+
+    $message{"error_obj"} = $error_obj if defined $error_obj;
+    
     my @messages = (\%message);  # wrap in arrayref for encoding
 
     try {
@@ -156,9 +159,7 @@ sub export {
             $self->json->encode(\@messages),
             { 'exchange' => '' }
         );
-        
-    }
-    catch {
+    } catch {
         my $error = $_;
         $self->logger->error("Failed to publish message to RabbitMQ: $error");
     };

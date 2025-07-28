@@ -662,11 +662,11 @@ sub _get {
             if (!defined($keys) || (none {defined($_)} @{$keys})) {
                 my $error = "[_get] Unable to find keys for $host -> $oid";
                 $self->logger->error($error);
-                my $error_obj = sprintf('{
-                    "host": "%s",
-                    "oids": "%s"
-                }', $host, $oid);
-                $self->exporter->export("Data", "critical", "oid", $error,);
+                my $error_obj = {
+                    host => $host,
+                    oid  => $oid
+                };
+                $self->exporter->export("Data", "critical", "oid", $error, $error_obj);
                 next;
             }
 

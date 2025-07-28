@@ -8,12 +8,12 @@
                 <xsd:element name="redis" type="REDIS_CONFIG"    minOccurs="1" maxOccurs="1"/>
                 <xsd:element name="purge" type="PURGE_INTERVAL" minOccurs="1" maxOccurs="1"/>
                 <xsd:element name="request_size" type="REQUEST_SIZE" minOccurs="1" maxOccurs="1"/>
+                <xsd:element name="poller" type="POLLER" minOccurs="1" maxOccurs="1"/>
                 <xsd:element name="status" type="STATUS_DIR" minOccurs="1" maxOccurs="1"/>
                 <xsd:element name="rabbitmq" type="RABBITMQ_CONFIG" minOccurs="1" maxOccurs="1"/>
             </xsd:choice>
         </xsd:complexType>
     </xsd:element>
-
 
     <!-- Required Child Elements -->
     <xsd:complexType name="REDIS_CONFIG">
@@ -33,6 +33,10 @@
 
     <xsd:complexType name="REQUEST_SIZE">
         <xsd:attribute name="results" type="xsd:integer" use="required" />
+    </xsd:complexType>
+
+    <xsd:complexType name="POLLER">
+        <xsd:attribute name="namespace" type="xsd:string" use="required" />
     </xsd:complexType>
 
     <xsd:complexType name="RABBITMQ_CONFIG">

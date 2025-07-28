@@ -6,7 +6,7 @@
     <rabbitmq ip="127.0.0.1" port="5672" user="" password=""/>
 
     <!-- TSDS Credentials -->
-    <tsds url="" user="" password=""/>
+    <tsds url="" namespace="" user="" password=""/>
 
     <!-- Separate worker creation to reduce request load -->
 

@@ -25,14 +25,21 @@ my $exporter = GRNOC::Simp::Exporter->new(
 $exporter->export("TSDS", "critical", "push", "Failed to push tsds message to the tsds service");
 $exporter->export("Data", "critical", "redis", "Failed to get info from redis");
 
-
-$exporter->export("Data", "critical", "oid", "[_get] Unable to find keys for eugn-oh-400g-01 -> 1.3.6.1.2.1.2.2.1.14.*", '{"host": "eugn-oh-400g-01", "oid": "1.3.6.1.2.1.2.2.1.14.*"}');
+my $error_obj_1 = {
+    host => "eugn-oh-400g-01",
+    oid => "1.3.6.1.2.1.2.2.1.14.*"
+};
+my $error_obj_2 = {
+    host => "eugn-oh-400g-01"
+};
+$exporter->export("Data", "critical", "oid", "[_get] Unable to find keys for eugn-oh-400g-01 -> 1.3.6.1.2.1.2.2.1.14.*", $error_obj_1);
 
 $exporter->export("Comp", "critical", "redis", "Failed to get info from redis");
 $exporter->export("Poller", "critical", "redis", "Failed to get info from redis");
 
-$exporter->export("Poller", "critical", "snmp", "Failed to get info from fake.grnoc.iu.edu", '{"host": "fake.grnoc.iu.edu"}');
-$exporter->export("Poller", "critical", "oid", "Failed to get info from 1.2.3.4.5:fake.grnoc.iu.edu", '{"host": "fake.grnoc.iu.edu", "oid": "1.3.6.1.2.1.2.2.1.14"}');
+
+$exporter->export("Poller", "critical", "snmp", "Failed to get info from fake.grnoc.iu.edu", $error_obj_2);
+$exporter->export("Poller", "critical", "oid", "Failed to get info from 1.2.3.4.5:fake.grnoc.iu.edu", $error_obj_1);
 
 ok(1);
 done_testing(1);
