@@ -4,7 +4,7 @@
     <!-- Main Config Element -->
     <xsd:element name="config">
         <xsd:complexType>
-            <xsd:choice minOccurs="5" maxOccurs="5">
+            <xsd:choice minOccurs="6" maxOccurs="6">
                 <xsd:element name="redis" type="REDIS_CONFIG"    minOccurs="1" maxOccurs="1"/>
                 <xsd:element name="purge" type="PURGE_INTERVAL" minOccurs="1" maxOccurs="1"/>
                 <xsd:element name="request_size" type="REQUEST_SIZE" minOccurs="1" maxOccurs="1"/>
@@ -17,7 +17,7 @@
 
     <!-- Required Child Elements -->
     <xsd:complexType name="REDIS_CONFIG">
-        <xsd:attribute name="ip"              type="xsd:string"     use="optional" />
+        <xsd:attribute name="ip"              type="xsd:string"  use="optional" />
         <xsd:attribute name="port"            type="xsd:integer" use="optional" />
         <xsd:attribute name="reconnect"       type="xsd:integer" use="required" />
         <xsd:attribute name="reconnect_every" type="xsd:integer" use="required" />
