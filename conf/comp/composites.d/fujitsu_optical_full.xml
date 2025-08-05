@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="none" oid="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.*.1.*.1.*.1.*">
+            <match name="shelf"/>
+            <match name="slot"/>
+            <match name="subslot"/>
+            <match name="port"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf" source="shelf" />
+        <meta name="shelf" source="shelf" />
+        <meta name="slot" source="slot" />
+        <meta name="subslot" source="subslot" />
+        <meta name="port" source="port" />
+        <meta name="descr" source="shelf" />
+        <value name="rxpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.6.0.1.1.0" />
+        <value name="txpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.13.0.0.1.0" />
+        <value name="chromatic_dispersion" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.46.0.1.1.0" />
+        <value name="osnr" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.49.0.1.1.0" />
+        <value name="total_rxpower" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.10.0.1.1.0" />
+        <value name="pol_dep_loss" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.52.0.1.1.0" />
+        <value name="pol_model_dispersion" source="1.3.6.1.4.1.211.1.24.12.800.8.1.3.1.shelf.1.slot.1.subslot.1.port.55.0.1.1.0" />
+    </data>
+
+    <conversions>
+        <replace this='(\d+)' with='sub {return chr($_[1]);}'>
+            <data name="shelf" />
+            <data name="slot" />
+            <data name="subslot" />
+            <data name="port" />
+        </replace>
+
+        <replace this='${}' with='otu-${shelf}/${slot}/${subslot}/E1.${port}'>
+            <data name="intf" />
+        </replace>
+
+        <replace this='${}' with='Shelf ${shelf} - Slot ${slot}.${subslot} - Port ${port}'>
+            <data name="descr" />
+        </replace>
+
+        <drop>
+            <data name="shelf" />
+            <data name="slot" />
+            <data name="subslot" />
+            <data name="port" />
+        </drop>
+    </conversions>
+</composite>

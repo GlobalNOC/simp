@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <constant name="hardware_name" value="1" />
+    </variables>
+
+    <data>
+        <meta name="name" source="hardware_name" />
+        <value name="temp" source="1.3.6.1.2.1.33.1.2.7.0" />
+    </data>
+</composite>

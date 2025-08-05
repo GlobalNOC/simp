@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="sensor_id" oid="1.3.6.1.4.1.13742.4.3.3.1.1.*">
+            <match name="sensor_sfx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="1.3.6.1.4.1.13742.4.3.3.1.4.sensor_id" />
+        <meta name="type" source="1.3.6.1.4.1.13742.4.3.3.1.2.sensor_id" />
+        <value name="hum" source="1.3.6.1.4.1.13742.4.3.3.1.41.sensor_id" />
+    </data>
+
+    <conversions>
+        <match pattern='^11$' exclude="1" drop="node">
+            <data name="type" />
+        </match>
+
+        <drop>
+            <data name="type" />
+        </drop>
+    </conversions>
+</composite>

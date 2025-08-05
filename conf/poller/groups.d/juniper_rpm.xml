@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<group workers="1" interval="30" timeout="15">
+  <mib oid="1.3.6.1.4.1.2636.3.50.1.2.1.4" /> <!-- jnxRpmResSumPercentLost, percent loss -->
+  <mib oid="1.3.6.1.4.1.2636.3.50.1.3.1.5" /> <!-- jnxRpmResCalcAverage, latency in microseconds -->
+  <mib oid="1.3.6.1.4.1.2636.3.50.1.3.1.6" /> <!-- jnxRpmResCalcPkToPk, jitter in microseconds -->
+</group>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="sensor_type" oid="1.3.6.1.2.1.99.1.1.1.1.*">
+            <match name="sensor_id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="1.3.6.1.2.1.47.1.1.1.1.7.sensor_id" />
+        <meta name="desc" source="1.3.6.1.2.1.47.1.1.1.1.2.sensor_id" />
+        <value name="datatype" source="1.3.6.1.2.1.99.1.1.1.1.sensor_id" />
+        <value name="scale" source="1.3.6.1.2.1.99.1.1.1.2.sensor_id" />
+        <value name="precision" source="1.3.6.1.2.1.99.1.1.1.3.sensor_id" />
+        <value name="temp" source="1.3.6.1.2.1.99.1.1.1.4.sensor_id" />
+        <value name="datatype" source="sensor_type" />
+    </data>
+
+    <conversions>
+        <match pattern='8' exclude="1" drop="node">
+            <data name="datatype" />
+        </match>
+
+        <replace this='${}' with='${name} - ${desc}'>
+            <data name="name" />
+        </replace>
+
+        <function definition='${} 10  3 ${scale} * 27 - ${precision} - pow *'>
+            <data name="temp" />
+        </function>
+
+        <function definition='0 == _ ${} ifelse'>
+            <data name="temp" />
+        </function>
+
+        <drop>
+            <data name="desc" />
+            <data name="datatype" />
+            <data name="scale" />
+            <data name="precision" />
+        </drop>
+    </conversions>
+</composite>

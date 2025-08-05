@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="policer_name" oid="1.3.6.1.4.1.2636.3.5.2.1.7.**">
+            <match name="policer_id"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="policer" source="policer_name" />
+        <meta name="filter" source="1.3.6.1.4.1.2636.3.5.2.1.6.policer_id" />
+        <value name="packets" source="1.3.6.1.4.1.2636.3.5.2.1.4.policer_id" type="rate" />
+        <value name="bits" source="1.3.6.1.4.1.2636.3.5.2.1.5.policer_id" type="rate" />
+    </data>
+
+    <conversions>
+        <function definition='${} 8 *'>
+            <data name="bits" />
+        </function>
+    </conversions>
+</composite>

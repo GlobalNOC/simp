@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="sapPortId" oid="1.3.6.1.4.1.6527.3.1.2.4.3.2.1.1.*.*.*">
+            <match name="svcId"/>
+            <match name="sapPortId"/>
+            <match name="sapEncapValue"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="svcId" source="svcId" />
+        <meta name="sapPortId" source="sapPortId" />
+        <meta name="sEV" source="sapEncapValue" />
+        <meta name="sapEncapValue" source="sapEncapValue" />
+        <meta name="node" source="node_name" />
+        <meta name="intf" source="1.3.6.1.2.1.31.1.1.1.1.sapPortId" />
+        <meta name="description" source="1.3.6.1.4.1.6527.3.1.2.4.3.2.1.5.svcId.sapPortId.sapEncapValue" />
+        <meta name="adminStatus" source="1.3.6.1.4.1.6527.3.1.2.4.3.2.1.6.svcId.sapPortId.sapEncapValue" />
+        <meta name="status" source="1.3.6.1.4.1.6527.3.1.2.4.3.2.1.7.svcId.sapPortId.sapEncapValue" />
+        <value name="input" source="1.3.6.1.4.1.6527.3.1.2.4.3.96.1.37.svcId.sapPortId.sapEncapValue.3" type="rate" />
+        <value name="output" source="1.3.6.1.4.1.6527.3.1.2.4.3.8.1.21.svcId.sapPortId.sapEncapValue.1" type="rate" />
+        <value name="input_7750" source="1.3.6.1.4.1.6527.3.1.2.4.3.6.1.6.svcId.sapPortId.sapEncapValue" type="rate" />
+        <value name="input_7750_hi" source="1.3.6.1.4.1.6527.3.1.2.4.3.6.1.4.svcId.sapPortId.sapEncapValue" type="rate" />
+        <value name="output_7750" source="1.3.6.1.4.1.6527.3.1.2.4.3.6.1.22.svcId.sapPortId.sapEncapValue" type="rate" />
+        <value name="output_7750_in" source="1.3.6.1.4.1.6527.3.1.2.4.3.6.1.20.svcId.sapPortId.sapEncapValue" type="rate" />
+    </data>
+
+    <conversions>
+        <function definition='${} 8 *'>
+            <data name="input" />
+            <data name="output" />
+        </function>
+
+        <function definition='${} $input_7750_hi +'>
+            <data name="input_7750" />
+        </function>
+
+        <function definition='${} $output_7750_in +'>
+            <data name="output_7750" />
+        </function>
+
+        <replace this='${}' with=' sub{my $encap_value_decimal = $_[0]; my $binary = sprintf("%032b", $encap_value_decimal); my @octets = ($binary =~ /(.{8})(.{8})(.{8})(.{8})/); if( $binary == 0 x 32 ){ return undef; } elsif( ( $octets[0] == 0 x 8 || $octets[0] == 1 . 0 x 7) &amp;&amp; $octets[1] == 0 x 8 &amp;&amp;  $octets[2] =~ /0000\d{4}/ ){ my $binary_vlan_id  = ( $octets[2] =~ /0000(\d{4})/ )[0] . $octets[3]; my $decimal_vlan_id = oct("0b$binary_vlan_id"); my $type            = ( $octets[0] == 0 x 8 ) ? "802.1Q" : "dotq-CP"; my $ret             = "$decimal_vlan_id"; return $ret; } elsif ( $octets[0] == 0 x 8 &amp;&amp; $octets[1] =~ /0000(\d{4})/ ){ my $binary_lsp_id  = ( $octets[1] =~ /0000(\d{4})/ )[0] . $octets[2] . $octets[3]; my $decimal_lsp_id = oct("0b$binary_lsp_id"); my $ret            = "$decimal_lsp_id"; return $ret; } elsif( $octets[0] =~ /(0000|0100|1000)(\d{4})/ &amp;&amp; $octets[2] =~ /(0000|0100)(\d{4})/ ){ my $outer_vlan_id_binary  = ( $octets[2] =~ /0000(\d{4})/ )[0] . $octets[3]; my $inner_vlan_id_binary  = ( $octets[0] =~ /0000(\d{4})/ )[0] . $octets[1]; my $outer_vlan_id_decimal = oct("0b$outer_vlan_id_binary"); my $inner_vlan_id_decimal = oct("0b$inner_vlan_id_binary"); my $outer_type = ( (split("", $octets[0]))[1] == 0 ) ? "tagged-qinq" : "qinq-CP"; my $inner_type = ( (split("", $octets[2]))[1] == 0 ) ? "tagged-qinq" : "qinq-CP"; my $outer_vlan_id_value = $outer_vlan_id_decimal; if( $outer_vlan_id_value == 4095 ){ $outer_vlan_id_value = "*"; } elsif( $outer_vlan_id_value == 0 &amp;&amp; (split("", $octets[2]))[0] == 1){ $outer_vlan_id_value = "null"; } my $inner_vlan_id_value = $inner_vlan_id_decimal; if( $inner_vlan_id_value == 4095 ){ $inner_vlan_id_value = "*"; } elsif( $inner_vlan_id_value == 0 &amp;&amp; (split("", $octets[0]))[0] == 1){ $inner_vlan_id_value = "null"; } my $ret = sprintf("%s.%s", $outer_vlan_id_value, $inner_vlan_id_value); return $ret; }; return; }'>
+            <data name="sapEncapValue" />
+        </replace>
+
+        <replace this='${}' with='${intf}:${sapEncapValue}'>
+            <data name="intf" />
+        </replace>
+
+        <drop>
+            <data name="input_7750_hi" />
+            <data name="output_7750_in" />
+        </drop>
+    </conversions>
+</composite>

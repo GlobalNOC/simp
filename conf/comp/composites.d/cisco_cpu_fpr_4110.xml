@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <constant name="cpu_id" value="CPU" />
+    </variables>
+
+    <data>
+        <meta name="name" source="cpu_id" />
+        <value name="cpu" source="1.3.6.1.4.1.9.9.109.1.1.1.1.7.1" />
+    </data>
+</composite>

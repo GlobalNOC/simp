@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="ip_address" oid="1.3.6.1.4.1.55951.13.1.*.*.*.*">
+            <match name="ip1"/>
+            <match name="ip2"/>
+            <match name="ip3"/>
+            <match name="ip4"/>
+        </scan>
+        <scan value="intf_idx" oid="1.3.6.1.4.1.55951.13.1.ip1.ip2.ip3.ip4.1.*">
+            <match name="ifIdx"/>
+        </scan>
+    </variables>
+
+    <data>
+	<meta name="node" source="ip1" />
+	<meta name="intf" source="intf_idx" require_match="^2|31|28|3|29|5|26|27$" invert_match="1" />
+	<meta name="ip1" source="ip1" />
+	<meta name="ip2" source="ip2" />
+	<meta name="ip3" source="ip3" />
+	<meta name="ip4" source="ip4" />
+        <meta name="adminStatus" source="1.3.6.1.4.1.55951.13.1.ip1.ip2.ip3.ip4.7.ifIdx" require_match="^1$"  />
+        <meta name="description" source="1.3.6.1.4.1.55951.13.1.ip1.ip2.ip3.ip4.2.ifIdx" />
+        <value name="status" source="1.3.6.1.4.1.55951.13.1.ip1.ip2.ip3.ip4.8.ifIdx" />
+    </data>
+
+    <conversions>
+	<replace this='${}' with='${ip1}.${ip2}.${ip3}.${ip4}'>
+            <data name="node" />
+        </replace>
+	<replace this='${}' with="port-${intf}">
+	    <data name="intf" />
+	</replace>
+	<drop>
+            <data name="admin_status" />
+	    <data name="ip1" />
+            <data name="ip2" />
+            <data name="ip3" />
+            <data name="ip4" />
+        </drop>
+    </conversions>
+</composite>

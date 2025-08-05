@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="vsysId" oid="1.3.6.1.4.1.25461.2.1.2.3.9.1.1.*">
+            <match name="vsysIdx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="1.3.6.1.4.1.25461.2.1.2.3.9.1.2.vsysIdx" />
+        <value name="sessionUtilization" source="1.3.6.1.4.1.25461.2.1.2.3.9.1.3.vsysIdx" />
+        <value name="activeSessions" source="1.3.6.1.4.1.25461.2.1.2.3.9.1.4.vsysIdx" />
+        <value name="maxSessions" source="1.3.6.1.4.1.25461.2.1.2.3.9.1.5.vsysIdx" />
+        <value name="activeTCP" source="1.3.6.1.4.1.25461.2.1.2.3.9.1.6.vsysIdx" />
+        <value name="activeUDP" source="1.3.6.1.4.1.25461.2.1.2.3.9.1.7.vsysIdx" />
+        <value name="activeOther" source="1.3.6.1.4.1.25461.2.1.2.3.9.1.8.vsysIdx" />
+    </data>
+</composite>

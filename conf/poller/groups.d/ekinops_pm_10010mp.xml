@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<group workers="1" interval="120" timeout="20" request_size="10" retention="3000">
+  <mib oid="1.3.6.1.4.1.20044.58.7.1.1.1.2" /> <!-- PM_10010MP: client interfaces -->
+  <mib oid="1.3.6.1.4.1.20044.58.11.2.4.16.1.2" /> <!-- client input octets -->
+  <mib oid="1.3.6.1.4.1.20044.58.11.2.4.32.1.2" /> <!-- client input B1/CRC errors -->
+  <mib oid="1.3.6.1.4.1.20044.58.11.2.4.48.1.2" /> <!-- client input packets -->
+  <mib oid="1.3.6.1.4.1.20044.58.4.2.96.1.2" /> <!-- client output CBIP parity errors -->
+  <mib oid="1.3.6.1.4.1.20044.58.3.2.48.1.2" /> <!-- client tx power -->
+  <mib oid="1.3.6.1.4.1.20044.58.3.2.64.1.2" /> <!-- client rx power -->
+  <mib oid="1.3.6.1.4.1.20044.58.7.1.2.1.2" /> <!-- PM_10010MP: line interface -->
+  <mib oid="1.3.6.1.4.1.20044.58.4.3.192.1.2" /> <!-- line input residual SM-BIP8 error after FEC -->
+  <mib oid="1.3.6.1.4.1.20044.58.4.3.196.1.2" /> <!-- line input BER pre-soft decision FEC -->
+  <mib oid="1.3.6.1.4.1.20044.58.3.3.80.1.2" /> <!-- line tx power -->
+  <mib oid="1.3.6.1.4.1.20044.58.3.3.128.1.2" /> <!-- line rx power -->
+</group>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="cpu_usage" oid="1.3.6.1.4.1.211.1.24.12.800.2.1.3.1.*.73.0.2.1.0">
+            <match name="shelf"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="shelf" />
+        <value name="cpu" source="cpu_usage" />
+    </data>
+
+    <conversions>
+        <replace this='(\d+)' with='sub {return chr($_[1]);}'>
+            <data name="name" />
+        </replace>
+
+        <replace this='${}' with='Shelf ${}'>
+            <data name="name" />
+        </replace>
+    </conversions>
+</composite>

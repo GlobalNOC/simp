@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <constant name="unused" value="0" />
+        <scan value="intf_idx" oid="1.3.6.1.2.1.4.20.1.2.**">
+            <match name="ip_addr"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf_index" source="intf_idx" />
+        <meta name="intf" source="1.3.6.1.2.1.31.1.1.1.1.intf_idx" />
+        <meta name="addr" source="1.3.6.1.2.1.4.20.1.1.ip_addr" />
+        <value name="unused" source="unused" />
+    </data>
+</composite>

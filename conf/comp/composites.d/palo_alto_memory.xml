@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="hrStorageIndex" oid="1.3.6.1.2.1.25.2.3.1.1.*">
+            <match name="storageIdx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="1.3.6.1.2.1.25.2.3.1.3.storageIdx" />
+        <value name="memory" source="1.3.6.1.2.1.25.2.3.1.6.storageIdx" />
+        <value name="memorySize" source="1.3.6.1.2.1.25.2.3.1.5.storageIdx" />
+    </data>
+
+    <conversions>
+        <match pattern='(.*Management Memory.*|.*Management Swap.*)' >
+            <data name="name" />
+        </match>
+
+        <function definition='${memory} 100 * ${memorySize} /'>
+            <data name="memory" />
+        </function>
+
+        <drop>
+            <data name="memorySize" />
+        </drop>
+    </conversions>
+</composite>

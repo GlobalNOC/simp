@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="intf_name" oid=".1.3.6.1.2.1.31.1.1.1.1.**">
+            <match name="intf_idx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="intf" source="intf_name" />
+        <value name="rxpower" source="1.3.6.1.4.1.2636.3.60.1.1.1.1.5.intf_idx" />
+        <value name="bias" source="1.3.6.1.4.1.2636.3.60.1.1.1.1.6.intf_idx" />
+        <value name="txpower" source="1.3.6.1.4.1.2636.3.60.1.1.1.1.7.intf_idx" />
+        <value name="temperature" source="1.3.6.1.4.1.2636.3.60.1.1.1.1.8.intf_idx" />
+        <value name="voltage" source="1.3.6.1.4.1.2636.3.60.1.1.1.1.25.intf_idx" />
+    </data>
+
+    <conversions>
+        <function definition='${} 100 /'>
+            <data name="rxpower" />
+            <data name="txpower" />
+        </function>
+
+        <function definition='${} 1000 /'>
+            <data name="bias" />
+            <data name="voltage" />
+        </function>
+    </conversions>
+</composite>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="cpu_id" oid="1.3.6.1.4.1.9.9.109.1.1.1.1.2.*">
+            <match name="cpu_sfx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="1.3.6.1.2.1.47.1.1.1.1.7.cpu_id" />
+        <value name="cpmCPUTotal1MinRev" source="1.3.6.1.4.1.9.9.109.1.1.1.1.7.cpu_sfx" />
+        <value name="cpmCPUTotal5MinRev" source="1.3.6.1.4.1.9.9.109.1.1.1.1.8.cpu_sfx" />
+    </data>
+
+    <conversions>
+        <function definition='_ == "CPU" "${}" ifelse'>
+            <data name="name" />
+        </function>
+    </conversions>
+</composite>

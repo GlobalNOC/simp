@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<group workers="1" interval="900" timeout="15">
+  <mib oid="1.3.6.1.4.1.9.9.42.1.2.1.1.12" /> <!-- Cisco rttMonCtrlAdminTable (test names) -->
+  <mib oid="1.3.6.1.4.1.9.9.42.1.5.2.1.1" /> <!-- Cisco rttMonLatestJitterOperNumOfRTT (packets per test) -->
+  <mib oid="1.3.6.1.4.1.9.9.42.1.5.2.1.26" /> <!-- Cisco rttMonLatestJitterOperPacketLossSD (src->dst lost packets) -->
+  <mib oid="1.3.6.1.4.1.9.9.42.1.5.2.1.27" /> <!-- Cisco rttMonLatestJitterOperPacketLossDS (dst->src lost packets) -->
+</group>

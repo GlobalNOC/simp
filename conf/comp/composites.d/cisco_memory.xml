@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <constant name="total_memory" value="0" />
+        <scan value="memPoolType" oid="1.3.6.1.4.1.9.9.221.1.1.1.1.3.*.*">
+            <match name="physIdx"/>
+            <match name="memPoolIdx"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="memPoolType" />
+        <meta name="phys_name" source="1.3.6.1.2.1.47.1.1.1.1.7.physIdx" />
+        <value name="memory" source="1.3.6.1.4.1.9.9.221.1.1.1.1.18.physIdx.memPoolIdx" />
+        <value name="memory_used" source="1.3.6.1.4.1.9.9.221.1.1.1.1.18.physIdx.memPoolIdx" />
+        <value name="memory_free" source="1.3.6.1.4.1.9.9.221.1.1.1.1.20.physIdx.memPoolIdx" />
+        <value name="memory_total" source="total_memory" />
+    </data>
+
+    <conversions>
+        <function definition='${memory} 100 * ${memory_free} ${memory_used} + /'>
+            <data name="memory" />
+        </function>
+
+        <function definition='${memory_free} ${memory_used} +'>
+            <data name="memory_total" />
+        </function>
+
+        <replace this='${}' with='${phys_name} ${name}'>
+            <data name="name" />
+        </replace>
+
+        <match pattern='(image|reserved)$' exclude="1">
+            <data name="name" />
+        </match>
+
+        <drop>
+            <data name="phys_name" />
+        </drop>
+    </conversions>
+</composite>
