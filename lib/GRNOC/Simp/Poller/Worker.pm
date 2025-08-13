@@ -716,7 +716,7 @@ sub _collect_data {
 
     # Write status data for the previous polling cycle
     $self->_write_status_data();
-
+    warn("----  START OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----");
     $self->logger->debug("----  START OF POLLING CYCLE FOR: \"" . $self->worker_name . "\"  ----");
     $self->logger->debug(sprintf(
         "%s - %s hosts and %s oids per host, max outstanding scaled to %s and queue is %s to %s",

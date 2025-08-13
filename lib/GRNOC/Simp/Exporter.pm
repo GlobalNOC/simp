@@ -91,7 +91,7 @@ sub _rabbit_connect {
 
     while ( 1 ) {
 
-        $self->logger->info( "Connecting to RabbitMQ $rabbit_host:$rabbit_port." );
+        $self->logger->warn( "Connecting to RabbitMQ $rabbit_host:$rabbit_port." );
 
         my $connected = 0;
 
@@ -147,21 +147,41 @@ sub export {
             $error_obj = { namespace => $self->config->{lc($simp_part)}->{"namespace"} };
         }
     }
+    
 
     $message{"error_obj"} = $error_obj if defined $error_obj;
     
     my @messages = (\%message);  # wrap in arrayref for encoding
-
-    try {
+    my $payload = $self->json->encode(\@messages);
+    my $not_sent = 1;
+    
+    my $publish = sub {
         $self->rabbit->publish(
             1,
             'Simp.Error',
-            $self->json->encode(\@messages),
-            { 'exchange' => '' }
+            $payload,
+            { exchange => '' }
         );
-    } catch {
+    };
+
+    try {
+        $publish->();
+    }
+    catch {
         my $error = $_;
-        $self->logger->error("Failed to publish message to RabbitMQ: $error");
+        $self->logger->warn("Publish failed: $error — attempting reconnect...");
+        
+        try {
+            # Reconnect
+            $self->_rabbit_connect();
+            # Retry publish once
+            $publish->();
+            $self->logger->info("Reconnected and message published.");
+        }
+        catch {
+            my $retry_err = $_;
+            $self->logger->error("Failed to reconnect and publish: $retry_err");
+        };
     };
 }
 

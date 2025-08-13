@@ -373,7 +373,9 @@ sub _process_data {
 
     # Drop out if we get an error from Comp
     if (!defined($res) || $res->{'error'}) {
-        $self->logger->error($self->worker_name." Comp error getting data for $host: ".GRNOC::Simp::TSDS::error_message($res));
+        my $error = $self->worker_name." Comp error getting data for $host: ".GRNOC::Simp::TSDS::error_message($res);
+        $self->logger->error($error);
+        $self->exporter->export("TSDS", "critical", "rabbitmq", $error);
         return;
     }
 

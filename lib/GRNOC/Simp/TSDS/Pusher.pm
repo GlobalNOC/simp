@@ -89,6 +89,8 @@ sub BUILD
 sub push {
     my ($self, $msg_list) = @_;
 
+
+    warn("Pushing tsds message!");
     # Initialize a response and error.
     my $res;
     my $error;
@@ -101,6 +103,7 @@ sub push {
 
     # Try pushing the data to TSDS.
     try {
+        
         $res = $self->tsds_svc->add_data(data => encode_json($msg_list));
     }
     catch ($e) {
@@ -115,7 +118,7 @@ sub push {
     # Handle an undefined response.
     if (!defined($res)) {
         $error = sprintf("[%s] Error: No response from TSDS push.cgi", $self->worker_name);
-
+        $self->exporter->export("TSDS", "critical", "push", $error);
         # Return a response hashref with the error.
         return {'error' => 1, 'error_text' => $error};
     }
