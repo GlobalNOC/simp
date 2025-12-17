@@ -1,9 +1,9 @@
 # Optimized single-stage build for containerized deployments
-# For RPM building, use Dockerfile.rpmbuild instead
+# Builds and installs SIMP RPMs to ensure identical installation to traditional deployments
 FROM oraclelinux:8
 
 # set working directory
-WORKDIR /opt/simp
+WORKDIR /tmp/simp-build
 
 # add globalnoc and epel repos, enable additional ol8 repos, and install all dependencies in one layer
 RUN dnf install -y \
@@ -13,49 +13,56 @@ RUN dnf install -y \
     ol8_appstream ol8_baseos_latest ol8_codeready_builder \
     ol8_developer_EPEL  ol8_developer_EPEL_modular \
     && dnf install -y \
-    net-snmp \
-    net-snmp-devel \
-    net-snmp-libs \
-    net-snmp-utils \
+    gcc \
+    make \
+    rpm-build \
+    openssl-devel \
+    expat-devel \
+    perl-devel \
+    perl-App-cpanminus \
+    perl-List-MoreUtils \
+    perl-AnyEvent \
     perl-IO-AIO \
+    perl-Net-SNMP \
     perl-Net-SNMP-XS \
+    perl-Test-Deep \
+    perl-Test-Pod \
     perl-GRNOC-Log \
     perl-GRNOC-Config \
     perl-GRNOC-RabbitMQ \
     perl-GRNOC-WebService-Client \
     perl-GRNOC-Monitoring-Service-Status \
-    perl-App-cpanminus \
+    net-snmp \
+    net-snmp-devel \
+    net-snmp-libs \
+    net-snmp-utils \
     redis \
-    gcc \
-    make \
-    perl-devel \
     && dnf clean all \
     && cpanm --notest Carton
 
-# copy only dependency files first for better layer caching
-COPY cpanfile cpanfile.snapshot ./
+# copy source files
+COPY . /tmp/simp-build/
 
-# install Perl dependencies
-RUN carton install --deployment --path=/opt/grnoc/venv/simp
+# build RPMs using the Makefile
+RUN make rpm
 
-# copy application code
-COPY bin/ ./bin/
-COPY lib/ ./lib/
+# install the RPMs
+RUN dnf install -y /root/rpmbuild/RPMS/noarch/simp-*.rpm
 
-# copy simp-poller groups.d and simp-comp composites.d configuration files
-COPY conf/poller/ /etc/simp/poller/
-COPY conf/comp/ /etc/simp/comp/
+# cleanup build artifacts
+RUN rm -rf /tmp/simp-build /root/rpmbuild
+
+# set working directory to standard location
+WORKDIR /
 
 # set up environment
-ENV PERL5LIB=/opt/grnoc/venv/simp/lib/perl5:/opt/simp/lib
-
-# set permissions for application directory
-RUN chown -R simp:simp /opt/simp
+ENV PERL5LIB=/opt/grnoc/venv/simp/lib/perl5
 
 USER simp
 
 # default entrypoint - can be overridden to run different services
 # Examples:
-#   docker run simp /opt/simp/bin/simp-poller.pl
+#   docker run simp simp-poller.pl
+#   docker run simp simp-comp.pl
 ENTRYPOINT ["/bin/bash"]
-CMD ["-c", "echo 'Welcome to SIMP! Available commands: simp-test.pl, simp-poller.pl, simp-comp.pl, simp-data.pl, simp-tsds.pl'"]
+CMD ["-c", "echo 'Welcome to SIMP! Available commands: simp-poller.pl, simp-comp.pl, simp-data.pl, simp-tsds.pl'"]
