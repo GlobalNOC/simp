@@ -24,8 +24,11 @@ RUN dnf install -y \
     perl-Test-Deep \
     perl-Test-Pod \
     perl-Net-SNMP \
+    perl-Net-SNMP-XS \
     perl-IO-AIO \
-    && dnf makecache \
+    gcc \
+    make \
+    perl-devel \
     && dnf clean all \
     && cpanm Carton
 
@@ -57,7 +60,7 @@ RUN dnf install -y \
     net-snmp-libs \
     net-snmp-utils \
     perl-IO-AIO \
-    && dnf makecache \
+    perl-Net-SNMP-XS \
     && dnf clean all
 
 # copy RPMs from build stage
