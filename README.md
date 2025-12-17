@@ -6,6 +6,16 @@ The pacakge contains both a collector and a data service interface.
 A multi-process collector gathers SNMP data from a set of hosts and puts that data into a redis database.
 A set of data services then provides access to this data via RabbitMQ.
 
+## Version Management
+
+To update the version number across all files:
+
+```bash
+./update-version.sh 1.13.0
+```
+
+This updates the version in Makefile, spec files, and Perl modules.
+
 ## Docker Deployment
 
 SIMP supports containerized deployments. See **[DOCKER_USAGE.md](DOCKER_USAGE.md)** for complete documentation.
