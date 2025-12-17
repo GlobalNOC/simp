@@ -29,10 +29,10 @@ dist: clean venv
 	mkdir -p dist/simp-comp-$(VERSION)/conf/comp
 	mkdir -p dist/simp-poller-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-poller-$(VERSION)/bin
-	mkdir -p dist/simp-poller-$(VERSION)/conf/poller
+	mkdir -p dist/simp-poller-$(VERSION)/conf/poller/hosts.d
 	mkdir -p dist/simp-tsds-$(VERSION)/lib/GRNOC/Simp
 	mkdir -p dist/simp-tsds-$(VERSION)/bin
-	mkdir -p dist/simp-tsds-$(VERSION)/conf/tsds
+	mkdir -p dist/simp-tsds-$(VERSION)/conf/tsds/collections.d
 	mkdir -p dist/simp-env-$(VERSION)/
 
 	cp -r lib/GRNOC/Simp/Poller* dist/simp-poller-$(VERSION)/lib/GRNOC/Simp
@@ -50,7 +50,6 @@ dist: clean venv
 	cp -r conf/poller/validation.d dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/simp-poller.systemd dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/simp-poller.service dist/simp-poller-$(VERSION)/conf/poller/
-	mkdir -p dist/simp-poller-$(VERSION)/conf/poller/hosts.d
 	cp -r conf/poller/hosts.d/hosts.xml.example dist/simp-poller-$(VERSION)/conf/poller/hosts.d/
 	cp -r conf/poller/groups.d dist/simp-poller-$(VERSION)/conf/poller/
 
@@ -65,8 +64,9 @@ dist: clean venv
 	cp -r conf/comp/simp-comp.systemd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.service dist/simp-comp-$(VERSION)/conf/comp/
 
+	cp -r conf/tsds/config.xml dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/validation.d dist/simp-tsds-$(VERSION)/conf/tsds/
-	cp -r conf/tsds/collections.d/collection.xml.example dist/simp-tsds-$(VERSION)/conf/tsds/
+	cp -r conf/tsds/collections.d/collection.xml.example dist/simp-tsds-$(VERSION)/conf/tsds/collections.d/
 	cp -r conf/tsds/simp-tsds.systemd dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/simp-tsds.service dist/simp-tsds-$(VERSION)/conf/tsds/
 
