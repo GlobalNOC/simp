@@ -58,8 +58,6 @@ WORKDIR /
 # set up environment
 ENV PERL5LIB=/opt/grnoc/venv/simp/lib/perl5
 
-USER simp
-
 # default entrypoint - can be overridden to run different services
 # Examples:
 #   docker run simp simp-poller.pl
