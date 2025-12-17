@@ -14,7 +14,7 @@
     </data>
 
     <conversions>
-        <match pattern='^10$' exclude="1" drop="node">
+        <match pattern='^10$' exclude="1" drop="ALL">
             <data name="type" />
         </match>
 

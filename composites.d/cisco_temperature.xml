@@ -17,7 +17,7 @@
     </data>
 
     <conversions>
-        <match pattern='8' exclude="1" drop="node">
+        <match pattern='8' exclude="1" drop="ALL">
             <data name="datatype" />
         </match>
 
