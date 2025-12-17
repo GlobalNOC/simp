@@ -55,10 +55,8 @@ COPY conf/tsds/ /etc/simp/tsds/
 # set up environment
 ENV PERL5LIB=/opt/grnoc/venv/simp/lib/perl5:/opt/simp/lib
 
-# create simp user and set permissions
-RUN groupadd -r simp \
-    && useradd -r -s /bin/nologin -g simp simp \
-    && chown -R simp:simp /opt/simp /etc/simp /var/lib/simp
+# set permissions for simp user (created by GRNOC packages)
+RUN chown -R simp:simp /opt/simp /etc/simp /var/lib/simp
 
 USER simp
 
