@@ -42,21 +42,15 @@ RUN carton install --deployment --path=/opt/grnoc/venv/simp
 COPY bin/ ./bin/
 COPY lib/ ./lib/
 
-# copy and set up configuration directories
-RUN mkdir -p /etc/simp/poller /etc/simp/comp /etc/simp/data /etc/simp/tsds \
-    && mkdir -p /var/lib/simp/poller
-
-COPY conf/logging.conf /etc/simp/
+# copy simp-poller groups.d and simp-comp composites.d configuration files
 COPY conf/poller/ /etc/simp/poller/
 COPY conf/comp/ /etc/simp/comp/
-COPY conf/data/ /etc/simp/data/
-COPY conf/tsds/ /etc/simp/tsds/
 
 # set up environment
 ENV PERL5LIB=/opt/grnoc/venv/simp/lib/perl5:/opt/simp/lib
 
-# set permissions for simp user (created by GRNOC packages)
-RUN chown -R simp:simp /opt/simp /etc/simp /var/lib/simp
+# set permissions for application directory
+RUN chown -R simp:simp /opt/simp
 
 USER simp
 
