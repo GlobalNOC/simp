@@ -1,0 +1,71 @@
+# Dockerfile for building SIMP RPMs
+# This is used for creating RPM packages for traditional server deployments
+#
+# Usage:
+#   docker build -f Dockerfile.rpmbuild -t simp-rpmbuild .
+#   docker run --rm -v $(pwd)/rpms:/output simp-rpmbuild
+#
+# The RPMs will be copied to ./rpms/ directory on the host
+
+FROM oraclelinux:8
+
+# set working directory
+WORKDIR /app
+
+# add globalnoc and epel repos, enable additional ol8 repos, and install all build dependencies
+RUN dnf install -y \
+    https://build.grnoc.iu.edu/repo/rhel/8/x86_64/globalnoc-release-8-1.el8.noarch.rpm \
+    oracle-epel-release-el8 \
+    && yum-config-manager --enable \
+    ol8_appstream ol8_baseos_latest ol8_codeready_builder \
+    ol8_developer_EPEL  ol8_developer_EPEL_modular \
+    && dnf install -y \
+    openssl-devel \
+    perl-App-cpanminus \
+    expat-devel \
+    rpm-build \
+    perl-List-MoreUtils \
+    perl-AnyEvent \
+    net-snmp \
+    net-snmp-devel \
+    net-snmp-libs \
+    net-snmp-utils \
+    perl-Test-Deep \
+    perl-Test-Pod \
+    perl-Net-SNMP \
+    perl-Net-SNMP-XS \
+    perl-IO-AIO \
+    gcc \
+    make \
+    perl-devel \
+    && dnf clean all \
+    && cpanm --notest Carton
+
+# copy only dependency files first for better layer caching
+COPY cpanfile cpanfile.snapshot ./
+
+# install Perl dependencies
+RUN carton install --deployment --path=venv
+
+# copy the rest of the application
+COPY . /app
+
+# build RPMs
+RUN make rpm
+
+# create script to copy RPMs to output directory
+RUN echo '#!/bin/bash' > /entrypoint.sh \
+    && echo 'if [ -d "/output" ]; then' >> /entrypoint.sh \
+    && echo '  echo "Copying RPMs to /output..."' >> /entrypoint.sh \
+    && echo '  cp -v /root/rpmbuild/RPMS/noarch/*.rpm /output/' >> /entrypoint.sh \
+    && echo '  echo "RPMs successfully copied!"' >> /entrypoint.sh \
+    && echo '  ls -lh /output/' >> /entrypoint.sh \
+    && echo 'else' >> /entrypoint.sh \
+    && echo '  echo "RPMs built successfully. Available at:"' >> /entrypoint.sh \
+    && echo '  ls -lh /root/rpmbuild/RPMS/noarch/' >> /entrypoint.sh \
+    && echo '  echo ""' >> /entrypoint.sh \
+    && echo '  echo "To copy RPMs out, run with: -v \$(pwd)/rpms:/output"' >> /entrypoint.sh \
+    && echo 'fi' >> /entrypoint.sh \
+    && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

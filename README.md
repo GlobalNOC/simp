@@ -6,6 +6,40 @@ The pacakge contains both a collector and a data service interface.
 A multi-process collector gathers SNMP data from a set of hosts and puts that data into a redis database.
 A set of data services then provides access to this data via RabbitMQ.
 
+## Docker Deployment
+
+SIMP supports containerized deployments. See **[DOCKER_USAGE.md](DOCKER_USAGE.md)** for complete documentation.
+
+### Quick Start with Docker
+
+```bash
+# Build container image
+docker build -t simp:latest .
+
+# Run simp-poller
+docker run -d \
+  --name simp-poller \
+  -v $(pwd)/config:/etc/simp \
+  simp:latest /opt/simp/bin/simp-poller.pl
+```
+
+### Building RPMs
+
+To build RPM packages for traditional server deployments:
+
+```bash
+# Build the RPM builder
+docker build -f Dockerfile.rpmbuild -t simp-rpmbuild .
+
+# Generate RPMs
+mkdir -p rpms
+docker run --rm -v $(pwd)/rpms:/output simp-rpmbuild
+```
+
+See **[DOCKER_USAGE.md](DOCKER_USAGE.md)** for detailed container usage, Docker Compose examples, and RPM building instructions.
+
+---
+
 ## Running The Collector
 
 You will need a redis and rabbit server, accesible to the SIMP daemons.

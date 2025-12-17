@@ -1,9 +1,11 @@
-FROM oraclelinux:8 AS rpmbuild
+# Optimized single-stage build for containerized deployments
+# For RPM building, use Dockerfile.rpmbuild instead
+FROM oraclelinux:8
 
 # set working directory
-WORKDIR /app
+WORKDIR /opt/simp
 
-# add globalnoc and epel repos, enable additional ol8 repos, and install all build dependencies in one layer
+# add globalnoc and epel repos, enable additional ol8 repos, and install all dependencies in one layer
 RUN dnf install -y \
     https://build.grnoc.iu.edu/repo/rhel/8/x86_64/globalnoc-release-8-1.el8.noarch.rpm \
     oracle-epel-release-el8 \
@@ -11,69 +13,57 @@ RUN dnf install -y \
     ol8_appstream ol8_baseos_latest ol8_codeready_builder \
     ol8_developer_EPEL  ol8_developer_EPEL_modular \
     && dnf install -y \
-    openssl-devel \
-    perl-App-cpanminus \
-    expat-devel \
-    rpm-build \
-    perl-List-MoreUtils \
-    perl-AnyEvent \
     net-snmp \
     net-snmp-devel \
     net-snmp-libs \
     net-snmp-utils \
-    perl-Test-Deep \
-    perl-Test-Pod \
-    perl-Net-SNMP \
-    perl-Net-SNMP-XS \
     perl-IO-AIO \
+    perl-Net-SNMP-XS \
+    perl-GRNOC-Log \
+    perl-GRNOC-Config \
+    perl-GRNOC-RabbitMQ \
+    perl-GRNOC-WebService-Client \
+    perl-GRNOC-Monitoring-Service-Status \
+    perl-App-cpanminus \
+    redis \
     gcc \
     make \
     perl-devel \
     && dnf clean all \
-    && cpanm Carton
+    && cpanm --notest Carton
 
 # copy only dependency files first for better layer caching
 COPY cpanfile cpanfile.snapshot ./
 
 # install Perl dependencies
-RUN carton install --deployment --path=venv
+RUN carton install --deployment --path=/opt/grnoc/venv/simp
 
-# copy the rest of the application
-COPY . /app
+# copy application code
+COPY bin/ ./bin/
+COPY lib/ ./lib/
 
-# build rpm
-RUN make rpm
+# copy and set up configuration directories
+RUN mkdir -p /etc/simp/poller /etc/simp/comp /etc/simp/data /etc/simp/tsds \
+    && mkdir -p /var/lib/simp/poller
 
+COPY conf/logging.conf /etc/simp/
+COPY conf/poller/ /etc/simp/poller/
+COPY conf/comp/ /etc/simp/comp/
+COPY conf/data/ /etc/simp/data/
+COPY conf/tsds/ /etc/simp/tsds/
 
-FROM oraclelinux:8
+# set up environment
+ENV PERL5LIB=/opt/grnoc/venv/simp/lib/perl5:/opt/simp/lib
 
-# add globalnoc and epel repos, enable additional ol8 repos, and install all runtime dependencies
-RUN dnf install -y \
-    https://build.grnoc.iu.edu/repo/rhel/8/x86_64/globalnoc-release-8-1.el8.noarch.rpm \
-    oracle-epel-release-el8 \
-    && yum-config-manager --enable \
-    ol8_appstream ol8_baseos_latest ol8_codeready_builder \
-    ol8_developer_EPEL  ol8_developer_EPEL_modular \
-    && dnf install -y \
-    net-snmp \
-    net-snmp-devel \
-    net-snmp-libs \
-    net-snmp-utils \
-    perl-IO-AIO \
-    perl-Net-SNMP-XS \
-    && dnf clean all
+# create simp user and set permissions
+RUN groupadd -r simp \
+    && useradd -r -s /bin/nologin -g simp simp \
+    && chown -R simp:simp /opt/simp /etc/simp /var/lib/simp
 
-# copy RPMs from build stage
-COPY --from=rpmbuild /root/rpmbuild/RPMS/noarch/simp-*.rpm /root/
+USER simp
 
-# install simp RPMs
-RUN dnf install -y /root/*.rpm && rm -rf /root/*.rpm
-
-# copy configuration
-RUN rm -rf /etc/simp/comp/composites.d
-COPY composites.d /etc/simp/comp/composites.d
-RUN rm -rf /etc/simp/poller/groups.dev
-COPY groups.d /etc/simp/poller/groups.d
-
-# set entrypoint
-ENTRYPOINT ["/bin/echo", "'Welcome to SIMP!'"]
+# default entrypoint - can be overridden to run different services
+# Examples:
+#   docker run simp /opt/simp/bin/simp-poller.pl
+ENTRYPOINT ["/bin/bash"]
+CMD ["-c", "echo 'Welcome to SIMP! Available commands: simp-test.pl, simp-poller.pl, simp-comp.pl, simp-data.pl, simp-tsds.pl'"]
