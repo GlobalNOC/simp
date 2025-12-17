@@ -421,9 +421,14 @@ sub _process_host_configs {
                             # Create another copy of the host config hash
                             my $host_context_copy = {%{$host_copy}};            
 
-                            # Add the context ID
+                            # Add the context ID and status hash
                             $host_context_copy->{context} = $context;           
- 
+                            $host_context_copy->{status} = {
+                                snmp_errors     => [],
+                                failed_oids     => [],
+                                pending_replies => {},
+                            }; 
+
                             # Push the host config
                             push(@{$hosts{$group_name}}, $host_context_copy);            
                         }
