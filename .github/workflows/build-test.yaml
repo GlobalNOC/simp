@@ -1,0 +1,50 @@
+name: Build and Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'manual build for development'
+        required: true
+        default: 'manual'
+  push:
+    branches:
+      - 'master'
+  pull_request:
+    branches:
+      - 'master'
+      - '*dev'
+
+jobs:
+  build-container:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.REPOSITORY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.REPOSITORY }}/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push the container
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
