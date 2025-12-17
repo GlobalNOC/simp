@@ -69,10 +69,12 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} lib/GRNOC/Simp/Comp/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Comp/Worker.pm
 %{__install} bin/simp-comp.pl %{buildroot}/usr/bin/simp-comp.pl
 %{__install} conf/comp/config.xml %{buildroot}/etc/simp/comp/config.xml
-%{__install} conf/comp/composite.xml.example %{buildroot}/etc/simp/comp/composites.d/composite.xml.example
 %{__install} conf/logging.conf %{buildroot}/etc/simp/comp/logging.conf
-%{__install} conf/comp/config.xsd %{buildroot}/etc/simp/comp/validation.d/config.xsd
-%{__install} conf/comp/composite.xsd %{buildroot}/etc/simp/comp/validation.d/composite.xsd
+%{__install} conf/comp/validation.d/config.xsd %{buildroot}/etc/simp/comp/validation.d/config.xsd
+%{__install} conf/comp/validation.d/composite.xsd %{buildroot}/etc/simp/comp/validation.d/composite.xsd
+
+# Install all composites.d files
+cp -r conf/comp/composites.d/* %{buildroot}/etc/simp/comp/composites.d/
 
 %{__install} scripts/simp-test.pl %{buildroot}/usr/bin/simp-test.pl
 

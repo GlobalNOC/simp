@@ -47,30 +47,26 @@ dist: clean venv
 	cp -r bin/simp-test.pl dist/simp-comp-$(VERSION)/scripts
 
 	cp -r conf/poller/config.xml dist/simp-poller-$(VERSION)/conf/poller/
-	cp -r conf/poller/config.xsd dist/simp-poller-$(VERSION)/conf/poller/
+	cp -r conf/poller/validation.d dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/simp-poller.systemd dist/simp-poller-$(VERSION)/conf/poller/
 	cp -r conf/poller/simp-poller.service dist/simp-poller-$(VERSION)/conf/poller/
-	cp -r conf/poller/hosts.xml.example dist/simp-poller-$(VERSION)/conf/poller/
-	cp -r conf/poller/hosts.xsd dist/simp-poller-$(VERSION)/conf/poller/
-	cp -r conf/poller/group.xml.example dist/simp-poller-$(VERSION)/conf/poller/
-	cp -r conf/poller/group.xsd dist/simp-poller-$(VERSION)/conf/poller
+	mkdir -p dist/simp-poller-$(VERSION)/conf/poller/hosts.d
+	cp -r conf/poller/hosts.d/hosts.xml.example dist/simp-poller-$(VERSION)/conf/poller/hosts.d/
+	cp -r conf/poller/groups.d dist/simp-poller-$(VERSION)/conf/poller/
 
 	cp -r conf/data/config.xml dist/simp-data-$(VERSION)/conf/data/
-	cp -r conf/data/config.xsd dist/simp-data-$(VERSION)/conf/data/
+	cp -r conf/data/validation.d dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/data/simp-data.systemd dist/simp-data-$(VERSION)/conf/data/
 	cp -r conf/data/simp-data.service dist/simp-data-$(VERSION)/conf/data/
 
 	cp -r conf/comp/config.xml dist/simp-comp-$(VERSION)/conf/comp/
-	cp -r conf/comp/config.xsd dist/simp-comp-$(VERSION)/conf/comp/
-	cp -r conf/comp/composite.xml.example dist/simp-comp-$(VERSION)/conf/comp/
-	cp -r conf/comp/composite.xsd dist/simp-comp-$(VERSION)/conf/comp/
+	cp -r conf/comp/validation.d dist/simp-comp-$(VERSION)/conf/comp/
+	cp -r conf/comp/composites.d dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.systemd dist/simp-comp-$(VERSION)/conf/comp/
 	cp -r conf/comp/simp-comp.service dist/simp-comp-$(VERSION)/conf/comp/
 
-	cp -r conf/tsds/config.xml dist/simp-tsds-$(VERSION)/conf/tsds/
-	cp -r conf/tsds/config.xsd dist/simp-tsds-$(VERSION)/conf/tsds/
-	cp -r conf/tsds/collection.xml.example dist/simp-tsds-$(VERSION)/conf/tsds/
-	cp -r conf/tsds/collection.xsd dist/simp-tsds-$(VERSION)/conf/tsds/
+	cp -r conf/tsds/validation.d dist/simp-tsds-$(VERSION)/conf/tsds/
+	cp -r conf/tsds/collections.d/collection.xml.example dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/simp-tsds.systemd dist/simp-tsds-$(VERSION)/conf/tsds/
 	cp -r conf/tsds/simp-tsds.service dist/simp-tsds-$(VERSION)/conf/tsds/
 

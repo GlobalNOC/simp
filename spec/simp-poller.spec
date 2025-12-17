@@ -71,12 +71,14 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} lib/GRNOC/Simp/Poller/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
 %{__install} bin/simp-poller.pl %{buildroot}/usr/bin/simp-poller.pl
 %{__install} conf/poller/config.xml %{buildroot}/etc/simp/poller/config.xml
-%{__install} conf/poller/config.xsd %{buildroot}/etc/simp/poller/validation.d/config.xsd
+%{__install} conf/poller/validation.d/config.xsd %{buildroot}/etc/simp/poller/validation.d/config.xsd
 %{__install} conf/logging.conf %{buildroot}/etc/simp/poller/logging.conf
-%{__install} conf/poller/hosts.xml.example %{buildroot}/etc/simp/poller/hosts.d/hosts.xml.example
-%{__install} conf/poller/group.xml.example %{buildroot}/etc/simp/poller/groups.d/group.xml.example
-%{__install} conf/poller/hosts.xsd %{buildroot}/etc/simp/poller/validation.d/hosts.xsd
-%{__install} conf/poller/group.xsd %{buildroot}/etc/simp/poller/validation.d/group.xsd
+%{__install} conf/poller/validation.d/hosts.xsd %{buildroot}/etc/simp/poller/validation.d/hosts.xsd
+%{__install} conf/poller/validation.d/group.xsd %{buildroot}/etc/simp/poller/validation.d/group.xsd
+%{__install} conf/poller/hosts.d/hosts.xml.example %{buildroot}/etc/simp/poller/hosts.d/hosts.xml.example
+
+# Install all groups.d files
+cp -r conf/poller/groups.d/* %{buildroot}/etc/simp/poller/groups.d/
 
 %if 0%{?rhel} >= 7
 %{__install} conf/poller/simp-poller.systemd %{buildroot}/etc/systemd/system/simp-poller.service
