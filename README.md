@@ -33,9 +33,9 @@ docker run -d \
   simp:latest /opt/simp/bin/simp-poller.pl
 ```
 
-### Building RPMs
+### Building RPMs within a Container
 
-To build RPM packages for traditional server deployments:
+To build RPM packages inside a Docker container for use in traditional server deployments:
 
 ```bash
 # Build the RPM builder
@@ -45,8 +45,6 @@ docker build -f Dockerfile.rpmbuild -t simp-rpmbuild .
 mkdir -p rpms
 docker run --rm -v $(pwd)/rpms:/output simp-rpmbuild
 ```
-
-See **[DOCKER_USAGE.md](DOCKER_USAGE.md)** for detailed container usage, Docker Compose examples, and RPM building instructions.
 
 ---
 
