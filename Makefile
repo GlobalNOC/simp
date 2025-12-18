@@ -91,3 +91,4 @@ dist: clean venv
 venv:
 	carton install --deployment --path=venv
 	cpanm --notest -L venv Net::SNMP::XS
+	cpanm --notest -L venv IO::AIO AnyEvent::AIO
