@@ -90,3 +90,4 @@ dist: clean venv
 	cd dist; tar -czvf simp-env-$(VERSION).tar.gz simp-env-$(VERSION)/ 
 venv:
 	carton install --deployment --path=venv
+	cpanm --notest -L venv Net::SNMP::XS

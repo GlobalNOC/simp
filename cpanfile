@@ -20,7 +20,7 @@ requires 'Moo';
 requires 'Moose';
 requires 'MooseX::Clone';
 requires 'Net::SNMP', '== v6.0.1';
-requires 'Net::SNMP::XS';
+# Net::SNMP::XS is installed separately via cpanm in Makefile (needs net-snmp-devel)
 requires 'Parallel::ForkManager', '== 1.18';
 requires 'POSIX', '>= 1.30';
 requires 'Proc::Daemon', '== 0.19';
