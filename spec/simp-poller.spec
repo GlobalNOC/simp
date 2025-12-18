@@ -24,7 +24,6 @@ Requires: perl(List::MoreUtils)
 Requires: perl(Data::Munge)
 Requires: perl-Moo
 Requires: perl-Net-SNMP
-Requires: perl-Net-SNMP-XS
 Requires: perl-Parallel-ForkManager
 Requires: perl(POSIX)
 Requires: perl-Redis-Fast >= 0.28
@@ -32,6 +31,8 @@ Requires: perl-Syntax-Keyword-Try
 Requires: perl-Type-Tiny
 Requires: perl-Crypt-Rijndael
 %endif
+# perl-Net-SNMP-XS must always be a system package (it's an XS/compiled module)
+Requires: perl-Net-SNMP-XS
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 %if 0%{?rhel} >= 8

@@ -47,7 +47,6 @@ COPY . /tmp/simp-build/
 RUN make rpm
 
 # install the RPMs
-
 RUN dnf install -y \
     /root/rpmbuild/RPMS/x86_64/simp-*.rpm \
     /root/rpmbuild/RPMS/noarch/simp-*.rpm
