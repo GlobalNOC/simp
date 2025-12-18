@@ -12,7 +12,7 @@ RUN dnf install -y \
     && yum-config-manager --enable \
     ol8_appstream ol8_baseos_latest ol8_codeready_builder \
     ol8_developer_EPEL  ol8_developer_EPEL_modular \
-    && dnf install -y \
+    && dnf install -y --exclude=simp-env \
     gcc \
     make \
     rpm-build \
