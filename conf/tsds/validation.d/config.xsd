@@ -22,10 +22,11 @@
     </xsd:complexType>
 
     <xsd:complexType name="TSDS_CONFIG">
-        <xsd:attribute name="url"      type="xsd:string" use="required" />
-        <xsd:attribute name="user"     type="xsd:string" use="required" />
-        <xsd:attribute name="password" type="xsd:string" use="required" />
-	<xsd:attribute name="realm"    type="xsd:string" />
+        <xsd:attribute name="url"       type="xsd:string" use="required" />
+        <xsd:attribute name="namespace" type="xsd:string" use="required" />
+        <xsd:attribute name="user"      type="xsd:string" use="required" />
+        <xsd:attribute name="password"  type="xsd:string" use="required" />
+	<xsd:attribute name="realm"     type="xsd:string" />
     </xsd:complexType>
 
     <xsd:complexType name="STAGGER">
