@@ -17,6 +17,8 @@ Requires: perl-GRNOC-Config
 Requires: perl-GRNOC-RabbitMQ >= 1.2.1
 Requires: perl-GRNOC-WebService-Client
 Requires: perl-GRNOC-Monitoring-Service-Status
+# perl-Net-SNMP-XS is a compiled XS module that must be a system package
+Requires: perl-Net-SNMP-XS
 
 Provides: perl-Redis-Fast = 0.28
 Provides: perl(Data::Munge)
@@ -24,8 +26,6 @@ Provides: perl-Syntax-Keyword-Try
 Provides: perl(AnyEvent::Subprocess)
 Provides: perl(MooseX::Clone)
 Provides: perl(AnyEvent::SNMP)
-# Note: perl-Net-SNMP-XS is NOT provided here as it's a compiled XS module
-# that must be installed as a system package (perl-Net-SNMP-XS)
 
 %description
 This program pulls SNMP-derived data from Simp and publishes it to TSDS.
