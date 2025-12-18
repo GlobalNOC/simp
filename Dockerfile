@@ -46,8 +46,9 @@ COPY . /tmp/simp-build/
 # build RPMs using the Makefile
 RUN make rpm
 
-# install the RPMs (--allowerasing to replace any existing simp packages from repos)
-RUN dnf install -y --allowerasing \
+# Remove any existing simp packages from repos to avoid conflicts, then install the new RPMs
+RUN dnf remove -y 'simp-*' || true \
+    && dnf install -y \
     /root/rpmbuild/RPMS/x86_64/simp-*.rpm \
     /root/rpmbuild/RPMS/noarch/simp-*.rpm
 
