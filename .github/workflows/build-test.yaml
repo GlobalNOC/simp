@@ -26,8 +26,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ vars.REPOSITORY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
 
       - name: Extract metadata (Test Tagging Strategy)
         id: meta
@@ -57,5 +57,5 @@ jobs:
           echo "Testing registry write access by checking permissions..."
           # This verifies we can authenticate and have push permissions without actually pushing an image
           docker logout ${{ vars.REPOSITORY }} || true
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ vars.REPOSITORY }} -u ${{ github.actor }} --password-stdin
+          echo "${{ secrets.DOCKER_TOKEN }}" | docker login ${{ vars.REPOSITORY }} -u ${{ vars.DOCKER_USERNAME }} --password-stdin
           echo "✓ Registry push access verified (no image pushed)"
