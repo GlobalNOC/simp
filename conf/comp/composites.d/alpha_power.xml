@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <constant name="intf_id" value="0" />
+    </variables>
+
+    <data>
+        <meta name="intf" source="intf_id" />
+        <value name="voltage" source="1.3.6.1.4.1.7309.5.3.1.6.0" />
+        <value name="battery_current" source="1.3.6.1.4.1.7309.5.3.1.13.0" />
+        <value name="battery_voltage" source="1.3.6.1.4.1.7309.5.3.1.12.0" />
+        <value name="total_available_capacity" source="1.3.6.1.4.1.7309.5.3.1.19.0" />
+        <value name="rectifier_voltage" source="1.3.6.1.4.1.7309.5.3.1.5.0" />
+        <value name="rectifier_current" source="1.3.6.1.4.1.7309.5.3.1.11.0" />
+    </data>
+
+    <conversions>
+        <function definition='${} 1000 /'>
+            <data name="voltage" />
+            <data name="battery_voltage" />
+            <data name="battery_current" />
+            <data name="rectifier_voltage" />
+            <data name="rectifier_current" />
+            <data name="total_available_capacity" />
+        </function>
+    </conversions>
+</composite>

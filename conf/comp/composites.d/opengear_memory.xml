@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<composite>
+    <variables>
+        <scan value="name" oid="1.3.6.1.4.1.2021.4.1.*">
+            <match name="memIndex"/>
+        </scan>
+    </variables>
+
+    <data>
+        <meta name="name" source="name" />
+        <value name="memory" source="1.3.6.1.4.1.2021.4.11.memIndex" />
+        <value name="memErrorName" source="1.3.6.1.4.1.2021.4.2.memIndex" />
+        <value name="memTotalSwap" source="1.3.6.1.4.1.2021.4.3.memIndex" />
+        <value name="memAvailSwap" source="1.3.6.1.4.1.2021.4.4.memIndex" />
+        <value name="memTotalReal" source="1.3.6.1.4.1.2021.4.5.memIndex" />
+        <value name="memAvailReal" source="1.3.6.1.4.1.2021.4.6.memIndex" />
+        <value name="memTotalFree" source="1.3.6.1.4.1.2021.4.11.memIndex" />
+        <value name="memMinimumSwap" source="1.3.6.1.4.1.2021.4.12.memIndex" />
+        <value name="memShared" source="1.3.6.1.4.1.2021.4.13.memIndex" />
+        <value name="memBuffer" source="1.3.6.1.4.1.2021.4.14.memIndex" />
+        <value name="memCached" source="1.3.6.1.4.1.2021.4.15.memIndex" />
+    </data>
+
+    <conversions>
+        <function definition='${memTotalReal} ${} - ${memTotalReal} / 100 *'>
+            <data name="memory" />
+        </function>
+    </conversions>
+</composite>
