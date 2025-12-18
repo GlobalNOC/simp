@@ -46,8 +46,10 @@ COPY . /tmp/simp-build/
 # build RPMs using the Makefile
 RUN make rpm
 
-# install the RPMs (use --allowerasing to replace old simp-env from globalnoc repo)
-RUN dnf install -y --allowerasing \
+# Explicitly remove old simp-env with nodeps, then install new RPMs
+# Using rpm -e --nodeps bypasses dependency resolution that's causing conflicts
+RUN rpm -e --nodeps simp-env 2>/dev/null || true \
+    && dnf install -y --setopt=install_weak_deps=False \
     /root/rpmbuild/RPMS/x86_64/simp-*.rpm \
     /root/rpmbuild/RPMS/noarch/simp-*.rpm
 

@@ -31,14 +31,12 @@ Requires: perl-Syntax-Keyword-Try
 Requires: perl-Type-Tiny
 Requires: perl-Crypt-Rijndael
 %endif
+# perl-Net-SNMP-XS is a compiled XS module that must always be a system package
+Requires: perl-Net-SNMP-XS
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 %if 0%{?rhel} >= 8
-# simp-env provides the venv dependencies and ensures perl-Net-SNMP-XS is installed
 Requires: simp-env == 2.0.0
-%else
-# For older RHEL, perl-Net-SNMP-XS must be explicitly required
-Requires: perl-Net-SNMP-XS
 %endif
 
 Provides: perl(GRNOC::Simp::Poller)
