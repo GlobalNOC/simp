@@ -20,7 +20,7 @@ requires 'Moo';
 requires 'Moose';
 requires 'MooseX::Clone';
 requires 'Net::SNMP', '== v6.0.1';
-# Net::SNMP::XS is installed as a system package (perl-Net-SNMP-XS)
+requires 'Net::SNMP::XS';
 requires 'Parallel::ForkManager', '== 1.18';
 requires 'POSIX', '>= 1.30';
 requires 'Proc::Daemon', '== 0.19';

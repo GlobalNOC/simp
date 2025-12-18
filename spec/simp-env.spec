@@ -24,9 +24,8 @@ Provides: perl-Syntax-Keyword-Try
 Provides: perl(AnyEvent::Subprocess)
 Provides: perl(MooseX::Clone)
 Provides: perl(AnyEvent::SNMP)
-# NOTE: perl-Net-SNMP-XS is NOT provided or required here.
-# It's a compiled XS module that must be installed as a system package.
-# Components that need it (like simp-poller) should require it directly.
+Provides: perl-Net-SNMP-XS
+# NOTE: perl-Net-SNMP-XS is now included in the venv (compiled during build)
 
 %description
 This program pulls SNMP-derived data from Simp and publishes it to TSDS.

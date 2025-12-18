@@ -46,10 +46,8 @@ COPY . /tmp/simp-build/
 # build RPMs using the Makefile
 RUN make rpm
 
-# Explicitly remove old simp-env with nodeps, then install new RPMs
-# Using rpm -e --nodeps bypasses dependency resolution that's causing conflicts
-RUN rpm -e --nodeps simp-env 2>/dev/null || true \
-    && dnf install -y --setopt=install_weak_deps=False \
+# install the RPMs
+RUN dnf install -y --allowerasing \
     /root/rpmbuild/RPMS/x86_64/simp-*.rpm \
     /root/rpmbuild/RPMS/noarch/simp-*.rpm
 
