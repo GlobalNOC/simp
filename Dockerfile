@@ -12,7 +12,7 @@ RUN dnf install -y \
     && yum-config-manager --enable \
     ol8_appstream ol8_baseos_latest ol8_codeready_builder \
     ol8_developer_EPEL  ol8_developer_EPEL_modular \
-    && dnf install -y --exclude=simp-env \
+    && dnf install -y \
     gcc \
     make \
     rpm-build \
@@ -46,8 +46,8 @@ COPY . /tmp/simp-build/
 # build RPMs using the Makefile
 RUN make rpm
 
-# install the RPMs
-RUN dnf install -y \
+# install the RPMs (use --allowerasing to replace old simp-env from globalnoc repo)
+RUN dnf install -y --allowerasing \
     /root/rpmbuild/RPMS/x86_64/simp-*.rpm \
     /root/rpmbuild/RPMS/noarch/simp-*.rpm
 
