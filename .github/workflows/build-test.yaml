@@ -1,35 +1,28 @@
-name: Build and Test
+name: Manual Test Build (Development)
 
 on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'manual build for development'
+        description: 'Test build for development purposes (no push)'
         required: true
-        default: 'manual'
-  push:
-    branches:
-      - 'master'
-  pull_request:
-    branches:
-      - 'master'
-      - '*dev'
+        default: 'test'
 
 jobs:
-  build-container:
+  test-build:
     runs-on: self-hosted
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Test Registry Login (Verify Push Access)
+      - name: Test 1 - Check Registry Access
         uses: docker/login-action@v3
         with:
           registry: ${{ vars.REPOSITORY }}
           username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
-      - name: Extract metadata (Test Tagging Strategy)
+      - name: Test 2 - Check Metadata Tags
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -38,7 +31,7 @@ jobs:
             type=raw,value=test-${{ github.sha }}
             type=sha,prefix=test-
 
-      - name: Container Build Test
+      - name: Test 3 - Check Container Build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -48,7 +41,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           load: true
 
-      - name: Verify Registry Access (Test Push Without Pushing)
+      - name: Test 4 - Check Registry Push Access (doesn't push)
         run: |
           echo "✓ Registry authentication successful"
           echo "✓ Would push with tags:"
