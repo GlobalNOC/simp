@@ -1,6 +1,6 @@
 Summary: A small system for gathering large amounts of SNMP data and pushing them into redis
 Name: simp-poller
-Version: 1.12.0
+Version: 2.0.0
 Release: 1%{dist}
 License: GRNOC
 Group: GRNOC
@@ -24,7 +24,6 @@ Requires: perl(List::MoreUtils)
 Requires: perl(Data::Munge)
 Requires: perl-Moo
 Requires: perl-Net-SNMP
-Requires: perl-Net-SNMP-XS
 Requires: perl-Parallel-ForkManager
 Requires: perl(POSIX)
 Requires: perl-Redis-Fast >= 0.28
@@ -35,7 +34,11 @@ Requires: perl-Crypt-Rijndael
 Requires: perl-GRNOC-Log
 Requires: perl-GRNOC-Config
 %if 0%{?rhel} >= 8
-Requires: simp-env == 1.12.0
+# simp-env provides all venv dependencies including perl-Net-SNMP-XS
+Requires: simp-env == 2.0.0
+%else
+# For older RHEL, perl-Net-SNMP-XS must be a system package
+Requires: perl-Net-SNMP-XS
 %endif
 
 Provides: perl(GRNOC::Simp::Poller)
@@ -72,12 +75,14 @@ rm -rf $RPM_BUILD_ROOT
 %{__install} lib/GRNOC/Simp/Poller/Worker.pm %{buildroot}%{perl_vendorlib}/GRNOC/Simp/Poller/Worker.pm
 %{__install} bin/simp-poller.pl %{buildroot}/usr/bin/simp-poller.pl
 %{__install} conf/poller/config.xml %{buildroot}/etc/simp/poller/config.xml
-%{__install} conf/poller/config.xsd %{buildroot}/etc/simp/poller/validation.d/config.xsd
+%{__install} conf/poller/validation.d/config.xsd %{buildroot}/etc/simp/poller/validation.d/config.xsd
 %{__install} conf/logging.conf %{buildroot}/etc/simp/poller/logging.conf
-%{__install} conf/poller/hosts.xml.example %{buildroot}/etc/simp/poller/hosts.d/hosts.xml.example
-%{__install} conf/poller/group.xml.example %{buildroot}/etc/simp/poller/groups.d/group.xml.example
-%{__install} conf/poller/hosts.xsd %{buildroot}/etc/simp/poller/validation.d/hosts.xsd
-%{__install} conf/poller/group.xsd %{buildroot}/etc/simp/poller/validation.d/group.xsd
+%{__install} conf/poller/validation.d/hosts.xsd %{buildroot}/etc/simp/poller/validation.d/hosts.xsd
+%{__install} conf/poller/validation.d/group.xsd %{buildroot}/etc/simp/poller/validation.d/group.xsd
+%{__install} conf/poller/hosts.d/hosts.xml.example %{buildroot}/etc/simp/poller/hosts.d/hosts.xml.example
+
+# Install all groups.d files
+cp -r conf/poller/groups.d/* %{buildroot}/etc/simp/poller/groups.d/
 
 
 %{__install} -d -p %{buildroot}/etc/simp/exporter/

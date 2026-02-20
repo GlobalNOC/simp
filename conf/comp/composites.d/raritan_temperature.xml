@@ -14,7 +14,11 @@
     </data>
 
     <conversions>
+<<<<<<< HEAD
         <match pattern='^10$' exclude="1" drop="node">
+=======
+        <match pattern='^10$' exclude="1" drop="ALL">
+>>>>>>> master
             <data name="type" />
         </match>
 

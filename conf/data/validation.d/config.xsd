@@ -4,35 +4,38 @@
     <!-- Main Config Element -->    
     <xsd:element name="config">
         <xsd:complexType>
-            <xsd:choice minOccurs="3" maxOccurs="3">
+            <xsd:choice minOccurs="2" maxOccurs="2">
+                <xsd:element name="redis"    type="REDIS_CONFIG"    minOccurs="1" maxOccurs="1"/>
                 <xsd:element name="rabbitmq" type="RABBITMQ_CONFIG" minOccurs="1" maxOccurs="1"/>
-                <xsd:element name="tsds"     type="TSDS_CONFIG"     minOccurs="1" maxOccurs="1"/>
-                <xsd:element name="stagger"  type="STAGGER"         minOccurs="1" maxOccurs="1"/>
             </xsd:choice>
+            <xsd:attribute name="workers" use="required">
+                <!-- Require workers with a value 1-100 -->
+                <xsd:simpleType>
+                    <xsd:restriction base="xsd:integer">
+                        <xsd:minInclusive value="1"/>
+                        <xsd:maxInclusive value="100"/>
+                    </xsd:restriction>
+                </xsd:simpleType>
+            </xsd:attribute>
         </xsd:complexType>
     </xsd:element>
 
+    <xsd:complexType name="REDIS_CONFIG">
+        <xsd:attribute name="ip"        type="xsd:string"     use="optional" />
+        <xsd:attribute name="port"      type="xsd:integer" use="optional" />
+        <xsd:attribute name="reconnect" type="xsd:integer" use="required" />
+        <xsd:attribute name="reconnect_every" type="xsd:integer" use="required" />
+        <xsd:attribute name="read_timeout"    type="xsd:integer" use="required" />
+        <xsd:attribute name="write_timeout"   type="xsd:integer" use="required" />
+        <xsd:attribute name="use_unix_socket"   type="xsd:integer" use="optional" />
+        <xsd:attribute name="unix_socket"   type="xsd:string" use="optional" />
+    </xsd:complexType>
 
-    <!-- Required Child Elements -->
     <xsd:complexType name="RABBITMQ_CONFIG">
-        <xsd:attribute name="ip"       type="xsd:string"  use="required" />
+        <xsd:attribute name="ip"       type="xsd:string"     use="required" />
         <xsd:attribute name="port"     type="xsd:integer" use="required" />
         <xsd:attribute name="user"     type="xsd:string"  use="required" />
         <xsd:attribute name="password" type="xsd:string"  use="required" />
-    </xsd:complexType>
-
-    <xsd:complexType name="TSDS_CONFIG">
-        <xsd:attribute name="url"      type="xsd:string" use="required" />
-        <xsd:attribute name="namespace"     type="xsd:string" use="required" />
-        <xsd:attribute name="user"     type="xsd:string" use="required" />
-        <xsd:attribute name="password" type="xsd:string" use="required" />
-	<xsd:attribute name="realm"    type="xsd:string" />
-    </xsd:complexType>
-
-    
-
-    <xsd:complexType name="STAGGER">
-        <xsd:attribute name="seconds" type="xsd:integer" use="required" />
     </xsd:complexType>
 
     <!-- IPv4/IPv6 address validator -->

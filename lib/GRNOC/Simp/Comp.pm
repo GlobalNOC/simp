@@ -18,7 +18,7 @@ use GRNOC::Log;
 use GRNOC::Simp::Comp::Worker;
 use GRNOC::Simp::Exporter;
 
-our $VERSION = '1.12.0';
+our $VERSION = '2.0.0';
 
 ### REQUIRED ATTRIBUTES ###
 

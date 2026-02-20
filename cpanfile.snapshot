@@ -284,10 +284,10 @@ DISTRIBUTIONS
       ExtUtils::MakeMaker 0
       Sub::Exporter::Progressive 0.001011
       perl 5.006
-  Devel-OverloadInfo-0.007
-    pathname: I/IL/ILMARI/Devel-OverloadInfo-0.007.tar.gz
+  Devel-OverloadInfo-0.008
+    pathname: I/IL/ILMARI/Devel-OverloadInfo-0.008.tar.gz
     provides:
-      Devel::OverloadInfo 0.007
+      Devel::OverloadInfo 0.008
     requirements:
       B 0
       Exporter 5.57
@@ -326,10 +326,10 @@ DISTRIBUTIONS
       base 0
       strict 0
       warnings 0
-  EV-4.34
-    pathname: M/ML/MLEHMANN/EV-4.34.tar.gz
+  EV-4.36
+    pathname: M/ML/MLEHMANN/EV-4.36.tar.gz
     provides:
-      EV 4.34
+      EV 4.36
       EV::MakeMaker undef
     requirements:
       Canary::Stability 0
@@ -358,11 +358,11 @@ DISTRIBUTIONS
       Test::Exception 0
       Test::More 0
       ok 0
-  Exporter-Tiny-1.006002
-    pathname: T/TO/TOBYINK/Exporter-Tiny-1.006002.tar.gz
+  Exporter-Tiny-1.006003
+    pathname: T/TO/TOBYINK/Exporter-Tiny-1.006003.tar.gz
     provides:
-      Exporter::Shiny 1.006002
-      Exporter::Tiny 1.006002
+      Exporter::Shiny 1.006003
+      Exporter::Tiny 1.006003
     requirements:
       ExtUtils::MakeMaker 6.17
       perl 5.006001
@@ -403,10 +403,10 @@ DISTRIBUTIONS
       Text::ParseWords 3.24
       strict 0
       warnings 0
-  ExtUtils-InstallPaths-0.014
-    pathname: L/LE/LEONT/ExtUtils-InstallPaths-0.014.tar.gz
+  ExtUtils-InstallPaths-0.015
+    pathname: L/LE/LEONT/ExtUtils-InstallPaths-0.015.tar.gz
     provides:
-      ExtUtils::InstallPaths 0.014
+      ExtUtils::InstallPaths 0.015
     requirements:
       Carp 0
       ExtUtils::Config 0.009
@@ -497,10 +497,10 @@ DISTRIBUTIONS
     requirements:
       ExtUtils::MakeMaker 0
       Test::More 0
-  JSON-XS-4.03
-    pathname: M/ML/MLEHMANN/JSON-XS-4.03.tar.gz
+  JSON-XS-4.04
+    pathname: M/ML/MLEHMANN/JSON-XS-4.04.tar.gz
     provides:
-      JSON::XS 4.03
+      JSON::XS 4.04
     requirements:
       Canary::Stability 0
       ExtUtils::MakeMaker 6.52
@@ -1496,14 +1496,14 @@ DISTRIBUTIONS
       Sub::Identify 0.03
       Test::Simple 0.61
       perl v5.6.2
-  Scalar-List-Utils-1.69
-    pathname: P/PE/PEVANS/Scalar-List-Utils-1.69.tar.gz
+  Scalar-List-Utils-1.70
+    pathname: P/PE/PEVANS/Scalar-List-Utils-1.70.tar.gz
     provides:
-      List::Util 1.69
-      List::Util::XS 1.69
-      Scalar::List::Utils 1.69
-      Scalar::Util 1.69
-      Sub::Util 1.69
+      List::Util 1.70
+      List::Util::XS 1.70
+      Scalar::List::Utils 1.70
+      Scalar::Util 1.70
+      Sub::Util 1.70
     requirements:
       ExtUtils::MakeMaker 0
       perl 5.006
@@ -1558,11 +1558,11 @@ DISTRIBUTIONS
       perl 5.008000
       strict 0
       warnings 0
-  Sub-Quote-2.006008
-    pathname: H/HA/HAARG/Sub-Quote-2.006008.tar.gz
+  Sub-Quote-2.006009
+    pathname: H/HA/HAARG/Sub-Quote-2.006009.tar.gz
     provides:
-      Sub::Defer 2.006008
-      Sub::Quote 2.006008
+      Sub::Defer 2.006009
+      Sub::Quote 2.006009
     requirements:
       ExtUtils::MakeMaker 0
       Scalar::Util 0
@@ -1578,11 +1578,11 @@ DISTRIBUTIONS
       perl 5.006
       strict 0
       warnings 0
-  Syntax-Keyword-Try-0.30
-    pathname: P/PE/PEVANS/Syntax-Keyword-Try-0.30.tar.gz
+  Syntax-Keyword-Try-0.31
+    pathname: P/PE/PEVANS/Syntax-Keyword-Try-0.31.tar.gz
     provides:
-      Syntax::Keyword::Try 0.30
-      Syntax::Keyword::Try::Deparse 0.30
+      Syntax::Keyword::Try 0.31
+      Syntax::Keyword::Try::Deparse 0.31
     requirements:
       ExtUtils::CBuilder 0
       Module::Build 0.4004
@@ -1831,13 +1831,13 @@ DISTRIBUTIONS
       base 0
       lib 0
       perl 5.008
-  XS-Parse-Keyword-0.48
-    pathname: P/PE/PEVANS/XS-Parse-Keyword-0.48.tar.gz
+  XS-Parse-Keyword-0.49
+    pathname: P/PE/PEVANS/XS-Parse-Keyword-0.49.tar.gz
     provides:
-      XS::Parse::Infix 0.48
-      XS::Parse::Infix::Builder 0.48
-      XS::Parse::Keyword 0.48
-      XS::Parse::Keyword::Builder 0.48
+      XS::Parse::Infix 0.49
+      XS::Parse::Infix::Builder 0.49
+      XS::Parse::Keyword 0.49
+      XS::Parse::Keyword::Builder 0.49
     requirements:
       ExtUtils::CBuilder 0
       ExtUtils::CChecker 0.11
